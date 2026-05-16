@@ -144,6 +144,23 @@ Then Dionysus 必须检查 `docs/PLAN.md`、`docs/specs/`、`features_test/`
 And 将检查结果写入 `gate_checks`  
 And 如果缺少任一门禁，则返回 `blocked`
 
+## 场景 7.0：Codex CLI 覆盖完整 Goal 生命周期
+
+Given Dionysus API 已启动  
+When Codex 需要推进一个 goal 的 intake、bootstrap、gate-check、remediation、remediation-patch、master-step、release-ready 或 integration list  
+Then `pnpm dionysus` 必须提供对应命令  
+And 命令必须映射到已有 API 端点  
+And Codex 不需要手写 `curl` 或临时脚本才能操作 Dionysus
+
+## 场景 7.0.1：Codex CLI 提供单步推进循环
+
+Given Dionysus API 已启动  
+When Codex 运行 `pnpm dionysus goal run-cycle --goal-id <id>`  
+Then CLI 必须执行 preflight、master-step、detect-milestones  
+And 返回 blocker、nextOwner、nextActions  
+And 如果传入 `--target-url`，必须创建或复用 E2E campaign  
+And 如果未显式传入 `--run-e2e`，不得自动提交 E2E 结果或 milestone verdict
+
 ## 场景 7.1：Target Preflight 必须阻止脏工作区试运行
 
 Given 一个指向目标项目的 goal  

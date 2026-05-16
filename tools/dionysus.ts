@@ -1,3 +1,7 @@
+import { resolveApiCommand } from "./dionysus-command.js";
+import { summarizeRunCycle } from "./dionysus-cycle.js";
+import { compactDoctorResult } from "./dionysus-doctor.js";
+
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
 
 interface E2ECampaignRecord {
@@ -27,7 +31,7 @@ async function main(): Promise<void> {
   if (domain === "system" && action === "doctor") {
     const goalId = readFlag(args, "--goal-id");
     const health = await request("/health");
-    const cliProbe = await request("/api/cli/probe", "POST");
+    const cliProbe = await request("/api/cli/probe", "POST") as Array<Record<string, unknown>>;
     const goalStatus = goalId
       ? await request(`/api/tasks?goalId=${goalId}`).then(async (tasks) => ({
         tasks,
@@ -36,13 +40,14 @@ async function main(): Promise<void> {
         milestones: await request(`/api/milestones?goalId=${goalId}`)
       }))
       : undefined;
-    return print({
+    const result = {
       ok: true,
       apiBase,
       health,
       cliProbe,
       goalStatus
-    });
+    };
+    return print(hasFlag(args, "--brief") ? compactDoctorResult(result) : result);
   }
 
   if (domain === "goal" && action === "status") {
@@ -67,6 +72,17 @@ async function main(): Promise<void> {
 
   if (domain === "goal" && action === "detect-milestones") {
     return print(await request(`/api/goals/${requiredFlag(args, "--goal-id")}/detect-milestones`, "POST"));
+  }
+
+  if (domain === "goal" && action === "run-cycle") {
+    return print(await runGoalCycle({
+      goalId: requiredFlag(args, "--goal-id"),
+      targetUrl: readFlag(args, "--target-url"),
+      runE2E: hasFlag(args, "--run-e2e"),
+      e2eMode: (readFlag(args, "--mode") ?? "strict") as "strict" | "render-only",
+      acceptance: readRepeatedFlag(args, "--acceptance"),
+      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e"
+    }));
   }
 
   if (domain === "task" && action === "create") {
@@ -128,6 +144,11 @@ async function main(): Promise<void> {
 
   if (domain === "notification" && action === "deliver") {
     return print(await request(`/api/notifications/${requiredFlag(args, "--notification-id")}/deliver`, "POST"));
+  }
+
+  const apiCommand = resolveApiCommand([domain, action, ...args].filter((value): value is string => Boolean(value)));
+  if (apiCommand) {
+    return print(await request(apiCommand.path, apiCommand.method));
   }
 
   usage();
@@ -192,6 +213,79 @@ async function runE2ECampaign(input: {
     screenshotDir: resolve(input.screenshotDir),
     results
   };
+}
+
+async function runGoalCycle(input: {
+  goalId: string;
+  targetUrl?: string;
+  runE2E: boolean;
+  e2eMode: "strict" | "render-only";
+  acceptance: string[];
+  screenshotDir: string;
+}): Promise<Record<string, unknown>> {
+  const preflight = await request(`/api/goals/${input.goalId}/preflight`, "POST") as Record<string, unknown>;
+  const masterStep = await request(`/api/goals/${input.goalId}/master-step`, "POST") as Record<string, unknown>;
+  const milestoneDetection = await request(`/api/goals/${input.goalId}/detect-milestones`, "POST") as Record<string, unknown>;
+  let milestones = await request(`/api/milestones?goalId=${input.goalId}`) as Array<Record<string, unknown>>;
+  const campaigns: Array<Record<string, unknown>> = [];
+  const e2eRuns: Array<Record<string, unknown>> = [];
+
+  if (input.targetUrl) {
+    for (const milestone of milestones) {
+      const milestoneId = String(milestone.id);
+      const status = String(milestone.status);
+      if (status === "candidate") {
+        await request(`/api/milestones/${milestoneId}/request-e2e`, "POST");
+      }
+      if (["candidate", "e2e_required", "e2e_running"].includes(status)) {
+        const existing = await request(`/api/e2e/campaigns?milestoneId=${milestoneId}`) as Array<Record<string, unknown>>;
+        const campaign = existing[0] ?? await request(`/api/milestones/${milestoneId}/e2e-campaigns`, "POST", {
+          targetUrl: input.targetUrl,
+          acceptance: input.acceptance.length ? input.acceptance : ["里程碑主路径通过"]
+        }) as Record<string, unknown>;
+        campaigns.push(campaign);
+      }
+    }
+  }
+
+  if (input.runE2E) {
+    for (const campaign of campaigns) {
+      e2eRuns.push(await runE2ECampaign({
+        campaignId: String(campaign.id),
+        mode: input.e2eMode,
+        screenshotDir: input.screenshotDir
+      }));
+    }
+  }
+
+  milestones = await request(`/api/milestones?goalId=${input.goalId}`) as Array<Record<string, unknown>>;
+  const updatedCampaigns = input.targetUrl
+    ? await collectCampaignsForMilestones(milestones)
+    : campaigns;
+  return {
+    goalId: input.goalId,
+    preflight,
+    masterStep,
+    milestoneDetection,
+    milestones,
+    campaigns: updatedCampaigns,
+    e2eRuns,
+    summary: summarizeRunCycle({
+      preflight,
+      masterStep,
+      milestoneDetection,
+      milestones,
+      campaigns: updatedCampaigns
+    })
+  };
+}
+
+async function collectCampaignsForMilestones(milestones: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
+  const campaigns: Array<Record<string, unknown>> = [];
+  for (const milestone of milestones) {
+    campaigns.push(...await request(`/api/e2e/campaigns?milestoneId=${String(milestone.id)}`) as Array<Record<string, unknown>>);
+  }
+  return campaigns;
 }
 
 async function runE2ECase(input: {
@@ -295,6 +389,10 @@ function readRepeatedFlag(args: string[], name: string): string[] {
   return values;
 }
 
+function hasFlag(args: string[], name: string): boolean {
+  return args.includes(name);
+}
+
 function optionalNumberFlag(args: string[], name: string): number | undefined {
   const value = readFlag(args, name);
   return value ? Number(value) : undefined;
@@ -314,10 +412,19 @@ function usage(): void {
   console.log(`Usage:
   pnpm goal:create -- --title "..." --description "..." --target-root "/path/to/project"
   tsx tools/dionysus.ts system doctor
+  tsx tools/dionysus.ts system doctor --brief
   tsx tools/dionysus.ts goal status --goal-id "..."
+  tsx tools/dionysus.ts goal intake --goal-id "..."
+  tsx tools/dionysus.ts goal bootstrap --goal-id "..."
   tsx tools/dionysus.ts goal preflight --goal-id "..."
+  tsx tools/dionysus.ts goal gate-check --goal-id "..."
+  tsx tools/dionysus.ts goal remediation --goal-id "..."
+  tsx tools/dionysus.ts goal remediation-patch --goal-id "..."
   tsx tools/dionysus.ts goal master-step --goal-id "..."
+  tsx tools/dionysus.ts goal release-ready --goal-id "..."
   tsx tools/dionysus.ts goal detect-milestones --goal-id "..."
+  tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict
+  tsx tools/dionysus.ts integration list --goal-id "..."
   tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker
   tsx tools/dionysus.ts milestone request-e2e --milestone-id "..."
   tsx tools/dionysus.ts milestone create-campaign --milestone-id "..." --target-url "..." --acceptance "..."

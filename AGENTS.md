@@ -39,10 +39,19 @@ Codex 日常操作 Dionysus 优先使用统一 CLI，避免手写 `curl`：
 
 ```bash
 pnpm dionysus system doctor
+pnpm dionysus system doctor --brief
 pnpm dionysus goal status --goal-id "<goal-id>"
+pnpm dionysus goal intake --goal-id "<goal-id>"
+pnpm dionysus goal bootstrap --goal-id "<goal-id>"
 pnpm dionysus goal preflight --goal-id "<goal-id>"
+pnpm dionysus goal gate-check --goal-id "<goal-id>"
+pnpm dionysus goal remediation --goal-id "<goal-id>"
+pnpm dionysus goal remediation-patch --goal-id "<goal-id>"
 pnpm dionysus goal master-step --goal-id "<goal-id>"
+pnpm dionysus goal release-ready --goal-id "<goal-id>"
 pnpm dionysus goal detect-milestones --goal-id "<goal-id>"
+pnpm dionysus goal run-cycle --goal-id "<goal-id>" --target-url "http://localhost:23101" --run-e2e --mode strict
+pnpm dionysus integration list --goal-id "<goal-id>"
 pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
 pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"
 pnpm dionysus e2e cases --campaign-id "<campaign-id>"
