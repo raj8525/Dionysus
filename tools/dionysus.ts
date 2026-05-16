@@ -1,6 +1,9 @@
 import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
+import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
+import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
+import type { AgentRole, CliType } from "@dionysus/core";
 
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
 
@@ -48,6 +51,52 @@ async function main(): Promise<void> {
       goalStatus
     };
     return print(hasFlag(args, "--brief") ? compactDoctorResult(result) : result);
+  }
+
+  if (domain === "agent" && action === "probe") {
+    return print(await request("/api/cli/probe", "POST"));
+  }
+
+  if (domain === "agent" && action === "validate-model") {
+    return print(await request("/api/cli/validate-model", "POST", {
+      cliType: readCliTypeFlag(args, "--cli"),
+      model: readFlag(args, "--model") ?? null
+    }));
+  }
+
+  if (domain === "agent" && action === "config" && args[0] === "set") {
+    const cliType = readCliTypeFlag(args, "--cli");
+    const cliModel = readFlag(args, "--model");
+    const validation = cliType === "mock"
+      ? undefined
+      : await request("/api/cli/validate-model", "POST", { cliType, model: cliModel ?? null }) as Parameters<typeof buildAgentConfigSavePlan>[0]["validation"];
+    const config = buildAgentConfigSavePlan({
+      role: readAgentRoleFlag(args, "--role"),
+      cliType,
+      cliModel,
+      enabled: readBooleanFlag(args, "--enabled", true),
+      validation
+    });
+    const saved = await request("/api/agent-cli-configs", "PUT", config);
+    return print({ validation, saved });
+  }
+
+  if (domain === "agent" && action === "status") {
+    const goalId = readFlag(args, "--goal-id");
+    const [health, configs, tasks, runs] = await Promise.all([
+      request("/health") as Promise<Record<string, unknown>>,
+      request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
+      goalId ? request(`/api/tasks?goalId=${goalId}`) as Promise<Array<Record<string, unknown>>> : Promise.resolve([]),
+      goalId ? request(`/api/runs?goalId=${goalId}&limit=20`) as Promise<Array<Record<string, unknown>>> : Promise.resolve([])
+    ]);
+    return print({
+      goalId,
+      summary: summarizeAgentControlStatus({ health, configs, tasks, runs }),
+      health,
+      configs,
+      tasks,
+      runs
+    });
   }
 
   if (domain === "goal" && action === "status") {
@@ -408,11 +457,40 @@ function parseJsonFlag(args: string[], name: string): Record<string, unknown> | 
   return parsed as Record<string, unknown>;
 }
 
+function readAgentRoleFlag(args: string[], name: string): AgentRole {
+  const value = requiredFlag(args, name);
+  if (value === "master" || value === "rule_writer" || value === "test_writer" || value === "worker") {
+    return value;
+  }
+  throw new Error(`${name} must be one of master, rule_writer, test_writer, worker`);
+}
+
+function readCliTypeFlag(args: string[], name: string): CliType {
+  const value = requiredFlag(args, name);
+  if (value === "mock" || value === "claude_code" || value === "gemini_cli" || value === "opencode") {
+    return value;
+  }
+  throw new Error(`${name} must be one of mock, claude_code, gemini_cli, opencode`);
+}
+
+function readBooleanFlag(args: string[], name: string, fallback: boolean): boolean {
+  const value = readFlag(args, name);
+  if (value === undefined) return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${name} must be true or false`);
+}
+
 function usage(): void {
   console.log(`Usage:
   pnpm goal:create -- --title "..." --description "..." --target-root "/path/to/project"
   tsx tools/dionysus.ts system doctor
   tsx tools/dionysus.ts system doctor --brief
+  tsx tools/dionysus.ts agent probe
+  tsx tools/dionysus.ts agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
+  tsx tools/dionysus.ts agent config list
+  tsx tools/dionysus.ts agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
+  tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts goal status --goal-id "..."
   tsx tools/dionysus.ts goal intake --goal-id "..."
   tsx tools/dionysus.ts goal bootstrap --goal-id "..."

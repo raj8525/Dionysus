@@ -124,6 +124,8 @@ POST /api/notifications/:id/deliver
 POST /api/cli/probe
 GET /api/cli/models
 POST /api/cli/validate-model
+GET /api/agent-cli-configs
+PUT /api/agent-cli-configs
 ```
 
 `validate-model` 请求：
@@ -148,6 +150,20 @@ POST /api/cli/validate-model
 ```
 
 OpenCode 模型验证必须先解析 `DIONYSUS_OPENCODE_MODEL_ALIASES`，再与 `opencode models` 的实时输出比对。模型不可用时必须返回 `available: false`、`reason` 和可选 `suggestions`，不得等到 Agent Runtime 执行任务时才失败。
+
+Codex 必须能通过 CLI 配置 Agent，不依赖前端：
+
+```text
+pnpm dionysus agent probe
+pnpm dionysus agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
+pnpm dionysus agent config list
+pnpm dionysus agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
+pnpm dionysus agent status --goal-id "<goal-id>"
+```
+
+`agent config set` 必须先调用模型验证；验证通过后保存 resolved model，验证失败时不得写入 `agent_cli_configs`。
+
+`agent status` 必须聚合 `/health`、`/api/agent-cli-configs`、`/api/tasks` 和 `/api/runs`，返回 Runtime 是否可推进、已配置/禁用 Agent 数、queued/running/blocked 任务数和下一步动作建议。
 
 ## Gatekeeper
 

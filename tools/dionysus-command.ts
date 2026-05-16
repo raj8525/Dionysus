@@ -30,6 +30,13 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "agent" && action === "config" && args[2] === "list") {
+    return {
+      path: "/api/agent-cli-configs",
+      method: "GET"
+    };
+  }
+
   return undefined;
 }
 

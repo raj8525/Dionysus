@@ -38,4 +38,11 @@ describe("dionysus CLI API command resolver", () => {
       method: "GET"
     });
   });
+
+  it("maps agent config list to the agent config API", () => {
+    expect(resolveApiCommand(["agent", "config", "list"])).toEqual({
+      path: "/api/agent-cli-configs",
+      method: "GET"
+    });
+  });
 });
