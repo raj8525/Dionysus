@@ -171,6 +171,7 @@ Then Codex 必须调用 `pnpm dionysus release record`
 And PostgreSQL 必须保存 goal_id、target_root、branch、commit_sha、status、pushed、changed_files、verification 和 summary
 And 系统事件必须记录 `release.recorded`
 And Codex 才能 ack 对应 Outbox
+And 如果 Codex 在没有对应 release record 时 ack `release_ready`，API 必须返回 `409 CODEX_OUTBOX_ACK_BLOCKED`
 
 ## 场景 7.0.1：Codex CLI 提供单步推进循环
 

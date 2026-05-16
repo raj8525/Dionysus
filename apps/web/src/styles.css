@@ -548,6 +548,11 @@ button:disabled {
   gap: 10px;
 }
 
+.releaseList {
+  display: grid;
+  gap: 10px;
+}
+
 .integrationItem {
   display: grid;
   gap: 8px;
@@ -571,6 +576,47 @@ button:disabled {
 
 .integrationItem p {
   margin: 0;
+}
+
+.releaseItem {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #fffaf1;
+}
+
+.releaseItem > div:first-child,
+.releaseMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.releaseItem span,
+.releaseItem p,
+.releaseItem small,
+.releaseScope {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.releaseItem p {
+  margin: 0;
+}
+
+.releaseMeta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.releaseMeta span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e8f3ee;
+  color: #0f3a5a;
+  font-weight: 800;
 }
 
 .evidenceGrid {

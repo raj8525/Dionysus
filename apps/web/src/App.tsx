@@ -10,6 +10,7 @@ import {
   fetchGoal,
   fetchE2ECases,
   fetchIntegrations,
+  fetchReleases,
   fetchMilestones,
   fetchRunLogs,
   fetchRuns,
@@ -38,6 +39,7 @@ import {
   type MasterStepResult,
   type MilestoneRecord,
   type ReleaseReadyIntegrationsResult,
+  type ReleaseRecord,
   type SystemEvent,
   type SystemHealth,
   type TaskRecord,
@@ -77,6 +79,8 @@ export function App() {
   const [preflightRunning, setPreflightRunning] = useState(false);
   const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
   const [releaseResult, setReleaseResult] = useState<ReleaseReadyIntegrationsResult | null>(null);
+  const [releaseRecords, setReleaseRecords] = useState<ReleaseRecord[]>([]);
+  const [releaseRecordsScope, setReleaseRecordsScope] = useState<"current" | "global">("current");
   const [releasing, setReleasing] = useState(false);
   const [masterStep, setMasterStep] = useState<MasterStepResult | null>(null);
   const [masterStepping, setMasterStepping] = useState(false);
@@ -252,14 +256,18 @@ export function App() {
 
   async function refreshGoalEvidence(goalId = activeGoalId) {
     if (!goalId) return;
-    const [nextIntegrations, nextTasks, nextRuns, nextMasterEvents, nextMilestones] = await Promise.all([
+    const [nextIntegrations, currentReleases, nextTasks, nextRuns, nextMasterEvents, nextMilestones] = await Promise.all([
       fetchIntegrations(goalId),
+      fetchReleases(goalId),
       fetchTasks(goalId),
       fetchRuns(goalId, 20),
       fetchSystemEvents("master_control.", 10),
       fetchMilestones(goalId)
     ]);
+    const nextReleases = currentReleases.length ? currentReleases : await fetchReleases();
     setIntegrations(nextIntegrations);
+    setReleaseRecords(nextReleases);
+    setReleaseRecordsScope(currentReleases.length ? "current" : "global");
     setTasks(nextTasks);
     setRuns(nextRuns);
     setMasterEvents(nextMasterEvents);
@@ -684,6 +692,42 @@ export function App() {
               ))
             ) : (
               <div className="emptyState">暂无 integration 记录</div>
+            )}
+          </div>
+        </section>
+        <section className="evidencePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Release</p>
+              <h3>Codex 发布记录</h3>
+              <span className="releaseScope">
+                {releaseRecordsScope === "current" ? "当前目标" : "当前目标暂无记录，显示全局最近记录"}
+              </span>
+            </div>
+            <button type="button" className="secondary" onClick={() => refreshGoalEvidence()}>
+              刷新发布记录
+            </button>
+          </div>
+          <div className="releaseList">
+            {releaseRecords.length ? (
+              releaseRecords.map((record) => (
+                <article key={record.id} className="releaseItem">
+                  <div>
+                    <strong>{record.status} · {record.branch}</strong>
+                    <span>{new Date(record.createdAt).toLocaleString()}</span>
+                  </div>
+                  <p>{record.summary || "无发布摘要"}</p>
+                  <div className="releaseMeta">
+                    <span>commit {record.commitSha.slice(0, 12)}</span>
+                    <span>{record.pushed ? "已推送" : "未推送"}</span>
+                    <span>{record.changedFiles.length} files</span>
+                    <span>{record.verification.length} checks</span>
+                  </div>
+                  {record.changedFiles.length ? <small>{record.changedFiles.join(", ")}</small> : null}
+                </article>
+              ))
+            ) : (
+              <div className="emptyState">暂无 Codex release record</div>
             )}
           </div>
         </section>

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCodexOutboxDraft, formatCodexHeartbeat, formatCodexOutboxReconciliation } from "./codex-outbox.js";
+import {
+  buildCodexOutboxDraft,
+  evaluateCodexOutboxAckGate,
+  formatCodexHeartbeat,
+  formatCodexOutboxReconciliation
+} from "./codex-outbox.js";
 
 describe("codex outbox", () => {
   it("builds a blocker intervention event from a supervision stop", () => {
@@ -64,5 +69,27 @@ describe("codex outbox", () => {
       changed: false,
       userMessage: "没有发现可自动关闭的 Codex Outbox 事件。"
     });
+  });
+
+  it("requires a release record before acking release_ready", () => {
+    expect(evaluateCodexOutboxAckGate({
+      eventType: "release_ready",
+      releaseRecordCount: 0
+    })).toEqual({
+      allowed: false,
+      reason: "release_ready requires a matching release record before ack"
+    });
+
+    expect(evaluateCodexOutboxAckGate({
+      eventType: "release_ready",
+      releaseRecordCount: 1
+    })).toEqual({ allowed: true });
+  });
+
+  it("allows non-release outbox ack without release records", () => {
+    expect(evaluateCodexOutboxAckGate({
+      eventType: "blocker",
+      releaseRecordCount: 0
+    })).toEqual({ allowed: true });
   });
 });

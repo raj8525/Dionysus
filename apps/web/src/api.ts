@@ -246,6 +246,28 @@ export interface IntegrationRecord {
   updatedAt: string;
 }
 
+export interface ReleaseVerificationRecord {
+  command: string;
+  status: "passed" | "failed" | "blocked";
+  output?: string;
+}
+
+export interface ReleaseRecord {
+  id: string;
+  goalId: string;
+  codexOutboxEventId?: string;
+  targetRoot: string;
+  branch: string;
+  commitSha: string;
+  status: "passed" | "failed" | "blocked";
+  pushed: boolean;
+  changedFiles: string[];
+  verification: ReleaseVerificationRecord[];
+  summary: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MilestoneRecord {
   id: string;
   goal_id: string;
@@ -476,6 +498,15 @@ export async function fetchIntegrations(goalId?: string): Promise<IntegrationRec
     throw new Error(`Failed to load integrations: ${response.status}`);
   }
   return (await response.json()) as IntegrationRecord[];
+}
+
+export async function fetchReleases(goalId?: string): Promise<ReleaseRecord[]> {
+  const query = goalId ? `?goalId=${goalId}` : "";
+  const response = await fetch(`${apiBase}/api/releases${query}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load releases: ${response.status}`);
+  }
+  return (await response.json()) as ReleaseRecord[];
 }
 
 export async function fetchMilestones(goalId?: string): Promise<MilestoneRecord[]> {

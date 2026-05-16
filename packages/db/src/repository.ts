@@ -1720,6 +1720,27 @@ export class DionysusRepository {
     return result.rows.map(mapCodexOutboxEvent);
   }
 
+  async getCodexOutboxEvent(eventId: string): Promise<CodexOutboxEvent | null> {
+    const result = await this.pool.query(
+      `select id, goal_id, event_type, severity, status, title, summary, payload_json,
+              created_at, updated_at, acked_at
+       from ${this.table("codex_outbox")}
+       where id = $1`,
+      [eventId]
+    );
+    return result.rowCount ? mapCodexOutboxEvent(result.rows[0]) : null;
+  }
+
+  async countReleaseRecordsForCodexOutboxEvent(eventId: string): Promise<number> {
+    const result = await this.pool.query(
+      `select count(*)::int as release_count
+       from ${this.table("release_records")}
+       where codex_outbox_event_id = $1`,
+      [eventId]
+    );
+    return Number(result.rows[0]?.release_count ?? 0);
+  }
+
   async ackCodexOutboxEvent(eventId: string): Promise<CodexOutboxEvent | null> {
     const result = await this.pool.query(
       `update ${this.table("codex_outbox")}

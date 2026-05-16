@@ -31,6 +31,11 @@ export interface CodexOutboxReconciliationSummary {
   eventIds: string[];
 }
 
+export interface CodexOutboxAckGateDecision {
+  allowed: boolean;
+  reason?: string;
+}
+
 export function buildCodexOutboxDraft(input: {
   goalId?: string;
   eventType: CodexOutboxEventType;
@@ -104,5 +109,25 @@ export function formatCodexHeartbeat(events: CodexOutboxEvent[]): {
       `处理 ${first.id}：${first.summary}`,
       `完成处理后运行：pnpm dionysus codex ack --event-id ${first.id}`
     ]
+  };
+}
+
+export function evaluateCodexOutboxAckGate(input: {
+  eventType: CodexOutboxEventType;
+  releaseRecordCount: number;
+  force?: boolean;
+}): CodexOutboxAckGateDecision {
+  if (input.force) {
+    return { allowed: true };
+  }
+  if (input.eventType !== "release_ready") {
+    return { allowed: true };
+  }
+  if (input.releaseRecordCount > 0) {
+    return { allowed: true };
+  }
+  return {
+    allowed: false,
+    reason: "release_ready requires a matching release record before ack"
   };
 }

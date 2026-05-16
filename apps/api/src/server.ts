@@ -18,6 +18,7 @@ import {
   checkSpecTestGate,
   compileTargetProject,
   decideMasterStep,
+  evaluateCodexOutboxAckGate,
   evaluateWatchdogTask,
   findUnmanagedGitChanges,
   resolveNotificationChannels,
@@ -115,6 +116,10 @@ const codexOutboxCreateSchema = z.object({
   reason: z.string().min(1),
   source: z.string().min(1),
   payload: z.record(z.string(), z.unknown()).optional()
+});
+
+const codexOutboxAckSchema = z.object({
+  force: z.boolean().default(false)
 });
 
 const releaseRecordSchema = z.object({
@@ -365,6 +370,30 @@ export async function buildServer() {
 
   app.post("/api/codex/outbox/:id/ack", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const parsed = codexOutboxAckSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_CODEX_OUTBOX_ACK", details: parsed.error.flatten() });
+    }
+    const existing = await repo.getCodexOutboxEvent(id);
+    if (!existing) {
+      return reply.code(404).send({ error: "CODEX_OUTBOX_EVENT_NOT_FOUND" });
+    }
+    const releaseRecordCount = existing.eventType === "release_ready"
+      ? await repo.countReleaseRecordsForCodexOutboxEvent(id)
+      : 0;
+    const gate = evaluateCodexOutboxAckGate({
+      eventType: existing.eventType,
+      releaseRecordCount,
+      force: parsed.data.force
+    });
+    if (!gate.allowed) {
+      return reply.code(409).send({
+        error: "CODEX_OUTBOX_ACK_BLOCKED",
+        reason: gate.reason,
+        event: existing,
+        requiredAction: "run pnpm dionysus release record with --codex-outbox-event-id before ack"
+      });
+    }
     const event = await repo.ackCodexOutboxEvent(id);
     if (!event) {
       return reply.code(404).send({ error: "CODEX_OUTBOX_EVENT_NOT_FOUND" });

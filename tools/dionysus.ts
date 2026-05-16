@@ -260,7 +260,9 @@ async function main(): Promise<void> {
   }
 
   if (domain === "codex" && action === "ack") {
-    return print(await request(`/api/codex/outbox/${requiredFlag(args, "--event-id")}/ack`, "POST"));
+    return print(await request(`/api/codex/outbox/${requiredFlag(args, "--event-id")}/ack`, "POST", {
+      force: hasFlag(args, "--force")
+    }));
   }
 
   if (domain === "codex" && action === "reconcile") {
@@ -687,7 +689,7 @@ function usage(): void {
   tsx tools/dionysus.ts codex outbox --limit 5
   tsx tools/dionysus.ts codex heartbeat --limit 5
   tsx tools/dionysus.ts codex reconcile
-  tsx tools/dionysus.ts codex ack --event-id "..."
+  tsx tools/dionysus.ts codex ack --event-id "..." [--force]
 `);
 }
 

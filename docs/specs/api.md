@@ -169,6 +169,8 @@ pnpm dionysus codex ack --event-id "<event-id>"
 
 `reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
 
+`release_ready` 的 ack 必须强制检查 `release_records.codex_outbox_event_id = <event-id>` 是否存在。不存在时 `POST /api/codex/outbox/:id/ack` 必须返回 `409 CODEX_OUTBOX_ACK_BLOCKED`，提示 Codex 先执行 `release record`。只有显式传入 `{ "force": true }` 时才允许人工破例 ack。
+
 ## Release Records
 
 ```text
@@ -205,7 +207,7 @@ POST /api/releases
 Codex CLI 必须支持：
 
 ```text
-pnpm dionysus release record --goal-id "<goal-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
+pnpm dionysus release record --goal-id "<goal-id>" --codex-outbox-event-id "<event-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
 pnpm dionysus release list --goal-id "<goal-id>"
 ```
 
