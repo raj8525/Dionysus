@@ -253,6 +253,14 @@ And 可以手动触发巡检
 And 可以查看最近的 `watchdog.run`、`watchdog.retry_queued`、`watchdog.blocked` 记录  
 And 面板必须展示 checked、retry、blocked 摘要
 
+## 场景 13：Dashboard 必须展示任务与运行证据
+
+Given goal 下存在 tasks 和 task_runs  
+When Codex 打开 Dashboard  
+Then 页面必须展示任务标题、角色、状态、优先级和尝试次数  
+And 页面必须展示最近运行的 CLI、命令、状态、退出码和日志预览  
+And Codex 必须能一键刷新当前目标的证据
+
 ## 运行命令
 
 ```bash

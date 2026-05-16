@@ -148,6 +148,12 @@ export async function buildServer() {
     return repo.listTasks(query.goalId);
   });
 
+  app.get("/api/runs", async (request) => {
+    const query = request.query as { goalId?: string; limit?: string };
+    const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "50", 10) || 50, 1), 100);
+    return repo.listTaskRuns({ goalId: query.goalId, limit });
+  });
+
   app.get("/api/agent-cli-configs", async () => repo.listAgentCliConfigs());
 
   app.put("/api/agent-cli-configs", async (request, reply) => {

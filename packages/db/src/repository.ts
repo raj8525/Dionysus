@@ -193,6 +193,58 @@ export class DionysusRepository {
     return result.rows;
   }
 
+  async listTaskRuns(input: {
+    goalId?: string;
+    limit?: number;
+  } = {}): Promise<Array<Record<string, unknown>>> {
+    const params: Array<string | number> = [input.limit ?? 50];
+    const where = input.goalId ? "where t.goal_id = $2" : "";
+    if (input.goalId) params.push(input.goalId);
+    const result = await this.pool.query(
+      `select tr.id,
+              tr.task_id,
+              t.goal_id,
+              t.title as task_title,
+              t.role_required,
+              tr.cli_type,
+              tr.cli_model,
+              tr.command,
+              tr.exit_code,
+              tr.status,
+              tr.started_at,
+              tr.finished_at,
+              tr.created_at,
+              coalesce(logs.preview, '') as log_preview
+       from ${this.table("task_runs")} tr
+       join ${this.table("tasks")} t on t.id = tr.task_id
+       left join lateral (
+         select string_agg(l.stream || ': ' || left(l.chunk_text, 240), E'\n' order by l.sequence asc) as preview
+         from ${this.table("task_run_logs")} l
+         where l.run_id = tr.id
+       ) logs on true
+       ${where}
+       order by tr.created_at desc
+       limit $1`,
+      params
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      taskId: String(row.task_id),
+      goalId: String(row.goal_id),
+      taskTitle: String(row.task_title),
+      roleRequired: row.role_required as AgentRole,
+      cliType: String(row.cli_type),
+      cliModel: row.cli_model ? String(row.cli_model) : undefined,
+      command: String(row.command),
+      exitCode: row.exit_code === null ? undefined : Number(row.exit_code),
+      status: String(row.status),
+      startedAt: row.started_at ? new Date(row.started_at).toISOString() : undefined,
+      finishedAt: row.finished_at ? new Date(row.finished_at).toISOString() : undefined,
+      createdAt: new Date(row.created_at).toISOString(),
+      logPreview: String(row.log_preview)
+    }));
+  }
+
   async findNextCreatedTask(input: {
     goalId: string;
     afterPriority: number;

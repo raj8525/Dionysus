@@ -165,6 +165,8 @@ curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/master-step
 
 Master Step 每次只执行一个动作：创建任务树、生成 preflight remediation patch、发布 queued integration、报告 dirty worktree blocker，或返回 `ready_for_implementation`。
 
+Dashboard 的 “任务与运行证据” 面板会展示当前 goal 的任务树和最近 task runs，包括任务角色、状态、尝试次数、CLI、命令、退出码和日志预览，用于 Codex 判断 Agent 是否真的推进。
+
 ## Milestone / E2E / Notification
 
 ```bash

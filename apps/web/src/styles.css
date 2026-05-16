@@ -226,6 +226,7 @@ button:disabled {
 .preflightPanel,
 .masterPanel,
 .integrationPanel,
+.evidencePanel,
 .agentsPanel {
   margin-bottom: 18px;
   border: 1px solid #d9c8aa;
@@ -312,6 +313,69 @@ button:disabled {
 
 .integrationItem p {
   margin: 0;
+}
+
+.evidenceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.evidenceColumn {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.evidenceColumn h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #0f2d47;
+}
+
+.evidenceItem {
+  display: grid;
+  gap: 7px;
+  padding: 12px 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.evidenceItem > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.evidenceItem strong {
+  font-size: 13px;
+}
+
+.evidenceItem span {
+  flex: 0 0 auto;
+  color: #8a641f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.evidenceItem p,
+.evidenceItem small {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.evidenceItem pre {
+  max-height: 120px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 8px;
+  color: #334155;
+  font-size: 11px;
 }
 
 .sectionHeader {

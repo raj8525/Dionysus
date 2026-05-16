@@ -6,6 +6,8 @@ import {
   fetchAgentCliConfigs,
   fetchCurrentFlow,
   fetchIntegrations,
+  fetchRuns,
+  fetchTasks,
   fetchWatchdogEvents,
   probeClis,
   releaseReadyIntegrations,
@@ -22,6 +24,8 @@ import {
   type IntegrationRecord,
   type MasterStepResult,
   type ReleaseReadyIntegrationsResult,
+  type TaskRecord,
+  type TaskRunRecord,
   type TargetPreflightResult,
   type WatchdogEvent,
   type WatchdogRunResult
@@ -55,6 +59,8 @@ export function App() {
   const [releasing, setReleasing] = useState(false);
   const [masterStep, setMasterStep] = useState<MasterStepResult | null>(null);
   const [masterStepping, setMasterStepping] = useState(false);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [runs, setRuns] = useState<TaskRunRecord[]>([]);
 
   useEffect(() => {
     Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
@@ -63,7 +69,7 @@ export function App() {
 
   useEffect(() => {
     if (activeGoalId) {
-      refreshIntegrations(activeGoalId)
+      refreshGoalEvidence(activeGoalId)
         .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
     }
   }, [activeGoalId]);
@@ -175,6 +181,18 @@ export function App() {
     setIntegrations(await fetchIntegrations(goalId));
   }
 
+  async function refreshGoalEvidence(goalId = activeGoalId) {
+    if (!goalId) return;
+    const [nextIntegrations, nextTasks, nextRuns] = await Promise.all([
+      fetchIntegrations(goalId),
+      fetchTasks(goalId),
+      fetchRuns(goalId, 20)
+    ]);
+    setIntegrations(nextIntegrations);
+    setTasks(nextTasks);
+    setRuns(nextRuns);
+  }
+
   async function releaseIntegrations() {
     if (!activeGoalId) {
       setError("当前没有可发布 integration 的目标");
@@ -185,7 +203,7 @@ export function App() {
     try {
       const result = await releaseReadyIntegrations(activeGoalId);
       setReleaseResult(result);
-      await refreshIntegrations(activeGoalId);
+      await refreshGoalEvidence(activeGoalId);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -203,7 +221,7 @@ export function App() {
     try {
       const result = await runMasterStep(activeGoalId);
       setMasterStep(result);
-      await Promise.all([refreshFlow(), refreshIntegrations(activeGoalId), refreshWatchdogEvents()]);
+      await Promise.all([refreshFlow(), refreshGoalEvidence(activeGoalId), refreshWatchdogEvents()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -367,6 +385,53 @@ export function App() {
             ) : (
               <div className="emptyState">暂无 integration 记录</div>
             )}
+          </div>
+        </section>
+        <section className="evidencePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Evidence</p>
+              <h3>任务与运行证据</h3>
+            </div>
+            <button type="button" className="secondary" onClick={() => refreshGoalEvidence()}>
+              刷新证据
+            </button>
+          </div>
+          <div className="evidenceGrid">
+            <div className="evidenceColumn">
+              <h4>Tasks</h4>
+              {tasks.length ? (
+                tasks.map((task) => (
+                  <article key={task.id} className="evidenceItem">
+                    <div>
+                      <strong>{task.title}</strong>
+                      <span>{task.status}</span>
+                    </div>
+                    <p>{task.role_required} · priority {task.priority} · attempt {task.current_attempt}/{task.max_attempts}</p>
+                    {task.blocked_reason ? <small>{task.blocked_reason}</small> : null}
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">暂无任务</div>
+              )}
+            </div>
+            <div className="evidenceColumn">
+              <h4>Runs</h4>
+              {runs.length ? (
+                runs.map((run) => (
+                  <article key={run.id} className="evidenceItem">
+                    <div>
+                      <strong>{run.taskTitle}</strong>
+                      <span>{run.status}{typeof run.exitCode === "number" ? ` / ${run.exitCode}` : ""}</span>
+                    </div>
+                    <p>{run.roleRequired} · {run.cliType} · {run.command}</p>
+                    {run.logPreview ? <pre>{run.logPreview}</pre> : null}
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">暂无运行记录</div>
+              )}
+            </div>
           </div>
         </section>
         <section className="agentsPanel">

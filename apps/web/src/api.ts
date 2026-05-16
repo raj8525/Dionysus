@@ -65,6 +65,38 @@ export interface WatchdogRunResult {
   }>;
 }
 
+export interface TaskRecord {
+  id: string;
+  goal_id: string;
+  title: string;
+  description: string;
+  role_required: string;
+  status: string;
+  priority: number;
+  blocked_reason?: string;
+  current_attempt: number;
+  max_attempts: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskRunRecord {
+  id: string;
+  taskId: string;
+  goalId: string;
+  taskTitle: string;
+  roleRequired: string;
+  cliType: string;
+  cliModel?: string;
+  command: string;
+  exitCode?: number;
+  status: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  logPreview: string;
+}
+
 export interface TargetPreflightResult {
   goalId: string;
   status: "passed" | "blocked";
@@ -174,6 +206,26 @@ export async function fetchWatchdogEvents(limit = 20): Promise<WatchdogEvent[]> 
     throw new Error(`Failed to load watchdog events: ${response.status}`);
   }
   return (await response.json()) as WatchdogEvent[];
+}
+
+export async function fetchTasks(goalId?: string): Promise<TaskRecord[]> {
+  const query = goalId ? `?goalId=${goalId}` : "";
+  const response = await fetch(`${apiBase}/api/tasks${query}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load tasks: ${response.status}`);
+  }
+  return (await response.json()) as TaskRecord[];
+}
+
+export async function fetchRuns(goalId?: string, limit = 20): Promise<TaskRunRecord[]> {
+  const params = new URLSearchParams();
+  if (goalId) params.set("goalId", goalId);
+  params.set("limit", String(limit));
+  const response = await fetch(`${apiBase}/api/runs?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load runs: ${response.status}`);
+  }
+  return (await response.json()) as TaskRunRecord[];
 }
 
 export async function runWatchdog(input = { runningTimeoutMinutes: 15, limit: 50 }): Promise<WatchdogRunResult> {
