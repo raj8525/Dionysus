@@ -38,6 +38,14 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "release" && action === "list") {
+    const goalId = readFlag(args, "--goal-id");
+    return {
+      path: `/api/releases${goalId ? `?goalId=${encodeURIComponent(goalId)}` : ""}`,
+      method: "GET"
+    };
+  }
+
   if (domain === "agent" && action === "config" && args[2] === "list") {
     return {
       path: "/api/agent-cli-configs",

@@ -169,6 +169,48 @@ pnpm dionysus codex ack --event-id "<event-id>"
 
 `reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
 
+## Release Records
+
+```text
+GET /api/releases?goalId=<goal-id>
+POST /api/releases
+```
+
+当 Codex 处理 `release_ready`，完成最终验证、提交和推送后，必须写入 release record。该记录是 Dionysus 判断目标项目是否真正发布到 Git 主线的审计证据，不能只依赖当前会话自然语言。
+
+创建请求：
+
+```json
+{
+  "goalId": "18adb562-7ed3-45ae-b99a-b9a76dd2a928",
+  "codexOutboxEventId": "b6fa20e1-43b2-4b19-8a15-df5e0c6b0c52",
+  "targetRoot": "/Volumes/MacMiniSSD/code/Coupon",
+  "branch": "main",
+  "commitSha": "fabbb07",
+  "status": "passed",
+  "pushed": true,
+  "changedFiles": [
+    "apps/admin-api/internal/handler/real_db_smoke_test.go"
+  ],
+  "verification": [
+    {
+      "command": "ADMIN_API_JWT_SECRET=test-secret-for-real-db-smoke go test ./apps/admin-api/internal/handler/ -run 'TestRealDB_' -count=1 -v",
+      "status": "passed"
+    }
+  ],
+  "summary": "真实数据库 smoke 测试已提交并推送"
+}
+```
+
+Codex CLI 必须支持：
+
+```text
+pnpm dionysus release record --goal-id "<goal-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
+pnpm dionysus release list --goal-id "<goal-id>"
+```
+
+同一个 `goalId + commitSha` 必须幂等 upsert。每次写入必须同时产生 `release.recorded` system event。
+
 ## CLI
 
 ```text

@@ -158,10 +158,19 @@ And 如果缺少任一门禁，则返回 `blocked`
 ## 场景 7.0：Codex CLI 覆盖完整 Goal 生命周期
 
 Given Dionysus API 已启动
-When Codex 需要推进一个 goal 的 intake、bootstrap、gate-check、remediation、remediation-patch、master-step、release-ready 或 integration list
+When Codex 需要推进一个 goal 的 intake、bootstrap、gate-check、remediation、remediation-patch、master-step、release-ready、integration list 或 release record
 Then `pnpm dionysus` 必须提供对应命令
 And 命令必须映射到已有 API 端点
 And Codex 不需要手写 `curl` 或临时脚本才能操作 Dionysus
+
+## 场景 7.0.3：Codex 发布完成后必须写回 release record
+
+Given Dionysus 产生了 `release_ready` Codex Outbox
+When Codex 完成最终验证、提交和推送
+Then Codex 必须调用 `pnpm dionysus release record`
+And PostgreSQL 必须保存 goal_id、target_root、branch、commit_sha、status、pushed、changed_files、verification 和 summary
+And 系统事件必须记录 `release.recorded`
+And Codex 才能 ack 对应 Outbox
 
 ## 场景 7.0.1：Codex CLI 提供单步推进循环
 

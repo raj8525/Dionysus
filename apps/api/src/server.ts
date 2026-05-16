@@ -117,6 +117,23 @@ const codexOutboxCreateSchema = z.object({
   payload: z.record(z.string(), z.unknown()).optional()
 });
 
+const releaseRecordSchema = z.object({
+  goalId: z.string().uuid(),
+  codexOutboxEventId: z.string().uuid().optional(),
+  targetRoot: z.string().min(1),
+  branch: z.string().min(1),
+  commitSha: z.string().min(1),
+  status: z.enum(["passed", "failed", "blocked"]),
+  pushed: z.boolean().default(false),
+  changedFiles: z.array(z.string()).default([]),
+  verification: z.array(z.object({
+    command: z.string().min(1),
+    status: z.enum(["passed", "failed", "blocked"]),
+    output: z.string().optional()
+  })).default([]),
+  summary: z.string().default("")
+});
+
 export async function buildServer() {
   const dbConfig = loadDatabaseConfig();
   const pool = createPool(dbConfig);
@@ -216,6 +233,24 @@ export async function buildServer() {
   app.get("/api/usage/agent-cli", async (request) => {
     const query = request.query as { goalId?: string };
     return repo.getAgentCliUsage({ goalId: query.goalId });
+  });
+
+  app.get("/api/releases", async (request) => {
+    const query = request.query as { goalId?: string };
+    return repo.listReleaseRecords(query.goalId);
+  });
+
+  app.post("/api/releases", async (request, reply) => {
+    const parsed = releaseRecordSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_RELEASE_RECORD", details: parsed.error.flatten() });
+    }
+    const goal = await repo.getGoal(parsed.data.goalId);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const record = await repo.createReleaseRecord(parsed.data);
+    return reply.code(201).send(record);
   });
 
   app.get("/api/agent-cli-configs", async () => repo.listAgentCliConfigs());

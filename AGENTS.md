@@ -49,6 +49,8 @@ pnpm dionysus agent config list
 pnpm dionysus agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
 pnpm dionysus agent status --goal-id "<goal-id>"
 pnpm dionysus agent usage --goal-id "<goal-id>"
+pnpm dionysus release record --goal-id "<goal-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
+pnpm dionysus release list --goal-id "<goal-id>"
 pnpm dionysus run logs --run-id "<run-id>"
 pnpm dionysus goal status --goal-id "<goal-id>"
 pnpm dionysus goal intake --goal-id "<goal-id>"
@@ -102,6 +104,15 @@ pnpm dionysus codex heartbeat --limit 5
 # 处理最高优先级事件
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
+
+处理 `release_ready` 时，Codex 完成最终验证、提交和推送后，必须先把发布结果写回 Dionysus，再 ack 对应 Outbox：
+
+```bash
+pnpm dionysus release record --goal-id "<goal-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
+pnpm dionysus codex ack --event-id "<event-id>"
+```
+
+`release record` 是 Codex 发布闭环的正式证据，必须包含 commit、branch、是否 push、改动文件、验证命令和中文摘要。
 
 `codex heartbeat` 会先自动执行一次 `codex reconcile`，把已经由 integration queue 证明解决的旧 blocker 自动 ack，避免 Codex 被陈旧阻塞误导。需要单独核查清理结果时运行：
 

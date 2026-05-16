@@ -46,6 +46,13 @@ describe("dionysus CLI API command resolver", () => {
     });
   });
 
+  it("maps release list to the release records API", () => {
+    expect(resolveApiCommand(["release", "list", "--goal-id", "goal-123"])).toEqual({
+      path: "/api/releases?goalId=goal-123",
+      method: "GET"
+    });
+  });
+
   it("maps agent config list to the agent config API", () => {
     expect(resolveApiCommand(["agent", "config", "list"])).toEqual({
       path: "/api/agent-cli-configs",

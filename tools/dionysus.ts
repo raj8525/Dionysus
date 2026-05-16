@@ -5,6 +5,7 @@ import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
+import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
 import { summarizeSupervisionStep } from "./dionysus-supervise.js";
 import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus/core";
@@ -131,16 +132,21 @@ async function main(): Promise<void> {
     return print(await request(`/api/usage/agent-cli${query}`));
   }
 
+  if (domain === "release" && action === "record") {
+    return print(await request("/api/releases", "POST", buildReleaseRecordRequest(args)));
+  }
+
   if (domain === "goal" && action === "status") {
     const goalId = requiredFlag(args, "--goal-id");
-    const [flow, tasks, runs, integrations, milestones] = await Promise.all([
+    const [flow, tasks, runs, integrations, milestones, releases] = await Promise.all([
       request(`/api/flow/goal/${goalId}`),
       request(`/api/tasks?goalId=${goalId}`),
       request(`/api/runs?goalId=${goalId}&limit=20`),
       request(`/api/integrations?goalId=${goalId}`),
-      request(`/api/milestones?goalId=${goalId}`)
+      request(`/api/milestones?goalId=${goalId}`),
+      request(`/api/releases?goalId=${goalId}`)
     ]);
-    return print({ goalId, flow, tasks, runs, integrations, milestones });
+    return print({ goalId, flow, tasks, runs, integrations, milestones, releases });
   }
 
   if (domain === "goal" && action === "preflight") {
@@ -650,6 +656,8 @@ function usage(): void {
   tsx tools/dionysus.ts agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
+  tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
+  tsx tools/dionysus.ts release list --goal-id "..."
   tsx tools/dionysus.ts run logs --run-id "..."
   tsx tools/dionysus.ts goal status --goal-id "..."
   tsx tools/dionysus.ts goal intake --goal-id "..."

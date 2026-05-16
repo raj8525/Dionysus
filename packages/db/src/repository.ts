@@ -15,6 +15,9 @@ import type {
   Goal,
   MilestoneStatus,
   NotificationChannelType,
+  ReleaseRecord,
+  ReleaseRecordStatus,
+  ReleaseVerificationRecord,
   TaskStatus
 } from "@dionysus/core";
 import type pg from "pg";
@@ -337,6 +340,88 @@ export class DionysusRepository {
         runAt: row.run_at ? new Date(row.run_at).toISOString() : null
       }))
     });
+  }
+
+  async createReleaseRecord(input: {
+    goalId: string;
+    codexOutboxEventId?: string;
+    targetRoot: string;
+    branch: string;
+    commitSha: string;
+    status: ReleaseRecordStatus;
+    pushed: boolean;
+    changedFiles: string[];
+    verification: ReleaseVerificationRecord[];
+    summary: string;
+  }): Promise<ReleaseRecord> {
+    const id = randomUUID();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `insert into ${this.table("release_records")}
+          (id, goal_id, codex_outbox_event_id, target_root, branch, commit_sha, status, pushed,
+           changed_files_json, verification_json, summary)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         on conflict (goal_id, commit_sha)
+         do update set codex_outbox_event_id = excluded.codex_outbox_event_id,
+                       target_root = excluded.target_root,
+                       branch = excluded.branch,
+                       status = excluded.status,
+                       pushed = excluded.pushed,
+                       changed_files_json = excluded.changed_files_json,
+                       verification_json = excluded.verification_json,
+                       summary = excluded.summary,
+                       updated_at = now()
+         returning id, goal_id, codex_outbox_event_id, target_root, branch, commit_sha, status, pushed,
+                   changed_files_json, verification_json, summary, created_at, updated_at`,
+        [
+          id,
+          input.goalId,
+          input.codexOutboxEventId ?? null,
+          input.targetRoot,
+          input.branch,
+          input.commitSha,
+          input.status,
+          input.pushed,
+          JSON.stringify(input.changedFiles),
+          JSON.stringify(input.verification),
+          input.summary
+        ]
+      );
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [randomUUID(), "release.recorded", JSON.stringify({
+          goalId: input.goalId,
+          commitSha: input.commitSha,
+          status: input.status,
+          pushed: input.pushed
+        })]
+      );
+      await client.query("commit");
+      return mapReleaseRecord(result.rows[0]);
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listReleaseRecords(goalId?: string): Promise<ReleaseRecord[]> {
+    const params: string[] = [];
+    const where = goalId ? "where goal_id = $1" : "";
+    if (goalId) params.push(goalId);
+    const result = await this.pool.query(
+      `select id, goal_id, codex_outbox_event_id, target_root, branch, commit_sha, status, pushed,
+              changed_files_json, verification_json, summary, created_at, updated_at
+       from ${this.table("release_records")}
+       ${where}
+       order by created_at desc`,
+      params
+    );
+    return result.rows.map(mapReleaseRecord);
   }
 
   async findNextCreatedTask(input: {
@@ -1817,6 +1902,44 @@ function mapCodexOutboxEvent(row: Record<string, unknown>): CodexOutboxEvent {
     updatedAt: new Date(String(row.updated_at)).toISOString(),
     ackedAt: row.acked_at ? new Date(String(row.acked_at)).toISOString() : undefined
   };
+}
+
+function mapReleaseRecord(row: Record<string, unknown>): ReleaseRecord {
+  return {
+    id: String(row.id),
+    goalId: String(row.goal_id),
+    codexOutboxEventId: row.codex_outbox_event_id ? String(row.codex_outbox_event_id) : undefined,
+    targetRoot: String(row.target_root),
+    branch: String(row.branch),
+    commitSha: String(row.commit_sha),
+    status: row.status as ReleaseRecordStatus,
+    pushed: Boolean(row.pushed),
+    changedFiles: normalizeJsonArray(row.changed_files_json),
+    verification: normalizeVerification(row.verification_json),
+    summary: String(row.summary ?? ""),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString()
+  };
+}
+
+function normalizeJsonArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function normalizeVerification(value: unknown): ReleaseVerificationRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.command !== "string") return [];
+    if (record.status !== "passed" && record.status !== "failed" && record.status !== "blocked") return [];
+    return [{
+      command: record.command,
+      status: record.status,
+      output: typeof record.output === "string" ? record.output : undefined
+    }];
+  });
 }
 
 function node(id: string, type: string, x: number, y: number, data: Record<string, unknown>): FlowNode {

@@ -113,6 +113,30 @@ export interface Goal {
   updatedAt: string;
 }
 
+export type ReleaseRecordStatus = "passed" | "failed" | "blocked";
+
+export interface ReleaseVerificationRecord {
+  command: string;
+  status: ReleaseRecordStatus;
+  output?: string;
+}
+
+export interface ReleaseRecord {
+  id: string;
+  goalId: string;
+  codexOutboxEventId?: string;
+  targetRoot: string;
+  branch: string;
+  commitSha: string;
+  status: ReleaseRecordStatus;
+  pushed: boolean;
+  changedFiles: string[];
+  verification: ReleaseVerificationRecord[];
+  summary: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FlowNode {
   id: string;
   type: string;
