@@ -116,6 +116,16 @@ And task_run 的 exit_code 必须记录为 `124`
 And stderr 必须包含超时原因  
 And Watchdog 可以基于该失败继续重试或标记 blocked
 
+## 场景 6.7：OpenCode 模型必须在运行前可验证
+
+Given Codex 为 OpenCode 配置了模型 `minimax/MiniMax-M2.7`  
+When Codex 调用 `/api/cli/validate-model`  
+Then Dionysus 必须先解析 provider alias  
+And 返回 `resolvedModel=minimax-cn-coding-plan/MiniMax-M2.7`  
+And 必须通过 `opencode models` 验证该模型可用  
+And 如果模型不可用，必须返回 `available=false`、失败原因和可选建议模型  
+And 不得等到 Worker 执行任务时才发现模型解析失败
+
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
 Given 一个指向目标项目的 goal  

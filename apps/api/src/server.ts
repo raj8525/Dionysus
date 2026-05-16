@@ -22,7 +22,7 @@ import {
   queueForRole
 } from "@dionysus/core";
 import type { NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
-import { probeAllClis } from "@dionysus/cli-adapters";
+import { probeAllClis, validateCliModel } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
   title: z.string().min(1),
@@ -43,6 +43,11 @@ const agentCliConfigSchema = z.object({
   cliType: z.enum(["mock", "claude_code", "gemini_cli", "opencode"]),
   cliModel: z.string().optional(),
   enabled: z.boolean().optional()
+});
+
+const cliModelValidationSchema = z.object({
+  cliType: z.enum(["mock", "claude_code", "gemini_cli", "opencode"]),
+  model: z.string().optional().nullable()
 });
 
 const createMilestoneSchema = z.object({
@@ -573,6 +578,14 @@ export async function buildServer() {
   });
 
   app.get("/api/cli/models", async () => repo.listCliModels());
+
+  app.post("/api/cli/validate-model", async (request, reply) => {
+    const parsed = cliModelValidationSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_CLI_MODEL_VALIDATION_INPUT", details: parsed.error.flatten() });
+    }
+    return validateCliModel(parsed.data);
+  });
 
   app.post("/api/goals/:id/gate-check", async (request, reply) => {
     const { id } = request.params as { id: string };

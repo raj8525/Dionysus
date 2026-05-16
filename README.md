@@ -229,6 +229,16 @@ Dashboard 下方的 “角色 CLI 配置” 面板可直接配置 `Master`、`Ru
 curl http://127.0.0.1:23100/api/agent-cli-configs
 ```
 
+验证某个 CLI 模型是否能被当前本机 CLI 解析：
+
+```bash
+curl -X POST http://127.0.0.1:23100/api/cli/validate-model \
+  -H 'content-type: application/json' \
+  --data '{"cliType":"opencode","model":"minimax/MiniMax-M2.7"}'
+```
+
+预期返回会包含 `resolvedModel`。例如 `minimax/MiniMax-M2.7` 会按 `DIONYSUS_OPENCODE_MODEL_ALIASES` 解析为 `minimax-cn-coding-plan/MiniMax-M2.7`，再与 `opencode models` 的输出比对。
+
 为某个角色配置 CLI：
 
 ```bash

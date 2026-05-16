@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { CliType } from "@dionysus/core";
+import { resolveOpenCodeModel } from "./opencode-model.js";
 import type { AgentRunInput, AgentRunResult, CliAdapter } from "./types.js";
 
 const MAX_OUTPUT_BYTES = 1024 * 1024 * 20;
@@ -138,25 +139,6 @@ function optionalPair(flag: string, value: string | undefined): string[] {
 
 function booleanFlag(flag: string, value: string | undefined): string[] {
   return value === "1" || value === "true" || value === "yes" ? [flag] : [];
-}
-
-function resolveOpenCodeModel(model: string): string {
-  const aliases = parseProviderAliases(process.env.DIONYSUS_OPENCODE_MODEL_ALIASES ?? "minimax=minimax-cn-coding-plan");
-  const [provider, ...rest] = model.split("/");
-  const modelName = rest.join("/");
-  if (!provider || !modelName) return model;
-  return aliases[provider] ? `${aliases[provider]}/${modelName}` : model;
-}
-
-function parseProviderAliases(value: string): Record<string, string> {
-  return Object.fromEntries(
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-      .map((entry) => entry.split("=").map((part) => part.trim()))
-      .filter((parts): parts is [string, string] => Boolean(parts[0]) && Boolean(parts[1]))
-  );
 }
 
 async function run(command: string, args: string[], cwd: string, timeoutMs: number): Promise<{

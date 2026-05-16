@@ -89,7 +89,31 @@ POST /api/notifications/:id/deliver
 ```text
 POST /api/cli/probe
 GET /api/cli/models
+POST /api/cli/validate-model
 ```
+
+`validate-model` 请求：
+
+```json
+{
+  "cliType": "opencode",
+  "model": "minimax/MiniMax-M2.7"
+}
+```
+
+`validate-model` 返回：
+
+```json
+{
+  "cliType": "opencode",
+  "inputModel": "minimax/MiniMax-M2.7",
+  "resolvedModel": "minimax-cn-coding-plan/MiniMax-M2.7",
+  "available": true,
+  "command": "opencode"
+}
+```
+
+OpenCode 模型验证必须先解析 `DIONYSUS_OPENCODE_MODEL_ALIASES`，再与 `opencode models` 的实时输出比对。模型不可用时必须返回 `available: false`、`reason` 和可选 `suggestions`，不得等到 Agent Runtime 执行任务时才失败。
 
 ## Gatekeeper
 
