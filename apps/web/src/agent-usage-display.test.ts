@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describeUsageScope, modelCallLabel } from "./agent-usage-display.js";
+import { cliCallTotalLabel, describeUsageScope, liveUsageRefreshLabel, modelCallTotalLabel, modelCallLabel } from "./agent-usage-display.js";
 
 describe("agent usage display helpers", () => {
   it("describes usage scope with active goal and target project", () => {
@@ -17,5 +17,14 @@ describe("agent usage display helpers", () => {
 
   it("labels model calls as real-first with fallback estimation", () => {
     expect(modelCallLabel()).toBe("Model Calls（真实优先）");
+  });
+
+  it("labels per-agent totals explicitly for live dashboard cards", () => {
+    expect(cliCallTotalLabel(12)).toBe("CLI 调用总数 12");
+    expect(modelCallTotalLabel(7)).toBe("模型调用总数 7");
+  });
+
+  it("describes the live refresh cadence", () => {
+    expect(liveUsageRefreshLabel(5000)).toBe("5 秒自动刷新");
   });
 });

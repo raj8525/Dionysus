@@ -54,7 +54,7 @@ import {
   type WatchdogRunResult
 } from "./api.js";
 import { AgentConfigValidationError, saveValidatedAgentCliConfig } from "./agent-config-validation.js";
-import { describeUsageScope, modelCallLabel } from "./agent-usage-display.js";
+import { cliCallTotalLabel, describeUsageScope, liveUsageRefreshLabel, modelCallTotalLabel, modelCallLabel } from "./agent-usage-display.js";
 import { summarizeSystemHealth } from "./system-health.js";
 
 const nodeTypes = {
@@ -63,6 +63,7 @@ const nodeTypes = {
   agent: FlowStatusNode,
   domain: FlowStatusNode
 };
+const usageRefreshIntervalMs = 5000;
 
 export function App() {
   const [flow, setFlow] = useState<FlowResponse>({ nodes: [], edges: [] });
@@ -123,7 +124,7 @@ export function App() {
         refreshAgentCliUsage(activeGoalId),
         activeGoalId ? refreshGoalEvidence(activeGoalId) : Promise.resolve()
       ]).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-    }, 5000);
+    }, usageRefreshIntervalMs);
     return () => window.clearInterval(interval);
   }, [activeGoalId]);
 
@@ -518,7 +519,7 @@ export function App() {
               <span className="usageScope">{usageScopeLabel}</span>
             </div>
             <div className="sectionActions">
-              <span className="refreshBadge">5s 自动刷新 · {usageGeneratedLabel}</span>
+              <span className="refreshBadge">{liveUsageRefreshLabel(usageRefreshIntervalMs)} · {usageGeneratedLabel}</span>
               <button type="button" className="secondary" onClick={() => refreshAgentCliUsage()}>
                 刷新统计
               </button>
@@ -549,10 +550,10 @@ export function App() {
                             <strong>{usage.agentName}</strong>
                             <span>{roleLabels[usage.role]} · {usage.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
                           </div>
-                          <b>{usage.cliCalls}</b>
+                          <b>{cliCallTotalLabel(usage.cliCalls)}</b>
                         </div>
                         <div className="usageMetrics">
-                          <span>模型调用 {usage.modelCalls}</span>
+                          <span>{modelCallTotalLabel(usage.modelCalls)}</span>
                           <span>运行中 {usage.runningCalls}</span>
                           <span>失败 {usage.failedCalls}</span>
                         </div>
@@ -590,10 +591,10 @@ export function App() {
                           <strong>{roleLabels[role]}</strong>
                           <span>{usage?.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
                         </div>
-                        <b>{usage?.cliCalls ?? 0}</b>
+                        <b>{cliCallTotalLabel(usage?.cliCalls ?? 0)}</b>
                       </div>
                       <div className="usageMetrics">
-                        <span>模型调用 {usage?.modelCalls ?? 0}</span>
+                        <span>{modelCallTotalLabel(usage?.modelCalls ?? 0)}</span>
                         <span>运行中 {usage?.runningCalls ?? 0}</span>
                         <span>失败 {usage?.failedCalls ?? 0}</span>
                       </div>

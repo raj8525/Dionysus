@@ -14,3 +14,16 @@ export function describeUsageScope(input: {
 export function modelCallLabel(): string {
   return "Model Calls（真实优先）";
 }
+
+export function cliCallTotalLabel(count: number): string {
+  return `CLI 调用总数 ${Math.max(count, 0)}`;
+}
+
+export function modelCallTotalLabel(count: number): string {
+  return `模型调用总数 ${Math.max(count, 0)}`;
+}
+
+export function liveUsageRefreshLabel(intervalMs: number): string {
+  const seconds = Math.max(Math.round(intervalMs / 1000), 1);
+  return `${seconds} 秒自动刷新`;
+}
