@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
-import { Background, Controls, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { Activity, AlertTriangle, CheckCircle2, GitCommit, Network } from "lucide-react";
-import { createGoal, fetchCurrentFlow, type FlowResponse, type Goal } from "./api.js";
+import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node } from "@xyflow/react";
+import { Activity, AlertTriangle, CheckCircle2, GitCommit, Network, Settings2 } from "lucide-react";
+import {
+  createGoal,
+  fetchAgentCliConfigs,
+  fetchCurrentFlow,
+  probeClis,
+  saveAgentCliConfig,
+  type AgentCliConfig,
+  type AgentRole,
+  type CliProbeResult,
+  type CliType,
+  type FlowResponse,
+  type Goal
+} from "./api.js";
 
 const nodeTypes = {
   goal: FlowStatusNode,
@@ -16,9 +28,13 @@ export function App() {
   const [flowGoalTitle, setFlowGoalTitle] = useState("等待 Codex 创建目标");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [agentConfigs, setAgentConfigs] = useState<Record<AgentRole, AgentCliConfig>>(defaultAgentConfigs);
+  const [probeResults, setProbeResults] = useState<CliProbeResult[]>([]);
+  const [savingRole, setSavingRole] = useState<AgentRole | null>(null);
+  const [probing, setProbing] = useState(false);
 
   useEffect(() => {
-    refreshFlow()
+    Promise.all([refreshFlow(), refreshAgentConfigs()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -50,6 +66,52 @@ export function App() {
     } finally {
       setCreating(false);
     }
+  }
+
+  async function refreshAgentConfigs() {
+    const configs = await fetchAgentCliConfigs();
+    setAgentConfigs((current) => {
+      const next = { ...current };
+      for (const config of configs) {
+        next[config.role] = config;
+      }
+      return next;
+    });
+  }
+
+  async function saveRoleConfig(role: AgentRole) {
+    setSavingRole(role);
+    setError(null);
+    try {
+      const saved = await saveAgentCliConfig(agentConfigs[role]);
+      setAgentConfigs((current) => ({ ...current, [role]: saved }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingRole(null);
+    }
+  }
+
+  async function runCliProbe() {
+    setProbing(true);
+    setError(null);
+    try {
+      setProbeResults(await probeClis());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProbing(false);
+    }
+  }
+
+  function updateRoleConfig(role: AgentRole, patch: Partial<AgentCliConfig>) {
+    setAgentConfigs((current) => ({
+      ...current,
+      [role]: {
+        ...current[role],
+        ...patch
+      }
+    }));
   }
 
   return (
@@ -104,6 +166,30 @@ export function App() {
             <Controls />
           </ReactFlow>
         </section>
+        <section className="agentsPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Agents</p>
+              <h3>角色 CLI 配置</h3>
+            </div>
+            <button type="button" className="secondary" onClick={runCliProbe} disabled={probing}>
+              <Settings2 size={16} />
+              {probing ? "探测中..." : "探测 CLI"}
+            </button>
+          </div>
+          <div className="agentGrid">
+            {roleOrder.map((role) => (
+              <AgentConfigCard
+                key={role}
+                config={agentConfigs[role]}
+                probeResults={probeResults}
+                saving={savingRole === role}
+                onChange={(patch) => updateRoleConfig(role, patch)}
+                onSave={() => saveRoleConfig(role)}
+              />
+            ))}
+          </div>
+        </section>
       </section>
     </main>
   );
@@ -113,8 +199,10 @@ function FlowStatusNode({ data }: { data: Record<string, unknown> }) {
   const status = String(data.status ?? "unknown");
   return (
     <div className={`flowNode status-${status}`}>
+      <Handle type="target" position={Position.Left} />
       <strong>{String(data.label ?? "Untitled")}</strong>
       <span>{status}</span>
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
@@ -135,3 +223,79 @@ function StatusCard(props: {
     </div>
   );
 }
+
+function AgentConfigCard(props: {
+  config: AgentCliConfig;
+  probeResults: CliProbeResult[];
+  saving: boolean;
+  onChange: (patch: Partial<AgentCliConfig>) => void;
+  onSave: () => void;
+}) {
+  const probe = props.probeResults.find((result) => result.cliType === props.config.cliType);
+  return (
+    <article className="agentCard">
+      <div className="agentCardTitle">
+        <strong>{roleLabels[props.config.role]}</strong>
+        <span className={probe?.available ? "probeGood" : probe ? "probeBad" : "probeUnknown"}>
+          {probe ? (probe.available ? "可用" : "不可用") : "未探测"}
+        </span>
+      </div>
+      <label>
+        CLI
+        <select
+          value={props.config.cliType}
+          onChange={(event) => props.onChange({ cliType: event.target.value as CliType })}
+        >
+          {cliTypes.map((cliType) => (
+            <option key={cliType} value={cliType}>
+              {cliType}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        模型
+        <input
+          value={props.config.cliModel ?? ""}
+          onChange={(event) => props.onChange({ cliModel: event.target.value || undefined })}
+          placeholder={props.config.cliType === "opencode" ? "选择或填写 OpenCode 模型" : "默认模型"}
+          list={`models-${props.config.role}`}
+        />
+        <datalist id={`models-${props.config.role}`}>
+          {(probe?.models ?? []).map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
+      </label>
+      <label className="inlineToggle">
+        <input
+          type="checkbox"
+          checked={props.config.enabled}
+          onChange={(event) => props.onChange({ enabled: event.target.checked })}
+        />
+        启用
+      </label>
+      <button type="button" onClick={props.onSave} disabled={props.saving}>
+        {props.saving ? "保存中..." : "保存配置"}
+      </button>
+    </article>
+  );
+}
+
+const roleOrder: AgentRole[] = ["master", "rule_writer", "test_writer", "worker"];
+
+const roleLabels: Record<AgentRole, string> = {
+  master: "Master",
+  rule_writer: "RuleWriter",
+  test_writer: "TestWriter",
+  worker: "Worker"
+};
+
+const cliTypes: CliType[] = ["mock", "claude_code", "gemini_cli", "opencode"];
+
+const defaultAgentConfigs: Record<AgentRole, AgentCliConfig> = {
+  master: { role: "master", cliType: "mock", enabled: true },
+  rule_writer: { role: "rule_writer", cliType: "mock", enabled: true },
+  test_writer: { role: "test_writer", cliType: "mock", enabled: true },
+  worker: { role: "worker", cliType: "mock", enabled: true }
+};

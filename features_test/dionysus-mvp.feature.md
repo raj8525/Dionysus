@@ -95,6 +95,15 @@ And RuleWriter prompt 必须限制为 specs 产出
 And TestWriter prompt 必须限制为 features_test 和测试产出  
 And Worker prompt 必须要求 gate-check 通过、隔离 workspace 和 patch 证据
 
+## 场景 6.5：前端必须能配置固定角色 CLI
+
+Given Dionysus Web UI 已启动  
+When Codex 打开 Dashboard  
+Then 页面必须展示 Master、RuleWriter、TestWriter、Worker 四个角色配置卡  
+And 每个角色必须能选择 CLI、填写模型、启用或禁用并保存  
+And 页面必须提供 CLI 探测入口  
+And React Flow 控制台不得出现缺失 handle 的 edge warning
+
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
 Given 一个指向目标项目的 goal  
