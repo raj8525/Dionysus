@@ -58,6 +58,14 @@ And 前端请求 `/api/flow/current`
 Then 响应必须包含 goal、PLAN、specs、features_test、Workers、Integration Queue、Milestone、Codex E2E、Notify User 节点
 And 节点之间必须按执行顺序连接
 
+## 场景 4.1：Codex 和 Dashboard 可以列出已有目标
+
+Given Dionysus 已经创建过多个 goal
+When Codex 执行 `pnpm dionysus goal list --limit 10`
+Then Dionysus 必须返回最近目标列表
+And Dashboard 必须提供已有目标选择器
+And 选择目标后必须加载该目标详情、流程图、任务、运行证据和 Agent CLI usage
+
 ## 场景 5：里程碑通过后生成通知
 
 Given 一个 milestone 已通过 Codex E2E

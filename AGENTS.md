@@ -53,6 +53,7 @@ pnpm dionysus agent config list
 pnpm dionysus agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
 pnpm dionysus agent status --goal-id "<goal-id>"
 pnpm dionysus agent usage --goal-id "<goal-id>"
+pnpm dionysus goal list --limit 10
 pnpm dionysus release record --goal-id "<goal-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
 pnpm dionysus release list --goal-id "<goal-id>"
 pnpm dionysus run logs --run-id "<run-id>"

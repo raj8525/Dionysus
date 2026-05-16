@@ -32,6 +32,17 @@ describe("dionysus CLI API command resolver", () => {
     });
   });
 
+  it("maps goal list to the goals API with an optional limit", () => {
+    expect(resolveApiCommand(["goal", "list", "--limit", "5"])).toEqual({
+      path: "/api/goals?limit=5",
+      method: "GET"
+    });
+    expect(resolveApiCommand(["goal", "list"])).toEqual({
+      path: "/api/goals",
+      method: "GET"
+    });
+  });
+
   it("maps integration list to the integration API", () => {
     expect(resolveApiCommand(["integration", "list", "--goal-id", "goal-123"])).toEqual({
       path: "/api/integrations?goalId=goal-123",

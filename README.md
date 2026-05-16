@@ -103,6 +103,14 @@ pnpm goal:create -- \
   --target-root /Volumes/MacMiniSSD/code/Coupon
 ```
 
+## 查看已有目标
+
+```bash
+pnpm dionysus goal list --limit 10
+```
+
+Dashboard 顶部也提供已有目标选择器，用于在历史 Coupon 目标、沙箱目标和当前试运行目标之间切换。
+
 ## 执行 Coupon intake
 
 ```bash

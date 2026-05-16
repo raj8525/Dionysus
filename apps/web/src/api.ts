@@ -359,6 +359,14 @@ export async function fetchCurrentFlow(): Promise<FlowResponse> {
   return (await response.json()) as FlowResponse;
 }
 
+export async function fetchGoalFlow(goalId: string): Promise<FlowResponse> {
+  const response = await fetch(`${apiBase}/api/goals/${encodeURIComponent(goalId)}/graph`);
+  if (!response.ok) {
+    throw new Error(`Failed to load goal flow: ${response.status}`);
+  }
+  return (await response.json()) as FlowResponse;
+}
+
 export async function createGoal(input: CreateGoalInput): Promise<Goal> {
   const response = await fetch(`${apiBase}/api/goals`, {
     method: "POST",
@@ -369,6 +377,14 @@ export async function createGoal(input: CreateGoalInput): Promise<Goal> {
     throw new Error(`Failed to create goal: ${response.status}`);
   }
   return (await response.json()) as Goal;
+}
+
+export async function fetchGoals(limit = 20): Promise<Goal[]> {
+  const response = await fetch(`${apiBase}/api/goals?limit=${encodeURIComponent(String(limit))}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load goals: ${response.status}`);
+  }
+  return (await response.json()) as Goal[];
 }
 
 export async function fetchGoal(goalId: string): Promise<Goal> {

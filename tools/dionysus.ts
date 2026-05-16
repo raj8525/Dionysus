@@ -680,6 +680,7 @@ function usage(): void {
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
   tsx tools/dionysus.ts release list --goal-id "..."
   tsx tools/dionysus.ts run logs --run-id "..."
+  tsx tools/dionysus.ts goal list --limit 10
   tsx tools/dionysus.ts goal status --goal-id "..."
   tsx tools/dionysus.ts goal intake --goal-id "..."
   tsx tools/dionysus.ts goal bootstrap --goal-id "..."

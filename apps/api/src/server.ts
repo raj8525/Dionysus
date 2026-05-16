@@ -189,6 +189,13 @@ export async function buildServer() {
     return reply.code(201).send(goal);
   });
 
+  app.get("/api/goals", async (request) => {
+    const query = request.query as { limit?: string };
+    const parsedLimit = query.limit ? Number(query.limit) : 20;
+    const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(Math.floor(parsedLimit), 100)) : 20;
+    return repo.listGoals(limit);
+  });
+
   app.get("/api/goals/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const goal = await repo.getGoal(id);

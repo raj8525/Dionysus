@@ -14,6 +14,14 @@ const goalPostActions: Record<string, string> = {
 
 export function resolveApiCommand(args: string[]): ApiCommand | undefined {
   const [domain, action] = args;
+  if (domain === "goal" && action === "list") {
+    const limit = readFlag(args, "--limit");
+    return {
+      path: `/api/goals${limit ? `?limit=${encodeURIComponent(limit)}` : ""}`,
+      method: "GET"
+    };
+  }
+
   if (domain === "goal" && action && goalPostActions[action]) {
     const goalId = requiredFlag(args, "--goal-id");
     return {

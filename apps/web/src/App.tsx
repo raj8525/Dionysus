@@ -15,8 +15,10 @@ import {
   fetchMilestones,
   fetchRunLogs,
   fetchRuns,
+  fetchGoals,
   fetchSystemHealth,
   fetchSystemEvents,
+  fetchGoalFlow,
   fetchTasks,
   fetchWatchdogEvents,
   probeClis,
@@ -65,6 +67,7 @@ const nodeTypes = {
 export function App() {
   const [flow, setFlow] = useState<FlowResponse>({ nodes: [], edges: [] });
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [flowGoalTitle, setFlowGoalTitle] = useState("等待 Codex 创建目标");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -99,7 +102,7 @@ export function App() {
   const [agents, setAgents] = useState<AgentRecord[]>([]);
 
   useEffect(() => {
-    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshAgentCliUsage()])
+    Promise.all([refreshGoals(), refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshAgentCliUsage()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -143,6 +146,23 @@ export function App() {
     }
   }
 
+  async function refreshGoals() {
+    setGoals(await fetchGoals(20));
+  }
+
+  async function selectGoal(goalId: string) {
+    if (!goalId) return;
+    setError(null);
+    const [goal, nextFlow] = await Promise.all([
+      fetchGoal(goalId),
+      fetchGoalFlow(goalId)
+    ]);
+    setCurrentGoal(goal);
+    setActiveGoalId(goal.id);
+    setFlow(nextFlow);
+    setFlowGoalTitle(goal.title);
+  }
+
   async function createCouponGoal() {
     setCreating(true);
     setError(null);
@@ -154,7 +174,7 @@ export function App() {
       });
       setCurrentGoal(goal);
       setActiveGoalId(goal.id);
-      await refreshFlow();
+      await Promise.all([refreshGoals(), refreshFlow()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -405,6 +425,18 @@ export function App() {
           </div>
         </header>
         <section className="actionBar">
+          <select
+            className="goalSelect"
+            value={activeGoalId ?? ""}
+            onChange={(event) => selectGoal(event.target.value).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))}
+          >
+            <option value="">选择已有目标</option>
+            {goals.map((goal) => (
+              <option key={goal.id} value={goal.id}>
+                {goal.title} · {goal.status}
+              </option>
+            ))}
+          </select>
           <button type="button" onClick={createCouponGoal} disabled={creating}>
             {creating ? "创建中..." : "创建 Coupon 目标"}
           </button>
