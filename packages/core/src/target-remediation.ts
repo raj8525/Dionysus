@@ -79,3 +79,33 @@ export function buildPreflightRemediation(input: {
 
   return drafts;
 }
+
+export function buildAddFilesPatch(files: RemediationFileDraft[]): string {
+  return files.map((file) => buildAddFilePatch(file)).join("");
+}
+
+function buildAddFilePatch(file: RemediationFileDraft): string {
+  assertRelativePath(file.path);
+  const lines = normalizeContent(file.content).split("\n");
+  const body = lines.map((line) => `+${line}`).join("\n");
+  return [
+    `diff --git a/${file.path} b/${file.path}`,
+    "new file mode 100644",
+    "index 0000000..0000000",
+    "--- /dev/null",
+    `+++ b/${file.path}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    body,
+    ""
+  ].join("\n");
+}
+
+function normalizeContent(content: string): string {
+  return content.endsWith("\n") ? content.slice(0, -1) : content;
+}
+
+function assertRelativePath(path: string): void {
+  if (!path || path.startsWith("/") || path.includes("..") || path.includes("\0")) {
+    throw new Error(`unsafe remediation path: ${path}`);
+  }
+}

@@ -129,6 +129,15 @@ Then Dionysus 必须返回缺失文件的 path 和 content 草案
 And 不得直接写入目标项目主工作区  
 And Codex 必须在审查草案后决定是否应用
 
+## 场景 7.3：Preflight Remediation Patch 必须尊重 Git 干净门禁
+
+Given target preflight 因缺少 PLAN / specs / features_test 被阻塞  
+When Codex 调用 `/api/goals/:id/preflight-remediation/patch`  
+Then Dionysus 必须将草案转换为 git patch  
+And 必须创建 patch 与 integration queue 记录  
+And 如果目标 Git 工作区不干净，不得发布 integration 消息  
+And 如果目标 Git 工作区干净，才允许发布 integration 消息
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现  

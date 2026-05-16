@@ -965,7 +965,7 @@ export class DionysusRepository {
     taskId: string;
     patchText: string;
     changedFiles: string[];
-  }): Promise<{ id: string; status: string }> {
+  }): Promise<{ id: string; status: string; queueId: string }> {
     const id = randomUUID();
     const queueId = randomUUID();
     const client = await this.pool.connect();
@@ -990,7 +990,7 @@ export class DionysusRepository {
         [randomUUID(), input.taskId, "patch.queued", JSON.stringify({ patchId: id, queueId })]
       );
       await client.query("commit");
-      return { id: String(result.rows[0].id), status: String(result.rows[0].status) };
+      return { id: String(result.rows[0].id), status: String(result.rows[0].status), queueId };
     } catch (error) {
       await client.query("rollback");
       throw error;

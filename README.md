@@ -138,6 +138,17 @@ curl -X POST http://127.0.0.1:23100/api/patches \
 curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/preflight-remediation
 ```
 
+将建议文件草案转换为 patch 并进入 integration queue：
+
+```bash
+curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/preflight-remediation/patch
+```
+
+规则：
+
+- 如果目标 Git 工作区干净，Dionysus 会发布 integration 消息，由 Integration Worker 应用 patch。
+- 如果目标 Git 工作区不干净，只创建 patch / integration 记录，不发布集成消息，避免污染当前未归属改动。
+
 ## Milestone / E2E / Notification
 
 ```bash

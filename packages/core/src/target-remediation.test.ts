@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPreflightRemediation } from "./target-remediation.js";
+import { buildAddFilesPatch, buildPreflightRemediation } from "./target-remediation.js";
 
 describe("target preflight remediation", () => {
   it("drafts only missing SDD/TDD files", () => {
@@ -40,5 +40,25 @@ describe("target preflight remediation", () => {
     ]);
     expect(drafts[0].content).toContain("Coupon Trial");
     expect(drafts[1].content).toContain("Dionysus 执行 target preflight");
+  });
+
+  it("builds a git-apply compatible patch for new files", () => {
+    const patch = buildAddFilesPatch([
+      {
+        path: "docs/PLAN.md",
+        content: "# Plan\n\n- item"
+      }
+    ]);
+
+    expect(patch).toContain("diff --git a/docs/PLAN.md b/docs/PLAN.md");
+    expect(patch).toContain("--- /dev/null");
+    expect(patch).toContain("+++ b/docs/PLAN.md");
+    expect(patch).toContain("+# Plan");
+    expect(patch).toContain("+- item");
+  });
+
+  it("rejects unsafe paths", () => {
+    expect(() => buildAddFilesPatch([{ path: "../PLAN.md", content: "bad" }])).toThrow("unsafe remediation path");
+    expect(() => buildAddFilesPatch([{ path: "/tmp/PLAN.md", content: "bad" }])).toThrow("unsafe remediation path");
   });
 });

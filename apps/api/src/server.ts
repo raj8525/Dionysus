@@ -9,6 +9,7 @@ import {
   buildMasterTaskTree,
   buildMilestoneNotificationDraft,
   buildNotificationPayload,
+  buildAddFilesPatch,
   buildTelegramRequest,
   buildTargetPreflight,
   buildPreflightRemediation,
@@ -477,6 +478,56 @@ export async function buildServer() {
       goalId: id,
       files: buildPreflightRemediation({ goal, gates })
     };
+  });
+
+  app.post("/api/goals/:id/preflight-remediation/patch", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const [git, gates] = await Promise.all([
+      checkGitPreflight(goal.targetRoot),
+      checkSpecTestGate(goal.targetRoot)
+    ]);
+    await repo.saveGateChecks({ goalId: id, checks: gates });
+    const files = buildPreflightRemediation({ goal, gates });
+    if (!files.length) {
+      return reply.code(200).send({ goalId: id, status: "skipped", reason: "no remediation files needed" });
+    }
+    const task = await repo.createTask({
+      goalId: id,
+      title: "[Master] Queue preflight remediation patch",
+      description: "Dionysus generated missing PLAN/specs/features_test remediation files as a patch for integration.",
+      roleRequired: "master",
+      priority: 5
+    });
+    const patch = await repo.createPatch({
+      goalId: id,
+      taskId: task.id,
+      patchText: buildAddFilesPatch(files),
+      changedFiles: files.map((file) => file.path)
+    });
+    const integrationPublished = git.clean;
+    if (integrationPublished) {
+      await publishJson("dionysus.integration", {
+        message_id: randomUUID(),
+        goal_id: id,
+        task_id: task.id,
+        type: "preflight_remediation_patch",
+        attempt: 1,
+        idempotency_key: `${task.id}:preflight-remediation:1`,
+        created_at: new Date().toISOString()
+      });
+    }
+    return reply.code(201).send({
+      goalId: id,
+      taskId: task.id,
+      patch,
+      files,
+      integrationPublished,
+      blockers: git.clean ? [] : [`git worktree dirty: ${git.changes.length} changes`]
+    });
   });
 
   app.post("/api/patches", async (request, reply) => {
