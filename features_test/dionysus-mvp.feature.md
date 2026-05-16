@@ -388,6 +388,7 @@ When Codex 执行 `pnpm dionysus run logs --run-id "<run-id>"`
 Then Dionysus 必须返回该 run 的完整 stdout/stderr 分片
 And 日志必须按 `sequence` 与创建时间排序
 And Dashboard 的 Runs 面板必须能展开查看完整日志
+And Agent Runtime 必须在 CLI 进程运行中流式写入日志
 And `/api/runs` 的短预览不得替代完整日志诊断能力
 
 ## 场景 16：任务树可以先创建但不立即执行

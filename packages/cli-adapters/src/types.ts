@@ -2,6 +2,7 @@ export interface AgentRunInput {
   taskId: string;
   prompt: string;
   cwd: string;
+  onOutput?: (stream: "stdout" | "stderr", chunkText: string) => void;
 }
 
 export interface AgentRunResult {

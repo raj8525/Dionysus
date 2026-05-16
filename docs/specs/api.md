@@ -253,7 +253,7 @@ GET /api/usage/agent-cli?goalId=<goal-id>
 
 当前 `modelCalls` 的口径是 Dionysus 发起的非 mock CLI run 次数。CLI 进程内部的真实模型 API 调用次数只有在对应 CLI 输出 usage 回执后才能进一步精确解析。
 
-`/api/runs/:id/logs` 用于 Codex 和 Dashboard 读取某次 Agent run 的完整 stdout/stderr 分片。`/api/runs` 只返回预览，不能作为诊断 Agent 卡死、超时或输出不合格的唯一证据。
+`/api/runs/:id/logs` 用于 Codex 和 Dashboard 读取某次 Agent run 的完整 stdout/stderr 分片。Agent Runtime 必须在 CLI 进程运行中流式写入日志，不能等进程结束后才批量写入。`/api/runs` 只返回预览，不能作为诊断 Agent 卡死、超时或输出不合格的唯一证据。
 
 ```text
 GET /api/runs/<run-id>/logs

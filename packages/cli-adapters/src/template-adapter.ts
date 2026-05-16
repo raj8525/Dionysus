@@ -27,7 +27,7 @@ export class TemplateCliAdapter implements CliAdapter {
     const command = this.commandName();
     const args = this.commandArgs(input);
     const cliModel = this.resolvedModel();
-    const result = await run(command, args, input.cwd, this.options.timeoutMs ?? 20 * 60_000);
+    const result = await run(command, args, input.cwd, this.options.timeoutMs ?? 20 * 60_000, input.onOutput);
     return {
       ...result,
       structuredResult: {
@@ -141,7 +141,13 @@ function booleanFlag(flag: string, value: string | undefined): string[] {
   return value === "1" || value === "true" || value === "yes" ? [flag] : [];
 }
 
-async function run(command: string, args: string[], cwd: string, timeoutMs: number): Promise<{
+async function run(
+  command: string,
+  args: string[],
+  cwd: string,
+  timeoutMs: number,
+  onOutput?: (stream: "stdout" | "stderr", chunkText: string) => void
+): Promise<{
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -166,6 +172,9 @@ async function run(command: string, args: string[], cwd: string, timeoutMs: numb
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (extraStderr) {
+        onOutput?.("stderr", extraStderr);
+      }
       resolve({
         stdout,
         stderr: `${stderr}${extraStderr}`,
@@ -194,9 +203,11 @@ async function run(command: string, args: string[], cwd: string, timeoutMs: numb
     timer.unref();
 
     child.stdout?.on("data", (chunk: Buffer) => {
+      onOutput?.("stdout", chunk.toString());
       stdout = append(stdout, chunk);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
+      onOutput?.("stderr", chunk.toString());
       stderr = append(stderr, chunk);
     });
     child.on("error", (error) => {

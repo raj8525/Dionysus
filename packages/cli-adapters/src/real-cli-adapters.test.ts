@@ -117,6 +117,29 @@ describe("real CLI adapters", () => {
     expect(result.exitCode).toBe(124);
     expect(result.stderr).toContain("timed out");
   });
+
+  it("streams stdout and stderr chunks while the process is running", async () => {
+    const command = await streamingCliCommand();
+    setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);
+    const chunks: Array<{ stream: string; chunkText: string }> = [];
+
+    const result = await createCliAdapter({ cliType: "claude_code" }).run({
+      taskId: "task-stream",
+      cwd: process.cwd(),
+      prompt: "stream",
+      onOutput: (stream, chunkText) => {
+        chunks.push({ stream, chunkText });
+      }
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(chunks).toHaveLength(3);
+    expect(chunks).toEqual(expect.arrayContaining([
+      { stream: "stdout", chunkText: "out-1\n" },
+      { stream: "stderr", chunkText: "err-1\n" },
+      { stream: "stdout", chunkText: "out-2\n" }
+    ]));
+  });
 });
 
 async function fakeCliCommand(): Promise<string> {
@@ -136,6 +159,19 @@ async function hangingCliCommand(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-hang-"));
   const file = join(dir, "hanging-cli.mjs");
   await writeFile(file, "#!/usr/bin/env node\nsetInterval(() => {}, 1000)\n");
+  await chmod(file, 0o755);
+  return file;
+}
+
+async function streamingCliCommand(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-stream-"));
+  const file = join(dir, "streaming-cli.mjs");
+  await writeFile(file, [
+    "#!/usr/bin/env node",
+    "process.stdout.write('out-1\\n')",
+    "process.stderr.write('err-1\\n')",
+    "process.stdout.write('out-2\\n')"
+  ].join("\n"));
   await chmod(file, 0o755);
   return file;
 }

@@ -89,17 +89,26 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       });
       return;
     }
+    const activeRunId = runId;
 
+    let logSequence = 1;
+    let streamedLogs = false;
+    const pendingLogWrites: Array<Promise<void>> = [];
     const result = await adapter.run({
       taskId: message.task_id,
       prompt,
-      cwd: workspace.workspacePath
+      cwd: workspace.workspacePath,
+      onOutput: (stream, chunkText) => {
+        streamedLogs = true;
+        pendingLogWrites.push(repo.appendRunLog(activeRunId, stream, chunkText, logSequence++));
+      }
     });
+    await Promise.all(pendingLogWrites);
 
-    if (result.stdout) {
+    if (!streamedLogs && result.stdout) {
       await repo.appendRunLog(runId, "stdout", result.stdout, 1);
     }
-    if (result.stderr) {
+    if (!streamedLogs && result.stderr) {
       await repo.appendRunLog(runId, "stderr", result.stderr, 2);
     }
 
@@ -218,15 +227,24 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     });
     return;
   }
+  const activeRunId = runId;
+  let logSequence = 1;
+  let streamedLogs = false;
+  const pendingLogWrites: Array<Promise<void>> = [];
   const result = await roleAdapter.run({
     taskId: message.task_id,
     prompt,
-    cwd
+    cwd,
+    onOutput: (stream, chunkText) => {
+      streamedLogs = true;
+      pendingLogWrites.push(repo.appendRunLog(activeRunId, stream, chunkText, logSequence++));
+    }
   });
-  if (result.stdout) {
+  await Promise.all(pendingLogWrites);
+  if (!streamedLogs && result.stdout) {
     await repo.appendRunLog(runId, "stdout", result.stdout, 1);
   }
-  if (result.stderr) {
+  if (!streamedLogs && result.stderr) {
     await repo.appendRunLog(runId, "stderr", result.stderr, 2);
   }
   await repo.recordTaskEvent(message.task_id, result.exitCode === 0 ? `${roleName}.completed` : `${roleName}.failed`, {
