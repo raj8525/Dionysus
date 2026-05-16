@@ -81,6 +81,12 @@ const createE2ECampaignSchema = z.object({
   acceptance: z.array(z.string()).default([])
 });
 
+const recordE2ECaseResultSchema = z.object({
+  status: z.enum(["passed", "failed", "blocked", "skipped"]),
+  failureReason: z.string().optional(),
+  result: z.record(z.string(), z.unknown()).optional()
+});
+
 const createPatchSchema = z.object({
   goalId: z.string().uuid(),
   taskId: z.string().uuid(),
@@ -492,6 +498,29 @@ export async function buildServer() {
   app.get("/api/e2e/campaigns", async (request) => {
     const query = request.query as { milestoneId?: string };
     return repo.listE2ECampaigns(query.milestoneId);
+  });
+
+  app.get("/api/e2e/campaigns/:id/cases", async (request) => {
+    const { id } = request.params as { id: string };
+    return repo.listE2ECases(id);
+  });
+
+  app.post("/api/e2e/cases/:id/result", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = recordE2ECaseResultSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_E2E_CASE_RESULT", details: parsed.error.flatten() });
+    }
+    try {
+      const result = await repo.recordE2ECaseResult({ caseId: id, ...parsed.data });
+      return reply.code(202).send({ caseId: id, ...result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("E2E case not found")) {
+        return reply.code(404).send({ error: "E2E_CASE_NOT_FOUND", message });
+      }
+      throw error;
+    }
   });
 
   app.post("/api/milestones/:id/codex-verdict", async (request, reply) => {

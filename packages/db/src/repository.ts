@@ -4,6 +4,7 @@ import type {
   AgentCliConfig,
   AgentRole,
   CliType,
+  E2ECaseStatus,
   FlowEdge,
   FlowNode,
   Goal,
@@ -20,7 +21,12 @@ import type {
   DocumentFinding,
   GateCheckResult
 } from "@dionysus/core";
-import { buildE2ECampaignDraft, detectMilestoneCandidate, milestoneStatusForCodexVerdict } from "@dionysus/core";
+import {
+  buildE2ECampaignDraft,
+  deriveE2ECampaignStatus,
+  detectMilestoneCandidate,
+  milestoneStatusForCodexVerdict
+} from "@dionysus/core";
 import type { CliProbeResult } from "@dionysus/cli-adapters";
 
 export class DionysusRepository {
@@ -798,6 +804,92 @@ export class DionysusRepository {
       params
     );
     return result.rows;
+  }
+
+  async listE2ECases(campaignId: string): Promise<Array<Record<string, unknown>>> {
+    const result = await this.pool.query(
+      `select id, campaign_id, title, description, case_type, preconditions, steps_json,
+              expected_result, status, failure_reason, result_json, executed_at, created_at, updated_at
+       from ${this.table("e2e_cases")}
+       where campaign_id = $1
+       order by created_at asc`,
+      [campaignId]
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      campaignId: String(row.campaign_id),
+      title: String(row.title),
+      description: String(row.description),
+      caseType: String(row.case_type),
+      preconditions: row.preconditions ? String(row.preconditions) : undefined,
+      steps: Array.isArray(row.steps_json) ? row.steps_json : [],
+      expectedResult: String(row.expected_result),
+      status: String(row.status),
+      failureReason: row.failure_reason ? String(row.failure_reason) : undefined,
+      result: row.result_json ?? {},
+      executedAt: row.executed_at ? new Date(row.executed_at).toISOString() : undefined,
+      createdAt: new Date(row.created_at).toISOString(),
+      updatedAt: new Date(row.updated_at).toISOString()
+    }));
+  }
+
+  async recordE2ECaseResult(input: {
+    caseId: string;
+    status: E2ECaseStatus;
+    failureReason?: string;
+    result?: Record<string, unknown>;
+  }): Promise<{ campaignId: string; campaignStatus: string }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const updated = await client.query(
+        `update ${this.table("e2e_cases")}
+         set status = $1,
+             failure_reason = $2,
+             result_json = $3,
+             executed_at = now(),
+             updated_at = now()
+         where id = $4
+         returning campaign_id`,
+        [
+          input.status,
+          input.failureReason ?? null,
+          JSON.stringify(input.result ?? {}),
+          input.caseId
+        ]
+      );
+      if (!updated.rowCount) {
+        throw new Error(`E2E case not found: ${input.caseId}`);
+      }
+      const campaignId = String(updated.rows[0].campaign_id);
+      const cases = await client.query(
+        `select status from ${this.table("e2e_cases")} where campaign_id = $1 order by created_at asc`,
+        [campaignId]
+      );
+      const campaignStatus = deriveE2ECampaignStatus(cases.rows.map((row) => String(row.status) as E2ECaseStatus));
+      await client.query(
+        `update ${this.table("e2e_campaigns")}
+         set status = $1, updated_at = now()
+         where id = $2`,
+        [campaignStatus, campaignId]
+      );
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [
+          randomUUID(),
+          "e2e.case_result_recorded",
+          JSON.stringify({ caseId: input.caseId, campaignId, status: input.status, campaignStatus })
+        ]
+      );
+      await client.query("commit");
+      return { campaignId, campaignStatus };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async createNotification(input: {

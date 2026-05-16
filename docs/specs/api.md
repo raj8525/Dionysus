@@ -73,9 +73,13 @@ POST /api/milestones/:id/notifications
 
 ```text
 GET /api/e2e/campaigns
+GET /api/e2e/campaigns/:id/cases
+POST /api/e2e/cases/:id/result
 ```
 
 E2E campaign 由 Dionysus 生成用例草案，由 Codex 执行浏览器级测试并提交 verdict。
+
+每条 E2E case 必须可记录执行结果：`passed`、`failed`、`blocked`、`skipped`，同时保存失败原因与证据 JSON。Campaign 状态必须由 case 状态自动汇总，不能靠人工口头判断。
 
 ## Notifications
 

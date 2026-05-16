@@ -245,6 +245,14 @@ When Dionysus 创建 E2E campaign
 Then 必须包含 smoke、happy path、negative path、persistence 用例  
 And Codex 执行后才能写入 verdict
 
+## 场景 10.1：E2E case 结果必须逐条落库
+
+Given Dionysus 已创建 E2E campaign  
+When Codex 执行浏览器级用例  
+Then 每条 case 必须能写入 passed、failed、blocked 或 skipped  
+And 必须保存失败原因与截图、控制台日志、网络错误等证据 JSON  
+And campaign 状态必须由所有 case 状态自动汇总
+
 ## 场景 11：里程碑通过后必须通知
 
 Given Codex E2E verdict 为 passed  

@@ -1,6 +1,7 @@
 export * from "./state-machine.js";
 export * from "./types.js";
 export * from "./document-compiler.js";
+export * from "./e2e-results.js";
 export * from "./gatekeeper.js";
 export * from "./workspace.js";
 export * from "./milestone-orchestration.js";
