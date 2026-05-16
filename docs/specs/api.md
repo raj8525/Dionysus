@@ -253,6 +253,36 @@ GET /api/usage/agent-cli?goalId=<goal-id>
 
 当前 `modelCalls` 的口径是 Dionysus 发起的非 mock CLI run 次数。CLI 进程内部的真实模型 API 调用次数只有在对应 CLI 输出 usage 回执后才能进一步精确解析。
 
+`/api/runs/:id/logs` 用于 Codex 和 Dashboard 读取某次 Agent run 的完整 stdout/stderr 分片。`/api/runs` 只返回预览，不能作为诊断 Agent 卡死、超时或输出不合格的唯一证据。
+
+```text
+GET /api/runs/<run-id>/logs
+```
+
+返回按 `sequence` 和 `createdAt` 排序的完整日志：
+
+```json
+{
+  "runId": "995b8e0c-e297-4a85-9be3-7d7c3fe3974b",
+  "logs": [
+    {
+      "id": "log-id",
+      "runId": "995b8e0c-e297-4a85-9be3-7d7c3fe3974b",
+      "stream": "stdout",
+      "chunkText": "Agent output...",
+      "sequence": 1,
+      "createdAt": "2026-05-16T16:35:10.000Z"
+    }
+  ]
+}
+```
+
+Codex CLI 必须支持：
+
+```text
+pnpm dionysus run logs --run-id "<run-id>"
+```
+
 ## Gatekeeper
 
 ```text

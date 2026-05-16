@@ -45,4 +45,11 @@ describe("dionysus CLI API command resolver", () => {
       method: "GET"
     });
   });
+
+  it("maps run logs to the full task run log API", () => {
+    expect(resolveApiCommand(["run", "logs", "--run-id", "run-123"])).toEqual({
+      path: "/api/runs/run-123/logs",
+      method: "GET"
+    });
+  });
 });

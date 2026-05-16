@@ -278,6 +278,24 @@ export class DionysusRepository {
     }));
   }
 
+  async listTaskRunLogs(runId: string): Promise<Array<Record<string, unknown>>> {
+    const result = await this.pool.query(
+      `select id, run_id, stream, chunk_text, sequence, created_at
+       from ${this.table("task_run_logs")}
+       where run_id = $1
+       order by sequence asc, created_at asc`,
+      [runId]
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      runId: String(row.run_id),
+      stream: String(row.stream),
+      chunkText: String(row.chunk_text),
+      sequence: Number(row.sequence),
+      createdAt: new Date(row.created_at).toISOString()
+    }));
+  }
+
   async getAgentCliUsage(input: {
     goalId?: string;
   } = {}): Promise<AgentCliUsageSummary> {

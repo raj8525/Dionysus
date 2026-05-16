@@ -206,6 +206,12 @@ export async function buildServer() {
     return repo.listTaskRuns({ goalId: query.goalId, limit });
   });
 
+  app.get("/api/runs/:id/logs", async (request) => {
+    const { id } = request.params as { id: string };
+    const logs = await repo.listTaskRunLogs(id);
+    return { runId: id, logs };
+  });
+
   app.get("/api/usage/agent-cli", async (request) => {
     const query = request.query as { goalId?: string };
     return repo.getAgentCliUsage({ goalId: query.goalId });

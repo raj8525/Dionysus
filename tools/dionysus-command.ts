@@ -37,6 +37,14 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "run" && action === "logs") {
+    const runId = requiredFlag(args, "--run-id");
+    return {
+      path: `/api/runs/${encodeURIComponent(runId)}/logs`,
+      method: "GET"
+    };
+  }
+
   return undefined;
 }
 

@@ -609,6 +609,7 @@ function usage(): void {
   tsx tools/dionysus.ts agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
+  tsx tools/dionysus.ts run logs --run-id "..."
   tsx tools/dionysus.ts goal status --goal-id "..."
   tsx tools/dionysus.ts goal intake --goal-id "..."
   tsx tools/dionysus.ts goal bootstrap --goal-id "..."

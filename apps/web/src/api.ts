@@ -139,6 +139,20 @@ export interface TaskRunRecord {
   logPreview: string;
 }
 
+export interface TaskRunLogRecord {
+  id: string;
+  runId: string;
+  stream: string;
+  chunkText: string;
+  sequence: number;
+  createdAt: string;
+}
+
+export interface TaskRunLogsResponse {
+  runId: string;
+  logs: TaskRunLogRecord[];
+}
+
 export interface AgentCliModelUsage {
   cliType: CliType;
   cliModel: string;
@@ -389,6 +403,14 @@ export async function fetchRuns(goalId?: string, limit = 20): Promise<TaskRunRec
     throw new Error(`Failed to load runs: ${response.status}`);
   }
   return (await response.json()) as TaskRunRecord[];
+}
+
+export async function fetchRunLogs(runId: string): Promise<TaskRunLogsResponse> {
+  const response = await fetch(`${apiBase}/api/runs/${encodeURIComponent(runId)}/logs`);
+  if (!response.ok) {
+    throw new Error(`Failed to load run logs: ${response.status}`);
+  }
+  return (await response.json()) as TaskRunLogsResponse;
 }
 
 export async function fetchAgentCliUsage(goalId?: string): Promise<AgentCliUsageSummary> {

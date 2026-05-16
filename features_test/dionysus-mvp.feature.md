@@ -381,6 +381,15 @@ And 返回每个 Agent 使用的 CLI 与模型维度调用次数
 And Dashboard 每 5 秒自动刷新该统计
 And 统计口径必须来自 PostgreSQL `task_runs` 全量聚合，而不是只看最近列表分页
 
+## 场景 15.1：Codex 和 Dashboard 可以查看单次 run 的完整日志
+
+Given 一个 Agent run 已经写入 `task_run_logs`
+When Codex 执行 `pnpm dionysus run logs --run-id "<run-id>"`
+Then Dionysus 必须返回该 run 的完整 stdout/stderr 分片
+And 日志必须按 `sequence` 与创建时间排序
+And Dashboard 的 Runs 面板必须能展开查看完整日志
+And `/api/runs` 的短预览不得替代完整日志诊断能力
+
 ## 场景 16：任务树可以先创建但不立即执行
 
 Given Codex 需要按 SDD/TDD 顺序创建 TestWriter 与 Worker 任务

@@ -10,6 +10,7 @@ import {
   fetchE2ECases,
   fetchIntegrations,
   fetchMilestones,
+  fetchRunLogs,
   fetchRuns,
   fetchSystemHealth,
   fetchSystemEvents,
@@ -39,6 +40,7 @@ import {
   type SystemEvent,
   type SystemHealth,
   type TaskRecord,
+  type TaskRunLogRecord,
   type TaskRunRecord,
   type TargetPreflightResult,
   type WatchdogEvent,
@@ -78,6 +80,8 @@ export function App() {
   const [masterStepping, setMasterStepping] = useState(false);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [runs, setRuns] = useState<TaskRunRecord[]>([]);
+  const [runLogs, setRunLogs] = useState<Record<string, TaskRunLogRecord[]>>({});
+  const [loadingRunLogs, setLoadingRunLogs] = useState<string | null>(null);
   const [masterEvents, setMasterEvents] = useState<SystemEvent[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
   const [e2eCampaigns, setE2ECampaigns] = useState<E2ECampaignRecord[]>([]);
@@ -262,6 +266,27 @@ export function App() {
     setE2ECampaigns(campaigns);
     const latestCampaign = campaigns[0];
     setE2ECases(latestCampaign ? await fetchE2ECases(latestCampaign.id) : []);
+  }
+
+  async function toggleRunLogs(runId: string) {
+    if (runLogs[runId]) {
+      setRunLogs((current) => {
+        const next = { ...current };
+        delete next[runId];
+        return next;
+      });
+      return;
+    }
+    setLoadingRunLogs(runId);
+    setError(null);
+    try {
+      const response = await fetchRunLogs(runId);
+      setRunLogs((current) => ({ ...current, [runId]: response.logs }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingRunLogs(null);
+    }
   }
 
   async function releaseIntegrations() {
@@ -614,6 +639,22 @@ export function App() {
                       <span>{run.status}{typeof run.exitCode === "number" ? ` / ${run.exitCode}` : ""}</span>
                     </div>
                     <p>{run.roleRequired} · {run.cliType} · {run.command}</p>
+                    <button type="button" className="inlineAction" onClick={() => toggleRunLogs(run.id)}>
+                      {loadingRunLogs === run.id ? "读取中..." : runLogs[run.id] ? "收起完整日志" : "查看完整日志"}
+                    </button>
+                    {runLogs[run.id] ? (
+                      <div className="runLogBox">
+                        {runLogs[run.id].length ? (
+                          runLogs[run.id].map((log) => (
+                            <pre key={log.id} className={log.stream === "stderr" ? "stderrLog" : "stdoutLog"}>
+                              {`${log.stream} #${log.sequence}\n${log.chunkText}`}
+                            </pre>
+                          ))
+                        ) : (
+                          <small>该 run 暂无日志分片</small>
+                        )}
+                      </div>
+                    ) : null}
                     {run.logPreview ? <pre>{run.logPreview}</pre> : null}
                   </article>
                 ))
