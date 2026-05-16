@@ -301,11 +301,15 @@ pnpm dionysus goal remediation-patch --goal-id "<goal-id>"
 pnpm dionysus goal master-step --goal-id "<goal-id>"
 pnpm dionysus goal release-ready --goal-id "<goal-id>"
 pnpm dionysus integration list --goal-id "<goal-id>"
+pnpm dionysus integration retry --integration-id "<integration-id>"
 pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no-queue
+pnpm dionysus task enqueue --task-id "<task-id>"
 pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged sequence"
 ```
 
 `POST /api/tasks` 默认创建并立即入队；当请求体包含 `"queue": false`，或 CLI 使用 `--no-queue` 时，只创建 `created` 任务，不投递 RabbitMQ。该能力用于先建立任务树，再由 Master/上一阶段成功后的 `dispatchNextTask` 按优先级放行，避免 Worker 早于 TestWriter 运行。
+
+`POST /api/tasks/:id/enqueue` 用于重投递已存在的 `created` 或 `queued` 任务。当任务状态已经是 `queued` 但 RabbitMQ 消息因 worker 重启、旧消费者异常或运维操作而丢失时，Codex 必须能使用 `pnpm dionysus task enqueue --task-id "<task-id>"` 重新投递，不需要重建任务。
 
 `POST /api/tasks/:id/cancel` 用于 Codex 或 Master 取消错误排队、过宽、过期或被新任务替代的任务。取消时必须把 task 标记为 `cancelled`，记录 `task.cancelled` 事件，并收口该 task 下仍处于 `running` 的 run。
 
@@ -325,3 +329,20 @@ pnpm dionysus goal supervise --goal-id "<goal-id>" --iterations 5 --interval-sec
 ```text
 POST /api/patches
 ```
+
+Integration Worker 必须基于 patch 的 `changedFiles` 推导最低验证命令，防止治理类 Agent 只产出文件而没有可执行门禁。例如：
+
+- `apps/admin-api/internal/handler/*_test.go` -> `go test -c ./apps/admin-api/internal/handler/`
+- 其他 `.go` 文件 -> `go test ./... -count=1`
+- `apps/admin-web/src/` 或 `apps/admin-web/html/` -> `pnpm --filter @coupon/admin-web build`
+
+`DIONYSUS_INTEGRATION_VERIFY_COMMANDS` 只作为额外全局验证命令追加，不应替代上述自动推导命令。
+
+失败的 integration 必须可重试，避免因为旧环境变量、临时 CLI 故障或验证命令修复后重建整条任务链：
+
+```text
+POST /api/integrations/:id/retry
+pnpm dionysus integration retry --integration-id "<integration-id>"
+```
+
+重试时必须把对应 `integration_queue` 和 `patches` 重新置为 `queued`，记录 `integration.retry_queued` 事件，并重新投递 `dionysus.integration` 队列。

@@ -623,7 +623,9 @@ function usage(): void {
   tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict
   tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30
   tsx tools/dionysus.ts integration list --goal-id "..."
+  tsx tools/dionysus.ts integration retry --integration-id "..."
   tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker [--no-queue]
+  tsx tools/dionysus.ts task enqueue --task-id "..."
   tsx tools/dionysus.ts task cancel --task-id "..." --reason "..."
   tsx tools/dionysus.ts milestone request-e2e --milestone-id "..."
   tsx tools/dionysus.ts milestone create-campaign --milestone-id "..." --target-url "..." --acceptance "..."

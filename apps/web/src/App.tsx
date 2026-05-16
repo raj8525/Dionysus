@@ -7,6 +7,7 @@ import {
   fetchAgentCliUsage,
   fetchCurrentFlow,
   fetchE2ECampaigns,
+  fetchGoal,
   fetchE2ECases,
   fetchIntegrations,
   fetchMilestones,
@@ -47,6 +48,7 @@ import {
   type WatchdogRunResult
 } from "./api.js";
 import { AgentConfigValidationError, saveValidatedAgentCliConfig } from "./agent-config-validation.js";
+import { describeUsageScope, modelCallLabel } from "./agent-usage-display.js";
 import { summarizeSystemHealth } from "./system-health.js";
 
 const nodeTypes = {
@@ -124,7 +126,13 @@ export function App() {
     if (goalNode?.data?.label) {
       setFlowGoalTitle(goalNode.data.label);
     }
-    setActiveGoalId(goalNode?.data?.goalId ?? null);
+    const nextGoalId = goalNode?.data?.goalId ?? null;
+    setActiveGoalId(nextGoalId);
+    if (nextGoalId) {
+      setCurrentGoal(await fetchGoal(nextGoalId));
+    } else {
+      setCurrentGoal(null);
+    }
   }
 
   async function createCouponGoal() {
@@ -341,6 +349,11 @@ export function App() {
   const usageGeneratedLabel = agentCliUsage?.generatedAt
     ? new Date(agentCliUsage.generatedAt).toLocaleTimeString()
     : "未加载";
+  const usageScopeLabel = describeUsageScope({
+    goalId: activeGoalId,
+    goalTitle: currentGoal?.title ?? flowGoalTitle,
+    targetRoot: currentGoal?.targetRoot
+  });
 
   return (
     <main className="appShell">
@@ -440,6 +453,7 @@ export function App() {
             <div>
               <p className="eyebrow">Live Usage</p>
               <h3>Agent CLI / 模型调用统计</h3>
+              <span className="usageScope">{usageScopeLabel}</span>
             </div>
             <div className="sectionActions">
               <span className="refreshBadge">5s 自动刷新 · {usageGeneratedLabel}</span>
@@ -452,7 +466,7 @@ export function App() {
             <>
               <div className="usageSummary">
                 <StatusCard icon={<BarChart3 />} label="CLI Calls" value={String(agentCliUsage.totals.cliCalls)} tone="neutral" />
-                <StatusCard icon={<Activity />} label="Model Calls" value={String(agentCliUsage.totals.modelCalls)} tone="neutral" />
+                <StatusCard icon={<Activity />} label={modelCallLabel()} value={String(agentCliUsage.totals.modelCalls)} tone="neutral" />
                 <StatusCard icon={<CheckCircle2 />} label="Succeeded" value={String(agentCliUsage.totals.succeededCalls)} tone="good" />
                 <StatusCard icon={<AlertTriangle />} label="Failed" value={String(agentCliUsage.totals.failedCalls)} tone={agentCliUsage.totals.failedCalls ? "bad" : "neutral"} />
               </div>

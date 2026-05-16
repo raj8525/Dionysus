@@ -7,8 +7,10 @@ dist/
 .dionysus/locks/
 .dionysus/patches/
 .dionysus/e2e/
+.dionysus/logs/
 .dionysus/workspaces/
 .dionysus/real-worker-target/
+.dionysus/*.png
 coverage/
 *.log
 .playwright-cli/

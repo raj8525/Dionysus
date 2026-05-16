@@ -18,3 +18,4 @@ export * from "./master-autopilot.js";
 export * from "./runtime-health.js";
 export * from "./codex-outbox.js";
 export * from "./dispatch-policy.js";
+export * from "./integration-verification.js";

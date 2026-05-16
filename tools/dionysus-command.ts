@@ -30,6 +30,14 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "integration" && action === "retry") {
+    const integrationId = requiredFlag(args, "--integration-id");
+    return {
+      path: `/api/integrations/${encodeURIComponent(integrationId)}/retry`,
+      method: "POST"
+    };
+  }
+
   if (domain === "agent" && action === "config" && args[2] === "list") {
     return {
       path: "/api/agent-cli-configs",
@@ -42,6 +50,14 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     return {
       path: `/api/runs/${encodeURIComponent(runId)}/logs`,
       method: "GET"
+    };
+  }
+
+  if (domain === "task" && action === "enqueue") {
+    const taskId = requiredFlag(args, "--task-id");
+    return {
+      path: `/api/tasks/${encodeURIComponent(taskId)}/enqueue`,
+      method: "POST"
     };
   }
 

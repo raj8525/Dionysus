@@ -321,6 +321,14 @@ export async function createGoal(input: CreateGoalInput): Promise<Goal> {
   return (await response.json()) as Goal;
 }
 
+export async function fetchGoal(goalId: string): Promise<Goal> {
+  const response = await fetch(`${apiBase}/api/goals/${encodeURIComponent(goalId)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load goal: ${response.status}`);
+  }
+  return (await response.json()) as Goal;
+}
+
 export async function fetchAgentCliConfigs(): Promise<AgentCliConfig[]> {
   const response = await fetch(`${apiBase}/api/agent-cli-configs`);
   if (!response.ok) {

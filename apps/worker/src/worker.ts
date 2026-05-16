@@ -17,6 +17,7 @@ import {
   decidePostRunDispatch,
   decideMasterStep,
   evaluateWatchdogTask,
+  mergeIntegrationVerificationCommands,
   shouldDispatchAfterIntegration,
   queueForRole
 } from "@dionysus/core";
@@ -303,10 +304,14 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
 
   await repo.markIntegrationRunning(integration.id);
   const goal = await repo.getGoal(integration.goalId);
+  const verificationCommands = mergeIntegrationVerificationCommands({
+    changedFiles: integration.changedFiles,
+    configuredCommands: integrationVerificationCommands
+  });
   const result = await applyPatchToTarget({
     targetRoot: targetRootForGoal(goal, targetRoot),
     patchText: integration.patchText,
-    verificationCommands: integrationVerificationCommands
+    verificationCommands
   });
   await repo.completeIntegration({
     integrationId: integration.id,
@@ -317,8 +322,8 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
       applyStatus: result.status,
       changedFiles: result.changedFiles,
       reason: result.reason,
-      testStatus: result.status === "applied" ? (integrationVerificationCommands.length ? "passed" : "missing") : "blocked",
-      verificationCommands: integrationVerificationCommands
+      testStatus: result.status === "applied" ? (verificationCommands.length ? "passed" : "missing") : "blocked",
+      verificationCommands
     }
   });
   if (shouldDispatchAfterIntegration({ applyStatus: result.status })) {

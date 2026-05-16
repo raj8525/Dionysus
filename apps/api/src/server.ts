@@ -371,6 +371,33 @@ export async function buildServer() {
     return reply.code(202).send(task);
   });
 
+  app.post("/api/tasks/:id/enqueue", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const task = await repo.getTask(id);
+    if (!task) {
+      return reply.code(404).send({ error: "TASK_NOT_FOUND" });
+    }
+    const status = String(task.status);
+    if (!["created", "queued"].includes(status)) {
+      return reply.code(409).send({ error: "TASK_NOT_ENQUEUEABLE", status });
+    }
+    const roleRequired = String(task.role_required);
+    if (!["master", "rule_writer", "test_writer", "worker"].includes(roleRequired)) {
+      return reply.code(409).send({ error: "INVALID_TASK_ROLE", roleRequired });
+    }
+    await repo.markTaskQueued(id);
+    await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
+      message_id: randomUUID(),
+      goal_id: String(task.goal_id),
+      task_id: id,
+      type: `${roleRequired}_task`,
+      attempt: Number(task.current_attempt ?? 0) + 1,
+      idempotency_key: `${id}:${roleRequired}:manual-enqueue:${Date.now()}`,
+      created_at: new Date().toISOString()
+    });
+    return reply.code(202).send({ id, status: "queued", roleRequired });
+  });
+
   app.post("/api/goals/:id/intake", async (request, reply) => {
     const { id } = request.params as { id: string };
     const goal = await repo.getGoal(id);
@@ -877,6 +904,24 @@ export async function buildServer() {
   app.get("/api/integrations", async (request) => {
     const query = request.query as { goalId?: string };
     return repo.listIntegrations(query.goalId);
+  });
+
+  app.post("/api/integrations/:id/retry", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const integration = await repo.retryIntegration(id);
+    if (!integration) {
+      return reply.code(404).send({ error: "INTEGRATION_NOT_RETRYABLE" });
+    }
+    await publishJson("dionysus.integration", {
+      message_id: randomUUID(),
+      task_id: integration.taskId,
+      goal_id: integration.goalId,
+      type: "integration_retry",
+      attempt: 1,
+      idempotency_key: `${integration.taskId}:integration-retry:${integration.id}`,
+      created_at: new Date().toISOString()
+    });
+    return reply.code(202).send({ status: "queued", integration });
   });
 
   app.post("/api/patches", async (request, reply) => {

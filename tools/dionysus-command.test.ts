@@ -39,6 +39,13 @@ describe("dionysus CLI API command resolver", () => {
     });
   });
 
+  it("maps integration retry to the retry API", () => {
+    expect(resolveApiCommand(["integration", "retry", "--integration-id", "integration-123"])).toEqual({
+      path: "/api/integrations/integration-123/retry",
+      method: "POST"
+    });
+  });
+
   it("maps agent config list to the agent config API", () => {
     expect(resolveApiCommand(["agent", "config", "list"])).toEqual({
       path: "/api/agent-cli-configs",
@@ -50,6 +57,13 @@ describe("dionysus CLI API command resolver", () => {
     expect(resolveApiCommand(["run", "logs", "--run-id", "run-123"])).toEqual({
       path: "/api/runs/run-123/logs",
       method: "GET"
+    });
+  });
+
+  it("maps task enqueue to the enqueue API", () => {
+    expect(resolveApiCommand(["task", "enqueue", "--task-id", "task-123"])).toEqual({
+      path: "/api/tasks/task-123/enqueue",
+      method: "POST"
     });
   });
 });

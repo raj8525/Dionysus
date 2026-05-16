@@ -1373,9 +1373,10 @@ export class DionysusRepository {
     goalId: string;
     taskId: string;
     patchText: string;
+    changedFiles: string[];
   } | null> {
     const result = await this.pool.query(
-      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.patch_text
+      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.patch_text, p.changed_files_json
        from ${this.table("integration_queue")} iq
        join ${this.table("patches")} p on p.id = iq.patch_id
        where iq.task_id = $1
@@ -1392,8 +1393,70 @@ export class DionysusRepository {
       patchId: String(row.patch_id),
       goalId: String(row.goal_id),
       taskId: String(row.task_id),
-      patchText: String(row.patch_text)
+      patchText: String(row.patch_text),
+      changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : []
     };
+  }
+
+  async retryIntegration(integrationId: string): Promise<{
+    id: string;
+    patchId: string;
+    taskId: string;
+    goalId: string;
+  } | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `select iq.id, iq.patch_id, iq.goal_id, iq.task_id
+         from ${this.table("integration_queue")} iq
+         join ${this.table("patches")} p on p.id = iq.patch_id
+         where iq.id = $1
+           and iq.status in ('failed', 'cancelled')
+           and p.status in ('failed', 'rejected')
+         for update`,
+        [integrationId]
+      );
+      if (!result.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
+      const row = result.rows[0];
+      await client.query(
+        `update ${this.table("integration_queue")}
+         set status = 'queued', result_json = '{}'::jsonb, updated_at = now()
+         where id = $1`,
+        [integrationId]
+      );
+      await client.query(
+        `update ${this.table("patches")}
+         set status = 'queued', updated_at = now()
+         where id = $1`,
+        [row.patch_id]
+      );
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [
+          randomUUID(),
+          row.task_id,
+          "integration.retry_queued",
+          JSON.stringify({ integrationId, patchId: row.patch_id })
+        ]
+      );
+      await client.query("commit");
+      return {
+        id: String(row.id),
+        patchId: String(row.patch_id),
+        goalId: String(row.goal_id),
+        taskId: String(row.task_id)
+      };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listQueuedIntegrations(goalId: string): Promise<Array<{
