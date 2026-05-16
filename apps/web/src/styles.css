@@ -224,6 +224,7 @@ button:disabled {
 }
 
 .preflightPanel,
+.runtimePanel,
 .masterPanel,
 .integrationPanel,
 .evidencePanel,
@@ -234,6 +235,12 @@ button:disabled {
   border-radius: 8px;
   background: #fffdf8;
   padding: 18px;
+}
+
+.runtimeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 12px;
 }
 
 .preflightResult {

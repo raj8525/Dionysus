@@ -68,6 +68,8 @@ API: http://127.0.0.1:23100
 Web: http://127.0.0.1:23101
 ```
 
+Dashboard 首页会显示 PostgreSQL、RabbitMQ、Worker heartbeat 与 CLI 探测状态。Codex 也可以用 `pnpm dionysus system doctor --brief` 查看同一套健康信息。
+
 ## 验证命令
 
 ```bash

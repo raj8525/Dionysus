@@ -19,6 +19,30 @@ export interface CreateGoalInput {
   targetRoot: string;
 }
 
+export interface SystemHealth {
+  ok: boolean;
+  service: string;
+  database: {
+    ok: boolean;
+    schema: string;
+    databaseTime: string;
+  };
+  rabbitmq: {
+    ok: boolean;
+    urlConfigured: boolean;
+    checkedAt: string;
+    error?: string;
+  };
+  worker: {
+    ok: boolean;
+    status: string;
+    lastEventType?: string;
+    lastSeenAt?: string;
+    ageSeconds?: number;
+    maxAgeSeconds: number;
+  };
+}
+
 export type AgentRole = "master" | "rule_writer" | "test_writer" | "worker";
 export type CliType = "mock" | "claude_code" | "gemini_cli" | "opencode";
 
@@ -207,6 +231,14 @@ export interface MasterStepResult {
 }
 
 const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:23100";
+
+export async function fetchSystemHealth(): Promise<SystemHealth> {
+  const response = await fetch(`${apiBase}/health`);
+  if (!response.ok) {
+    throw new Error(`Failed to load system health: ${response.status}`);
+  }
+  return (await response.json()) as SystemHealth;
+}
 
 export async function fetchCurrentFlow(): Promise<FlowResponse> {
   const response = await fetch(`${apiBase}/api/flow/current`);

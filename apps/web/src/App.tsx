@@ -10,6 +10,7 @@ import {
   fetchIntegrations,
   fetchMilestones,
   fetchRuns,
+  fetchSystemHealth,
   fetchSystemEvents,
   fetchTasks,
   fetchWatchdogEvents,
@@ -34,6 +35,7 @@ import {
   type MilestoneRecord,
   type ReleaseReadyIntegrationsResult,
   type SystemEvent,
+  type SystemHealth,
   type TaskRecord,
   type TaskRunRecord,
   type TargetPreflightResult,
@@ -41,6 +43,7 @@ import {
   type WatchdogRunResult
 } from "./api.js";
 import { AgentConfigValidationError, saveValidatedAgentCliConfig } from "./agent-config-validation.js";
+import { summarizeSystemHealth } from "./system-health.js";
 
 const nodeTypes = {
   goal: FlowStatusNode,
@@ -77,9 +80,10 @@ export function App() {
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
   const [e2eCampaigns, setE2ECampaigns] = useState<E2ECampaignRecord[]>([]);
   const [e2eCases, setE2ECases] = useState<E2ECaseRecord[]>([]);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
 
   useEffect(() => {
-    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
+    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents(), refreshSystemHealth()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -173,6 +177,10 @@ export function App() {
 
   async function refreshWatchdogEvents() {
     setWatchdogEvents(await fetchWatchdogEvents(20));
+  }
+
+  async function refreshSystemHealth() {
+    setSystemHealth(await fetchSystemHealth());
   }
 
   async function executeWatchdog() {
@@ -282,6 +290,8 @@ export function App() {
     }));
   }
 
+  const healthSummary = summarizeSystemHealth(systemHealth);
+
   return (
     <main className="appShell">
       <aside className="sidebar">
@@ -309,9 +319,9 @@ export function App() {
             <h2>{currentGoal?.title ?? flowGoalTitle}</h2>
           </div>
           <div className="statusGrid">
-            <StatusCard icon={<Activity />} label="Workers" value="0 / 4" tone="neutral" />
-            <StatusCard icon={<GitCommit />} label="main" value="pending" tone="neutral" />
-            <StatusCard icon={<CheckCircle2 />} label="E2E" value="waiting" tone="neutral" />
+            <StatusCard icon={<Activity />} label="Runtime" value={healthSummary.overall} tone={healthSummary.overall === "ready" ? "good" : "bad"} />
+            <StatusCard icon={<CheckCircle2 />} label="RabbitMQ" value={healthSummary.rabbitmq} tone={healthSummary.rabbitmq === "ready" ? "good" : "bad"} />
+            <StatusCard icon={<GitCommit />} label="Worker" value={healthSummary.workerLabel} tone={healthSummary.worker === "ready" ? "good" : "bad"} />
           </div>
         </header>
         <section className="actionBar">
@@ -333,6 +343,47 @@ export function App() {
             <Background />
             <Controls />
           </ReactFlow>
+        </section>
+        <section className="runtimePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Runtime Health</p>
+              <h3>系统依赖与 Agent Runtime</h3>
+            </div>
+            <button type="button" className="secondary" onClick={refreshSystemHealth}>
+              刷新健康状态
+            </button>
+          </div>
+          {systemHealth ? (
+            <div className="runtimeGrid">
+              <StatusCard
+                icon={<CheckCircle2 />}
+                label="PostgreSQL"
+                value={`${healthSummary.database} / ${systemHealth.database.schema}`}
+                tone={healthSummary.database === "ready" ? "good" : "bad"}
+              />
+              <StatusCard
+                icon={<Network />}
+                label="RabbitMQ"
+                value={systemHealth.rabbitmq.ok ? "connected" : "failed"}
+                tone={systemHealth.rabbitmq.ok ? "good" : "bad"}
+              />
+              <StatusCard
+                icon={<Activity />}
+                label="Worker"
+                value={healthSummary.workerLabel}
+                tone={healthSummary.worker === "ready" ? "good" : "bad"}
+              />
+              <StatusCard
+                icon={<GitCommit />}
+                label="Heartbeat"
+                value={systemHealth.worker.lastSeenAt ? new Date(systemHealth.worker.lastSeenAt).toLocaleTimeString() : "missing"}
+                tone={healthSummary.worker === "ready" ? "good" : "bad"}
+              />
+            </div>
+          ) : (
+            <div className="emptyState">尚未加载系统健康状态</div>
+          )}
         </section>
         <section className="preflightPanel">
           <div className="sectionHeader">
