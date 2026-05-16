@@ -1,0 +1,71 @@
+# Dionysus MVP BDD 测试说明
+
+## 覆盖规格
+
+- `docs/specs/architecture.md`
+- `docs/specs/state-machine.md`
+- `docs/specs/api.md`
+- `docs/specs/e2e-and-notification.md`
+
+## 场景 1：创建目标
+
+Given Dionysus API 已启动  
+When Codex 提交一个 goal  
+Then PostgreSQL 中必须出现 goal 记录  
+And goal 状态为 `created`  
+And 系统事件中记录 `goal.created`
+
+## 场景 2：任务状态机拒绝非法迁移
+
+Given 一个状态为 `created` 的 task  
+When 系统试图直接迁移到 `done`  
+Then 状态机必须拒绝  
+And 返回非法迁移错误
+
+## 场景 3：里程碑不能跳过 E2E
+
+Given 一个状态为 `candidate` 的 milestone  
+When 系统试图直接迁移到 `passed`  
+Then 状态机必须拒绝  
+And 要求先进入 `e2e_required`
+
+## 场景 4：Flow 页面展示目标执行链路
+
+Given Dionysus API 已启动  
+When Codex 创建 Coupon goal  
+And 前端请求 `/api/flow/current`  
+Then 响应必须包含 goal、PLAN、specs、features_test、Workers、Integration Queue、Milestone、Codex E2E、Notify User 节点  
+And 节点之间必须按执行顺序连接
+
+## 场景 5：里程碑通过后生成通知
+
+Given 一个 milestone 已通过 Codex E2E  
+When Notification Service 发送通知  
+Then 通知内容必须包含已完成功能、启动方式、使用方式、验收方式、E2E 证据、main commit、已知风险和下一步计划
+
+## 场景 5.1：里程碑不能绕过 Codex verdict
+
+Given Master 创建了 milestone candidate  
+When Master 请求 E2E  
+Then milestone 状态必须进入 `e2e_required`  
+When Codex 提交 `passed` verdict  
+Then milestone 状态才能进入 `passed`
+
+## 场景 6：文档编译和缺口扫描
+
+Given 一个指向 Coupon 项目的 goal  
+When Codex 调用 `/api/goals/:id/intake`  
+Then Dionysus 必须扫描 `AGENTS.md`、`docs/`、管理后台 HTML / Vue 页面  
+And 将文档清单写入 `documents`  
+And 将 `待补充`、`未定义`、`占位`、`后续`、`P1` 等缺口写入 `document_findings`  
+And 生成产品构建图节点和依赖边
+
+## 运行命令
+
+```bash
+pnpm test
+```
+
+## 当前预期
+
+第一阶段应先出现红灯测试，然后通过实现转绿。

@@ -1,0 +1,17 @@
+id: coupon
+name: Coupon 酒云酒店消费卡券管理平台
+root: /Volumes/MacMiniSSD/code/Coupon
+backupRoot: /Volumes/MacMiniSSD/code/Coupon_backup
+docs:
+  - docs/00-AI项目治理与工程原则.md
+  - docs/01-需求文档.md
+  - docs/02-系统设计文档.md
+  - docs/03-开发计划.md
+  - docs/05-管理后台UI页面功能设计.md
+html:
+  - apps/admin-web/html
+  - apps/admin-web
+rules:
+  branchMode: trunk
+  protectedBranch: main
+  allowGrayBranch: true

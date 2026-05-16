@@ -1,0 +1,24 @@
+{
+  "name": "dionysus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @dionysus/api --filter @dionysus/web dev",
+    "dev:api": "pnpm --filter @dionysus/api dev",
+    "dev:web": "pnpm --filter @dionysus/web dev",
+    "dev:worker": "pnpm --filter @dionysus/worker dev",
+    "db:migrate": "pnpm --filter @dionysus/db migrate",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "goal:create": "tsx tools/dionysus.ts goal create"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "playwright": "^1.60.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
+  }
+}

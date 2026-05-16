@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.DS_Store
+.dionysus/runs/
+.dionysus/locks/
+.dionysus/patches/
+.dionysus/e2e/
+coverage/
+*.log

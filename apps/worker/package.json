@@ -1,0 +1,15 @@
+{
+  "name": "@dionysus/worker",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "start": "tsx src/worker.ts"
+  },
+  "dependencies": {
+    "@dionysus/cli-adapters": "workspace:*",
+    "@dionysus/db": "workspace:*",
+    "@dionysus/mq": "workspace:*",
+    "dotenv": "^17.2.3"
+  }
+}

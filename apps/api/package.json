@@ -1,0 +1,18 @@
+{
+  "name": "@dionysus/api",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@dionysus/core": "workspace:*",
+    "@dionysus/db": "workspace:*",
+    "@dionysus/mq": "workspace:*",
+    "@fastify/cors": "^11.1.0",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.6.2",
+    "zod": "^4.2.1"
+  }
+}

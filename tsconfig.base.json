@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dionysus/core": ["packages/core/src/index.ts"],
+      "@dionysus/db": ["packages/db/src/index.ts"],
+      "@dionysus/mq": ["packages/mq/src/index.ts"],
+      "@dionysus/cli-adapters": ["packages/cli-adapters/src/index.ts"]
+    }
+  }
+}
