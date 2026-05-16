@@ -5,7 +5,14 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { publishJson } from "@dionysus/mq";
-import { buildMasterTaskTree, buildMilestoneNotificationDraft, checkSpecTestGate, compileTargetProject, queueForRole } from "@dionysus/core";
+import {
+  buildMasterTaskTree,
+  buildMilestoneNotificationDraft,
+  checkSpecTestGate,
+  compileTargetProject,
+  evaluateWatchdogTask,
+  queueForRole
+} from "@dionysus/core";
 import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -65,6 +72,11 @@ const createPatchSchema = z.object({
   taskId: z.string().uuid(),
   patchText: z.string(),
   changedFiles: z.array(z.string())
+});
+
+const watchdogRunSchema = z.object({
+  runningTimeoutMinutes: z.number().int().positive().max(24 * 60).default(15),
+  limit: z.number().int().positive().max(200).default(50)
 });
 
 export async function buildServer() {
@@ -136,6 +148,60 @@ export async function buildServer() {
     }
     const config = await repo.upsertAgentCliConfig(parsed.data);
     return reply.code(200).send(config);
+  });
+
+  app.post("/api/watchdog/run", async (request, reply) => {
+    const parsed = watchdogRunSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_WATCHDOG_INPUT", details: parsed.error.flatten() });
+    }
+    const now = new Date();
+    const runningTimeoutMs = parsed.data.runningTimeoutMinutes * 60 * 1000;
+    const runningUpdatedBefore = new Date(now.getTime() - runningTimeoutMs).toISOString();
+    const candidates = await repo.listWatchdogCandidates({
+      runningUpdatedBefore,
+      limit: parsed.data.limit
+    });
+    const actions = [];
+    for (const task of candidates) {
+      const decision = evaluateWatchdogTask({
+        task,
+        now,
+        runningTimeoutMs
+      });
+      if (decision.action === "retry") {
+        await repo.markTaskRetryQueued({
+          taskId: task.id,
+          reason: decision.reason,
+          nextAttempt: decision.nextAttempt
+        });
+        await publishJson(queueForRole(task.roleRequired), {
+          message_id: randomUUID(),
+          goal_id: task.goalId,
+          task_id: task.id,
+          type: `${task.roleRequired}_task`,
+          attempt: decision.nextAttempt,
+          idempotency_key: `${task.id}:${task.roleRequired}:${decision.nextAttempt}:watchdog`,
+          created_at: now.toISOString()
+        });
+      }
+      if (decision.action === "block") {
+        await repo.markTaskBlocked({
+          taskId: task.id,
+          reason: decision.reason
+        });
+      }
+      actions.push({
+        taskId: task.id,
+        roleRequired: task.roleRequired,
+        previousStatus: task.status,
+        decision
+      });
+    }
+    return {
+      checked: candidates.length,
+      actions
+    };
   });
 
   app.post("/api/tasks", async (request, reply) => {

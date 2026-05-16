@@ -171,6 +171,15 @@ When Dionysus 生成 milestone notification
 Then 通知正文必须包含实现内容、如何使用、如何验收和剩余风险  
 And 投递记录必须进入 `notification_deliveries`
 
+## 场景 12：Watchdog 必须处理停滞任务
+
+Given 一个 task 处于 `running` 且超过超时时间  
+When Codex 调用 `/api/watchdog/run`  
+Then 未超过最大尝试次数的 task 必须重新入队  
+And 超过最大尝试次数的 task 必须标记为 `blocked`  
+And `failed` task 在未超过最大尝试次数时也必须重新入队  
+And 每个处理动作必须写入 `task_events`
+
 ## 运行命令
 
 ```bash

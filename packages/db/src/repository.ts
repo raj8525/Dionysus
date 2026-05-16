@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { normalizeAgentCliConfig } from "@dionysus/core";
-import type { AgentCliConfig, AgentRole, CliType, FlowEdge, FlowNode, Goal } from "@dionysus/core";
+import type { AgentCliConfig, AgentRole, CliType, FlowEdge, FlowNode, Goal, TaskStatus } from "@dionysus/core";
 import type pg from "pg";
 import { quoteIdent } from "./connection.js";
 import type {
@@ -225,6 +225,98 @@ export class DionysusRepository {
       [taskId]
     );
     await this.recordTaskEvent(taskId, "task.queued", {});
+  }
+
+  async listWatchdogCandidates(input: {
+    runningUpdatedBefore: string;
+    limit?: number;
+  }): Promise<Array<{
+    id: string;
+    goalId: string;
+    roleRequired: AgentRole;
+    status: TaskStatus;
+    currentAttempt: number;
+    maxAttempts: number;
+    updatedAt: string;
+  }>> {
+    const result = await this.pool.query(
+      `select id, goal_id, role_required, status, current_attempt, max_attempts, updated_at
+       from ${this.table("tasks")}
+       where status = 'failed'
+          or (status = 'running' and updated_at <= $1)
+       order by updated_at asc
+       limit $2`,
+      [input.runningUpdatedBefore, input.limit ?? 50]
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      goalId: String(row.goal_id),
+      roleRequired: row.role_required as AgentRole,
+      status: row.status as TaskStatus,
+      currentAttempt: Number(row.current_attempt),
+      maxAttempts: Number(row.max_attempts),
+      updatedAt: new Date(row.updated_at).toISOString()
+    }));
+  }
+
+  async markTaskRetryQueued(input: {
+    taskId: string;
+    reason: string;
+    nextAttempt: number;
+  }): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        `update ${this.table("tasks")}
+         set status = 'queued', blocked_reason = null, updated_at = now()
+         where id = $1 and status in ('running', 'failed')`,
+        [input.taskId]
+      );
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [
+          randomUUID(),
+          input.taskId,
+          "watchdog.retry_queued",
+          JSON.stringify({ reason: input.reason, nextAttempt: input.nextAttempt })
+        ]
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markTaskBlocked(input: {
+    taskId: string;
+    reason: string;
+  }): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        `update ${this.table("tasks")}
+         set status = 'blocked', blocked_reason = $2, updated_at = now()
+         where id = $1`,
+        [input.taskId, input.reason]
+      );
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [randomUUID(), input.taskId, "watchdog.blocked", JSON.stringify({ reason: input.reason })]
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async createTaskRun(input: {

@@ -9,3 +9,4 @@ export * from "./master-planner.js";
 export * from "./role-queues.js";
 export * from "./agent-config.js";
 export * from "./role-prompt.js";
+export * from "./watchdog.js";
