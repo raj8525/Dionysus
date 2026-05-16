@@ -224,6 +224,7 @@ button:disabled {
 }
 
 .preflightPanel,
+.integrationPanel,
 .agentsPanel {
   margin-bottom: 18px;
   border: 1px solid #d9c8aa;
@@ -260,6 +261,36 @@ button:disabled {
 .preflightResult.passed .blockerList span {
   background: #dcfce7;
   color: #166534;
+}
+
+.integrationList {
+  display: grid;
+  gap: 10px;
+}
+
+.integrationItem {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.integrationItem > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.integrationItem span,
+.integrationItem p {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.integrationItem p {
+  margin: 0;
 }
 
 .sectionHeader {

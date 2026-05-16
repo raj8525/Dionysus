@@ -5,8 +5,10 @@ import {
   createGoal,
   fetchAgentCliConfigs,
   fetchCurrentFlow,
+  fetchIntegrations,
   fetchWatchdogEvents,
   probeClis,
+  releaseReadyIntegrations,
   runTargetPreflight,
   runWatchdog,
   saveAgentCliConfig,
@@ -16,6 +18,8 @@ import {
   type CliType,
   type FlowResponse,
   type Goal,
+  type IntegrationRecord,
+  type ReleaseReadyIntegrationsResult,
   type TargetPreflightResult,
   type WatchdogEvent,
   type WatchdogRunResult
@@ -44,11 +48,21 @@ export function App() {
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
   const [preflight, setPreflight] = useState<TargetPreflightResult | null>(null);
   const [preflightRunning, setPreflightRunning] = useState(false);
+  const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
+  const [releaseResult, setReleaseResult] = useState<ReleaseReadyIntegrationsResult | null>(null);
+  const [releasing, setReleasing] = useState(false);
 
   useEffect(() => {
     Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  useEffect(() => {
+    if (activeGoalId) {
+      refreshIntegrations(activeGoalId)
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+    }
+  }, [activeGoalId]);
 
   async function refreshFlow() {
     const nextFlow = await fetchCurrentFlow();
@@ -152,6 +166,29 @@ export function App() {
     }
   }
 
+  async function refreshIntegrations(goalId = activeGoalId) {
+    if (!goalId) return;
+    setIntegrations(await fetchIntegrations(goalId));
+  }
+
+  async function releaseIntegrations() {
+    if (!activeGoalId) {
+      setError("当前没有可发布 integration 的目标");
+      return;
+    }
+    setReleasing(true);
+    setError(null);
+    try {
+      const result = await releaseReadyIntegrations(activeGoalId);
+      setReleaseResult(result);
+      await refreshIntegrations(activeGoalId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setReleasing(false);
+    }
+  }
+
   function updateRoleConfig(role: AgentRole, patch: Partial<AgentCliConfig>) {
     setAgentConfigs((current) => ({
       ...current,
@@ -251,6 +288,44 @@ export function App() {
           ) : (
             <div className="emptyState">尚未执行 preflight</div>
           )}
+        </section>
+        <section className="integrationPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Integration</p>
+              <h3>Patch 集成队列</h3>
+            </div>
+            <div className="sectionActions">
+              <button type="button" className="secondary" onClick={() => refreshIntegrations()}>
+                刷新队列
+              </button>
+              <button type="button" onClick={releaseIntegrations} disabled={releasing || !activeGoalId}>
+                {releasing ? "发布中..." : "发布可集成项"}
+              </button>
+            </div>
+          </div>
+          {releaseResult?.status === "blocked" ? (
+            <div className="errorBox">
+              <AlertTriangle size={18} />
+              <span>{releaseResult.blockers?.join("; ")}</span>
+            </div>
+          ) : null}
+          <div className="integrationList">
+            {integrations.length ? (
+              integrations.map((integration) => (
+                <article key={integration.id} className="integrationItem">
+                  <div>
+                    <strong>{integration.status}</strong>
+                    <span>{new Date(integration.createdAt).toLocaleString()}</span>
+                  </div>
+                  <p>{integration.changedFiles.join(", ") || "无文件列表"}</p>
+                  <span className="eventPill neutral">patch: {integration.patchStatus}</span>
+                </article>
+              ))
+            ) : (
+              <div className="emptyState">暂无 integration 记录</div>
+            )}
+          </div>
         </section>
         <section className="agentsPanel">
           <div className="sectionHeader">

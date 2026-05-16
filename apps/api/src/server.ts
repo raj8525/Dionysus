@@ -539,12 +539,12 @@ export async function buildServer() {
     const git = await checkGitPreflight(goal.targetRoot);
     const queued = await repo.listQueuedIntegrations(id);
     if (!git.clean) {
-      return reply.code(409).send({
+      return {
         goalId: id,
         status: "blocked",
         blockers: [`git worktree dirty: ${git.changes.length} changes`],
         queued
-      });
+      };
     }
     for (const integration of queued) {
       await publishJson("dionysus.integration", {
@@ -563,6 +563,11 @@ export async function buildServer() {
       published: queued.length,
       integrations: queued
     };
+  });
+
+  app.get("/api/integrations", async (request) => {
+    const query = request.query as { goalId?: string };
+    return repo.listIntegrations(query.goalId);
   });
 
   app.post("/api/patches", async (request, reply) => {

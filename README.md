@@ -155,7 +155,7 @@ curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/preflight-remediation/pa
 curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/integrations/release-ready
 ```
 
-如果工作区仍然不干净，该接口返回 `409 blocked`，并列出仍在等待发布的 integration。
+如果工作区仍然不干净，该接口返回 `status: "blocked"`，并列出仍在等待发布的 integration；业务阻塞不会使用 HTTP 409，避免 Dashboard 产生无意义控制台错误。
 
 ## Milestone / E2E / Notification
 

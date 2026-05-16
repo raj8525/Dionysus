@@ -83,6 +83,28 @@ export interface TargetPreflightResult {
   blockers: string[];
 }
 
+export interface IntegrationRecord {
+  id: string;
+  patchId: string;
+  goalId: string;
+  taskId: string;
+  status: string;
+  patchStatus: string;
+  changedFiles: string[];
+  result: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleaseReadyIntegrationsResult {
+  goalId: string;
+  status: "published" | "blocked";
+  published?: number;
+  blockers?: string[];
+  integrations?: IntegrationRecord[];
+  queued?: IntegrationRecord[];
+}
+
 const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:23100";
 
 export async function fetchCurrentFlow(): Promise<FlowResponse> {
@@ -163,4 +185,24 @@ export async function runTargetPreflight(goalId: string): Promise<TargetPrefligh
     throw new Error(`Failed to run target preflight: ${response.status}`);
   }
   return (await response.json()) as TargetPreflightResult;
+}
+
+export async function fetchIntegrations(goalId?: string): Promise<IntegrationRecord[]> {
+  const query = goalId ? `?goalId=${goalId}` : "";
+  const response = await fetch(`${apiBase}/api/integrations${query}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load integrations: ${response.status}`);
+  }
+  return (await response.json()) as IntegrationRecord[];
+}
+
+export async function releaseReadyIntegrations(goalId: string): Promise<ReleaseReadyIntegrationsResult> {
+  const response = await fetch(`${apiBase}/api/goals/${goalId}/integrations/release-ready`, {
+    method: "POST"
+  });
+  const body = (await response.json()) as ReleaseReadyIntegrationsResult;
+  if (!response.ok) {
+    throw new Error(`Failed to release ready integrations: ${response.status}`);
+  }
+  return body;
 }
