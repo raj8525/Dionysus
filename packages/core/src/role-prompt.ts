@@ -46,6 +46,7 @@ export function buildRolePrompt(input: {
     "- 必须输出可审计证据：修改文件、测试命令、测试结果、风险、下一步 owner。",
     "- 不允许绕过状态机、测试、日志或 Codex 最终裁决。",
     "- 不允许编造已执行命令；没有执行就明确写未执行和原因。",
+    "- 如果任务过大，必须缩小为一个最小可验证交付物或返回 blocker；不得长时间探索后无产出。",
     "",
     "## 输出格式",
     "请使用中文输出，并按以下标题返回：",
@@ -85,6 +86,8 @@ const roleInstructions: Record<AgentRole, string> = {
   ].join("\n"),
   worker: [
     "- 你负责具体实现，只能实现 Master 分配的任务。",
+    "- 单次 Worker 任务默认只做一个最小可验证交付物；最多触达 1 条业务链路、1 个主要模块、8 个文件。",
+    "- 禁止把“完整实现目标系统”当成一次任务执行；遇到过宽任务必须输出拆分建议并停止。",
     "- 你必须先确认 gate-check 已通过；缺少 PLAN、specs 或 features_test 时不得实现。",
     "- 当前 CLI 的工作目录就是隔离 workspace，你必须只在这个目录内工作并产出 patch。",
     "- 禁止直接写入 Target Root 绝对路径；Target Root 只用于理解来源，不是可写目录。",

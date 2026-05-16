@@ -18,6 +18,7 @@ describe("master planner", () => {
     expect(tasks[1].title).toContain("规格");
     expect(tasks[2].title).toContain("测试");
     expect(tasks[3].description).toContain("不得在缺少 gate-check passed 时实现");
+    expect(tasks[3].description).toContain("一个最小可验证目标");
     expect(tasks[4].title).toContain("E2E");
   });
 });

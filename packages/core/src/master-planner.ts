@@ -43,11 +43,13 @@ export function buildMasterTaskTree(input: {
       priority: 30
     },
     {
-      title: `[Worker] 最小实现：${input.goalTitle}`,
+      title: `[Worker] 下一颗粒实现：${input.goalTitle}`,
       description: [
-        "只能在 Master 分配的范围内实现。",
+        "只能选择 PLAN.md 中当前下一步的一个最小可验证目标实现，不得尝试接管整个目标。",
+        "单个 Worker 任务默认最多触达 1 条业务链路、1 个主要模块、8 个文件；超出时必须返回拆分建议。",
         "不得在缺少 gate-check passed 时实现。",
-        "必须在隔离 workspace 中工作，完成后提交 patch、修改文件、测试命令、风险和下一步。"
+        "必须在隔离 workspace 中工作，完成后提交 patch、修改文件、测试命令、风险和下一步。",
+        "若任务描述过宽、无法在一次 CLI 调用内完成，必须停止并输出 blocker，不得自行扩大范围。"
       ].join("\n"),
       roleRequired: "worker",
       priority: 40

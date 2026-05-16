@@ -64,6 +64,7 @@ describe("role prompt builder", () => {
     expect(testPrompt).toContain("先失败的红灯测试证据");
     expect(workerPrompt).toContain("gate-check 已通过");
     expect(workerPrompt).toContain("产出 patch");
+    expect(workerPrompt).toContain("最小可验证交付物");
   });
 
   it("forces Worker to write only inside the isolated workspace", () => {
