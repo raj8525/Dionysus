@@ -9,6 +9,7 @@ import {
   fetchWatchdogEvents,
   probeClis,
   releaseReadyIntegrations,
+  runMasterStep,
   runTargetPreflight,
   runWatchdog,
   saveAgentCliConfig,
@@ -19,6 +20,7 @@ import {
   type FlowResponse,
   type Goal,
   type IntegrationRecord,
+  type MasterStepResult,
   type ReleaseReadyIntegrationsResult,
   type TargetPreflightResult,
   type WatchdogEvent,
@@ -51,6 +53,8 @@ export function App() {
   const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
   const [releaseResult, setReleaseResult] = useState<ReleaseReadyIntegrationsResult | null>(null);
   const [releasing, setReleasing] = useState(false);
+  const [masterStep, setMasterStep] = useState<MasterStepResult | null>(null);
+  const [masterStepping, setMasterStepping] = useState(false);
 
   useEffect(() => {
     Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
@@ -189,6 +193,24 @@ export function App() {
     }
   }
 
+  async function runMasterAutopilotStep() {
+    if (!activeGoalId) {
+      setError("当前没有可运行 Master Step 的目标");
+      return;
+    }
+    setMasterStepping(true);
+    setError(null);
+    try {
+      const result = await runMasterStep(activeGoalId);
+      setMasterStep(result);
+      await Promise.all([refreshFlow(), refreshIntegrations(activeGoalId), refreshWatchdogEvents()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setMasterStepping(false);
+    }
+  }
+
   function updateRoleConfig(role: AgentRole, patch: Partial<AgentCliConfig>) {
     setAgentConfigs((current) => ({
       ...current,
@@ -287,6 +309,26 @@ export function App() {
             </div>
           ) : (
             <div className="emptyState">尚未执行 preflight</div>
+          )}
+        </section>
+        <section className="masterPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Master</p>
+              <h3>单步自动调度</h3>
+            </div>
+            <button type="button" onClick={runMasterAutopilotStep} disabled={masterStepping || !activeGoalId}>
+              {masterStepping ? "运行中..." : "运行 Master Step"}
+            </button>
+          </div>
+          {masterStep ? (
+            <div className="masterStepResult">
+              <strong>{masterStep.decision.action}</strong>
+              <p>{masterStep.decision.reason}</p>
+              {masterStep.blockers?.length ? <span>{masterStep.blockers.join("; ")}</span> : null}
+            </div>
+          ) : (
+            <div className="emptyState">尚未执行 Master Step</div>
           )}
         </section>
         <section className="integrationPanel">

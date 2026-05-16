@@ -157,6 +157,14 @@ curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/integrations/release-rea
 
 如果工作区仍然不干净，该接口返回 `status: "blocked"`，并列出仍在等待发布的 integration；业务阻塞不会使用 HTTP 409，避免 Dashboard 产生无意义控制台错误。
 
+Codex 也可以让 Master 单步推进下一合法动作：
+
+```bash
+curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/master-step
+```
+
+Master Step 每次只执行一个动作：创建任务树、生成 preflight remediation patch、发布 queued integration、报告 dirty worktree blocker，或返回 `ready_for_implementation`。
+
 ## Milestone / E2E / Notification
 
 ```bash

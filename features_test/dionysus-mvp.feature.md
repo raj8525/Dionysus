@@ -147,6 +147,17 @@ And 如果工作区仍然不干净，返回 `status: blocked` 和 queued integra
 And 业务阻塞不得触发前端控制台 HTTP 错误  
 And 如果工作区干净，必须发布 integration 消息
 
+## 场景 7.5：Master 必须能单步推进下一合法动作
+
+Given Codex 已创建一个 goal  
+When Codex 调用 `/api/goals/:id/master-step`  
+Then Dionysus 必须根据任务树、SDD/TDD 门禁、integration queue 和目标 Git 状态决定一个下一步动作  
+And 如果没有 Master 任务树，必须先创建并投递 Master 任务  
+And 如果存在 queued integration 且目标 Git 不干净，必须返回 `blocked_dirty_worktree`  
+And 如果存在 queued integration 且目标 Git 干净，必须发布 integration 消息  
+And 如果缺少 PLAN/specs/features_test，必须只创建 preflight remediation patch，不直接写目标仓库  
+And 如果全部门禁通过，才允许进入实现准备状态
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现  

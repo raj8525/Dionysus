@@ -16,6 +16,7 @@ import {
   checkGitPreflight,
   checkSpecTestGate,
   compileTargetProject,
+  decideMasterStep,
   evaluateWatchdogTask,
   resolveNotificationChannels,
   queueForRole
@@ -294,6 +295,129 @@ export async function buildServer() {
       firstMaster.status = "queued";
     }
     return reply.code(201).send({ goalId: id, tasks });
+  });
+
+  app.post("/api/goals/:id/master-step", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const [git, gates, tasks, queuedIntegrations] = await Promise.all([
+      checkGitPreflight(goal.targetRoot),
+      checkSpecTestGate(goal.targetRoot),
+      repo.listTasks(id),
+      repo.listQueuedIntegrations(id)
+    ]);
+    await repo.saveGateChecks({ goalId: id, checks: gates });
+    const preflight = buildTargetPreflight({ git, gates });
+    const bootstrapTaskCount = countBootstrapTasks(tasks);
+    const decision = decideMasterStep({
+      bootstrapTaskCount,
+      queuedIntegrationCount: queuedIntegrations.length,
+      preflight
+    });
+
+    if (decision.action === "bootstrap_tasks") {
+      const drafts = buildMasterTaskTree({ goalTitle: goal.title, targetRoot: goal.targetRoot });
+      const createdTasks = [];
+      for (const draft of drafts) {
+        createdTasks.push(
+          await repo.createTask({
+            goalId: id,
+            title: draft.title,
+            description: draft.description,
+            roleRequired: draft.roleRequired,
+            priority: draft.priority
+          })
+        );
+      }
+      const firstMaster = createdTasks[0];
+      if (firstMaster) {
+        await repo.markTaskQueued(firstMaster.id);
+        await publishJson(queueForRole("master"), {
+          message_id: randomUUID(),
+          goal_id: id,
+          task_id: firstMaster.id,
+          type: "master_task",
+          attempt: 1,
+          idempotency_key: `${firstMaster.id}:master-step:1`,
+          created_at: new Date().toISOString()
+        });
+        firstMaster.status = "queued";
+      }
+      return reply.code(201).send({ goalId: id, decision, tasks: createdTasks, preflight });
+    }
+
+    if (decision.action === "queue_preflight_remediation") {
+      const files = buildPreflightRemediation({ goal, gates });
+      if (!files.length) {
+        return { goalId: id, decision: { action: "ready_for_implementation", reason: "no remediation files needed" }, preflight };
+      }
+      const task = await repo.createTask({
+        goalId: id,
+        title: "[Master] Queue preflight remediation patch",
+        description: "Dionysus generated missing PLAN/specs/features_test remediation files as a patch for integration.",
+        roleRequired: "master",
+        priority: 5
+      });
+      const patch = await repo.createPatch({
+        goalId: id,
+        taskId: task.id,
+        patchText: buildAddFilesPatch(files),
+        changedFiles: files.map((file) => file.path)
+      });
+      const integrationPublished = git.clean;
+      if (integrationPublished) {
+        await publishJson("dionysus.integration", {
+          message_id: randomUUID(),
+          goal_id: id,
+          task_id: task.id,
+          type: "preflight_remediation_patch",
+          attempt: 1,
+          idempotency_key: `${task.id}:master-step-preflight-remediation:1`,
+          created_at: new Date().toISOString()
+        });
+      }
+      return reply.code(201).send({
+        goalId: id,
+        decision,
+        taskId: task.id,
+        patch,
+        files,
+        integrationPublished,
+        blockers: git.clean ? [] : [`git worktree dirty: ${git.changes.length} changes`],
+        preflight
+      });
+    }
+
+    if (decision.action === "release_queued_integrations") {
+      for (const integration of queuedIntegrations) {
+        await publishJson("dionysus.integration", {
+          message_id: randomUUID(),
+          goal_id: id,
+          task_id: integration.taskId,
+          type: "master_step_release_integration",
+          attempt: 1,
+          idempotency_key: `${integration.taskId}:master-step-release:${integration.id}`,
+          created_at: new Date().toISOString()
+        });
+      }
+      return {
+        goalId: id,
+        decision,
+        published: queuedIntegrations.length,
+        integrations: queuedIntegrations,
+        preflight
+      };
+    }
+
+    return {
+      goalId: id,
+      decision,
+      queuedIntegrations,
+      preflight
+    };
   });
 
   app.get("/api/goals/:id/findings", async (request, reply) => {
@@ -629,6 +753,16 @@ async function postJson(url: string, body: Record<string, string>): Promise<{ ok
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function countBootstrapTasks(tasks: Array<Record<string, unknown>>): number {
+  return tasks.filter((task) =>
+    typeof task.title === "string" &&
+    (task.title.startsWith("[Master]") ||
+      task.title.startsWith("[RuleWriter]") ||
+      task.title.startsWith("[TestWriter]") ||
+      task.title.startsWith("[Worker]"))
+  ).length;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

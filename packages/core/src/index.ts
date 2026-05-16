@@ -13,3 +13,4 @@ export * from "./watchdog.js";
 export * from "./notification-delivery.js";
 export * from "./target-preflight.js";
 export * from "./target-remediation.js";
+export * from "./master-autopilot.js";

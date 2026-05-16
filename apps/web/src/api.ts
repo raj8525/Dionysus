@@ -105,6 +105,17 @@ export interface ReleaseReadyIntegrationsResult {
   queued?: IntegrationRecord[];
 }
 
+export interface MasterStepResult {
+  goalId: string;
+  decision: {
+    action: string;
+    reason: string;
+  };
+  blockers?: string[];
+  published?: number;
+  integrationPublished?: boolean;
+}
+
 const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:23100";
 
 export async function fetchCurrentFlow(): Promise<FlowResponse> {
@@ -205,4 +216,14 @@ export async function releaseReadyIntegrations(goalId: string): Promise<ReleaseR
     throw new Error(`Failed to release ready integrations: ${response.status}`);
   }
   return body;
+}
+
+export async function runMasterStep(goalId: string): Promise<MasterStepResult> {
+  const response = await fetch(`${apiBase}/api/goals/${goalId}/master-step`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to run master step: ${response.status}`);
+  }
+  return (await response.json()) as MasterStepResult;
 }
