@@ -337,6 +337,7 @@ export function App() {
 
   const healthSummary = summarizeSystemHealth(systemHealth);
   const usageByRole = new Map(agentCliUsage?.byAgent.map((usage) => [usage.role, usage]) ?? []);
+  const usageByCli = agentCliUsage?.byCli ?? [];
   const usageGeneratedLabel = agentCliUsage?.generatedAt
     ? new Date(agentCliUsage.generatedAt).toLocaleTimeString()
     : "未加载";
@@ -455,6 +456,9 @@ export function App() {
                 <StatusCard icon={<CheckCircle2 />} label="Succeeded" value={String(agentCliUsage.totals.succeededCalls)} tone="good" />
                 <StatusCard icon={<AlertTriangle />} label="Failed" value={String(agentCliUsage.totals.failedCalls)} tone={agentCliUsage.totals.failedCalls ? "bad" : "neutral"} />
               </div>
+              <p className="usageNote">
+                Model Calls 当前表示 Dionysus 发起的非 mock CLI run 次数；只有 CLI 输出可解析 usage 回执后，才能进一步统计 provider 内部真实模型 API 调用次数。
+              </p>
               <div className="usageGrid">
                 {roleOrder.map((role) => {
                   const usage = usageByRole.get(role);
@@ -488,6 +492,28 @@ export function App() {
                     </article>
                   );
                 })}
+              </div>
+              <div className="cliUsagePanel">
+                <div className="subsectionTitle">
+                  <strong>按 CLI 聚合</strong>
+                  <span>模型调用 / CLI 调用</span>
+                </div>
+                <div className="cliUsageGrid">
+                  {usageByCli.length ? (
+                    usageByCli.map((usage) => (
+                      <article key={usage.cliType} className="cliUsageCard">
+                        <div>
+                          <strong>{cliLabels[usage.cliType]}</strong>
+                          <span>{usage.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
+                        </div>
+                        <b>{usage.modelCalls}/{usage.cliCalls}</b>
+                        <em>运行中 {usage.runningCalls} · 失败 {usage.failedCalls}</em>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="modelUsageEmpty">暂无 CLI 聚合数据</div>
+                  )}
+                </div>
               </div>
             </>
           ) : (
@@ -940,6 +966,13 @@ const roleLabels: Record<AgentRole, string> = {
 };
 
 const cliTypes: CliType[] = ["mock", "claude_code", "gemini_cli", "opencode"];
+
+const cliLabels: Record<CliType, string> = {
+  mock: "Mock",
+  claude_code: "Claude Code",
+  gemini_cli: "Gemini CLI",
+  opencode: "OpenCode"
+};
 
 const defaultAgentConfigs: Record<AgentRole, AgentCliConfig> = {
   master: { role: "master", cliType: "mock", enabled: true },

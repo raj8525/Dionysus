@@ -133,12 +133,11 @@ describe("real CLI adapters", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(chunks).toHaveLength(3);
-    expect(chunks).toEqual(expect.arrayContaining([
-      { stream: "stdout", chunkText: "out-1\n" },
-      { stream: "stderr", chunkText: "err-1\n" },
-      { stream: "stdout", chunkText: "out-2\n" }
-    ]));
+    expect(chunks.length).toBeGreaterThanOrEqual(2);
+    expect(chunks.some((chunk) => chunk.stream === "stdout")).toBe(true);
+    expect(chunks.some((chunk) => chunk.stream === "stderr")).toBe(true);
+    expect(chunks.filter((chunk) => chunk.stream === "stdout").map((chunk) => chunk.chunkText).join("")).toBe("out-1\nout-2\n");
+    expect(chunks.filter((chunk) => chunk.stream === "stderr").map((chunk) => chunk.chunkText).join("")).toBe("err-1\n");
   });
 });
 

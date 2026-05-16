@@ -262,6 +262,18 @@ button:disabled {
   margin-bottom: 14px;
 }
 
+.usageNote {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #eadcc2;
+  border-radius: 8px;
+  background: #fffaf1;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .usageGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(190px, 1fr));
@@ -365,6 +377,61 @@ button:disabled {
   border-radius: 6px;
   color: #64748b;
   text-align: center;
+}
+
+.cliUsagePanel {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.subsectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #0f172a;
+}
+
+.subsectionTitle span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cliUsageGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.cliUsageCard {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.cliUsageCard strong,
+.cliUsageCard span,
+.cliUsageCard em {
+  display: block;
+}
+
+.cliUsageCard span,
+.cliUsageCard em {
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.cliUsageCard b {
+  color: #0f3a5a;
+  font-size: 24px;
+  line-height: 1;
 }
 
 .refreshBadge {
@@ -795,7 +862,8 @@ h3 {
   }
 
   .usageSummary,
-  .usageGrid {
+  .usageGrid,
+  .cliUsageGrid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 
@@ -832,7 +900,8 @@ h3 {
   }
 
   .usageSummary,
-  .usageGrid {
+  .usageGrid,
+  .cliUsageGrid {
     grid-template-columns: 1fr;
   }
 
