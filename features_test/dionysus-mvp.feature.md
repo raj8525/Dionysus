@@ -76,6 +76,24 @@ Then Dionysus 必须写入 `patches`
 And 同时创建 `integration_queue` 记录  
 And task event 必须记录 `patch.queued`
 
+## 场景 8.1：Integration Queue 自动应用 patch
+
+Given `integration_queue` 中存在 queued patch  
+And 目标主工作区是干净 Git 状态  
+When integration worker 消费消息  
+Then Dionysus 必须先执行 `git apply --check`  
+And 成功后应用 patch  
+And 将 patch 标记为 `applied`  
+And 将 integration 标记为 `passed`
+
+## 场景 8.2：脏工作区必须阻止集成
+
+Given 目标主工作区存在未提交改动  
+When integration worker 尝试应用 patch  
+Then Dionysus 必须拒绝应用  
+And 将 integration 标记为 `failed`  
+And result_json 必须记录 dirty worktree 原因
+
 ## 场景 9：Master 自动识别里程碑候选
 
 Given integration queue 已通过  

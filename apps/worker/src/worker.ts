@@ -2,7 +2,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { CliType } from "@dionysus/core";
-import { createIsolatedWorkspace, createPatch as createWorkspacePatch } from "@dionysus/core";
+import { applyPatchToTarget, createIsolatedWorkspace, createPatch as createWorkspacePatch } from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
@@ -107,6 +107,37 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
   }
 }
 
+async function handleIntegrationTask(message: QueueMessage): Promise<void> {
+  if (!message.task_id) {
+    throw new Error("integration task requires task_id");
+  }
+  const integration = await repo.getQueuedIntegrationForTask(message.task_id);
+  if (!integration) {
+    await repo.recordTaskEvent(message.task_id, "integration.skipped_missing_patch", {
+      messageId: message.message_id
+    });
+    return;
+  }
+
+  await repo.markIntegrationRunning(integration.id);
+  const result = await applyPatchToTarget({
+    targetRoot,
+    patchText: integration.patchText
+  });
+  await repo.completeIntegration({
+    integrationId: integration.id,
+    patchId: integration.patchId,
+    taskId: integration.taskId,
+    status: result.status === "applied" ? "passed" : "failed",
+    result: {
+      applyStatus: result.status,
+      changedFiles: result.changedFiles,
+      reason: result.reason,
+      testStatus: result.status === "applied" ? "missing" : "blocked"
+    }
+  });
+}
+
 function parseWorkerCliType(value: string | undefined): CliType {
   if (value === "claude_code" || value === "gemini_cli" || value === "opencode" || value === "mock") {
     return value;
@@ -114,5 +145,8 @@ function parseWorkerCliType(value: string | undefined): CliType {
   return "mock";
 }
 
-console.log(`Dionysus worker consuming ${workerQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}`);
-await consumeJson(workerQueue, handleWorkerTask);
+console.log(`Dionysus worker consuming ${workerQueue} and ${integrationQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}`);
+await Promise.all([
+  consumeJson(workerQueue, handleWorkerTask),
+  consumeJson(integrationQueue, handleIntegrationTask)
+]);

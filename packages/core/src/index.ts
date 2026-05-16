@@ -4,3 +4,4 @@ export * from "./document-compiler.js";
 export * from "./gatekeeper.js";
 export * from "./workspace.js";
 export * from "./milestone-orchestration.js";
+export * from "./integration-applier.js";

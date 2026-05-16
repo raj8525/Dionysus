@@ -747,6 +747,86 @@ export class DionysusRepository {
     }
   }
 
+  async getQueuedIntegrationForTask(taskId: string): Promise<{
+    id: string;
+    patchId: string;
+    goalId: string;
+    taskId: string;
+    patchText: string;
+  } | null> {
+    const result = await this.pool.query(
+      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.patch_text
+       from ${this.table("integration_queue")} iq
+       join ${this.table("patches")} p on p.id = iq.patch_id
+       where iq.task_id = $1
+         and iq.status = 'queued'
+         and p.status = 'queued'
+       order by iq.created_at asc
+       limit 1`,
+      [taskId]
+    );
+    if (!result.rowCount) return null;
+    const row = result.rows[0];
+    return {
+      id: String(row.id),
+      patchId: String(row.patch_id),
+      goalId: String(row.goal_id),
+      taskId: String(row.task_id),
+      patchText: String(row.patch_text)
+    };
+  }
+
+  async markIntegrationRunning(integrationId: string): Promise<void> {
+    await this.pool.query(
+      `update ${this.table("integration_queue")}
+       set status = 'running', updated_at = now()
+       where id = $1 and status = 'queued'`,
+      [integrationId]
+    );
+  }
+
+  async completeIntegration(input: {
+    integrationId: string;
+    patchId: string;
+    taskId: string;
+    status: "passed" | "failed";
+    result: Record<string, unknown>;
+  }): Promise<void> {
+    const patchStatus = input.status === "passed" ? "applied" : "failed";
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        `update ${this.table("integration_queue")}
+         set status = $1, result_json = $2, updated_at = now()
+         where id = $3`,
+        [input.status, JSON.stringify(input.result), input.integrationId]
+      );
+      await client.query(
+        `update ${this.table("patches")}
+         set status = $1, updated_at = now()
+         where id = $2`,
+        [patchStatus, input.patchId]
+      );
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [
+          randomUUID(),
+          input.taskId,
+          input.status === "passed" ? "integration.passed" : "integration.failed",
+          JSON.stringify({ integrationId: input.integrationId, patchId: input.patchId, result: input.result })
+        ]
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async buildFlow(goalId?: string): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] } | null> {
     const goals = goalId ? [await this.getGoal(goalId)] : await this.listGoals(1);
     const goal = goals.find(Boolean);
