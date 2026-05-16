@@ -6,3 +6,4 @@ export * from "./workspace.js";
 export * from "./milestone-orchestration.js";
 export * from "./integration-applier.js";
 export * from "./master-planner.js";
+export * from "./role-queues.js";

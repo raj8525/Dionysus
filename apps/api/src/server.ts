@@ -5,7 +5,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { publishJson } from "@dionysus/mq";
-import { buildMasterTaskTree, buildMilestoneNotificationDraft, checkSpecTestGate, compileTargetProject } from "@dionysus/core";
+import { buildMasterTaskTree, buildMilestoneNotificationDraft, checkSpecTestGate, compileTargetProject, queueForRole } from "@dionysus/core";
 import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -127,13 +127,13 @@ export async function buildServer() {
     }
     const task = await repo.createTask(parsed.data);
     await repo.markTaskQueued(task.id);
-    await publishJson("dionysus.worker", {
+    await publishJson(queueForRole(parsed.data.roleRequired), {
       message_id: randomUUID(),
       goal_id: parsed.data.goalId,
       task_id: task.id,
-      type: "worker_task",
+      type: `${parsed.data.roleRequired}_task`,
       attempt: 1,
-      idempotency_key: `${task.id}:worker:1`,
+      idempotency_key: `${task.id}:${parsed.data.roleRequired}:1`,
       created_at: new Date().toISOString()
     });
     return reply.code(201).send({ ...task, status: "queued" });
@@ -180,6 +180,20 @@ export async function buildServer() {
           priority: draft.priority
         })
       );
+    }
+    const firstMaster = tasks[0];
+    if (firstMaster) {
+      await repo.markTaskQueued(firstMaster.id);
+      await publishJson(queueForRole("master"), {
+        message_id: randomUUID(),
+        goal_id: id,
+        task_id: firstMaster.id,
+        type: "master_task",
+        attempt: 1,
+        idempotency_key: `${firstMaster.id}:master:1`,
+        created_at: new Date().toISOString()
+      });
+      firstMaster.status = "queued";
     }
     return reply.code(201).send({ goalId: id, tasks });
   });

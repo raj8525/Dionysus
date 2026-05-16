@@ -8,6 +8,9 @@ import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db
 import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
 
 const workerQueue = "dionysus.worker";
+const masterQueue = "dionysus.master";
+const ruleWriterQueue = "dionysus.rule_writer";
+const testWriterQueue = "dionysus.test_writer";
 const integrationQueue = "dionysus.integration";
 const workerCliType = parseWorkerCliType(process.env.DIONYSUS_WORKER_CLI_TYPE);
 const workerCliModel = process.env.DIONYSUS_WORKER_CLI_MODEL || undefined;
@@ -108,6 +111,34 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
   }
 }
 
+async function handleGovernanceTask(message: QueueMessage, roleName: string): Promise<void> {
+  if (!message.task_id) {
+    throw new Error(`${roleName} task requires task_id`);
+  }
+  const prompt = `Execute Dionysus ${roleName} task ${message.task_id}. Do not write product implementation code unless this is the worker role.`;
+  const runId = await repo.createTaskRun({
+    taskId: message.task_id,
+    cliType: "mock",
+    command: `${roleName}.governance`,
+    prompt
+  });
+  await repo.appendRunLog(
+    runId,
+    "stdout",
+    [
+      `${roleName} governance task accepted.`,
+      `task_id=${message.task_id}`,
+      "This MVP records governance progress; real CLI role execution is configured in the next runtime layer."
+    ].join("\n"),
+    1
+  );
+  await repo.recordTaskEvent(message.task_id, `${roleName}.completed`, {
+    messageId: message.message_id,
+    next: roleName === "master" ? "review task tree or dispatch next role" : "return to master"
+  });
+  await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 0 });
+}
+
 async function handleIntegrationTask(message: QueueMessage): Promise<void> {
   if (!message.task_id) {
     throw new Error("integration task requires task_id");
@@ -155,8 +186,13 @@ function readCommandList(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-console.log(`Dionysus worker consuming ${workerQueue} and ${integrationQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}`);
+console.log(
+  `Dionysus worker consuming role queues and ${integrationQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}`
+);
 await Promise.all([
+  consumeJson(masterQueue, (message) => handleGovernanceTask(message, "master")),
+  consumeJson(ruleWriterQueue, (message) => handleGovernanceTask(message, "rule_writer")),
+  consumeJson(testWriterQueue, (message) => handleGovernanceTask(message, "test_writer")),
   consumeJson(workerQueue, handleWorkerTask),
   consumeJson(integrationQueue, handleIntegrationTask)
 ]);
