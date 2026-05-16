@@ -60,8 +60,10 @@ describe("role prompt builder", () => {
     });
 
     expect(rulePrompt).toContain("只能编写或修订 docs/specs/");
+    expect(rulePrompt).toContain("隔离 workspace");
     expect(testPrompt).toContain("只能编写 features_test/");
     expect(testPrompt).toContain("先失败的红灯测试证据");
+    expect(testPrompt).toContain("隔离 workspace");
     expect(workerPrompt).toContain("gate-check 已通过");
     expect(workerPrompt).toContain("产出 patch");
     expect(workerPrompt).toContain("最小可验证交付物");

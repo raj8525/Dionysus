@@ -75,12 +75,14 @@ const roleInstructions: Record<AgentRole, string> = {
   rule_writer: [
     "- 你负责 SDD，只能编写或修订 docs/specs/ 下的契约与规则。",
     "- 你不得写实现代码，不得写测试代码。",
+    "- 如果分配了 Workspace Root，你必须只在隔离 workspace 内写文件并等待 Dionysus 生成 patch。",
     "- 你必须明确 API、权限、错误码、数据边界和验收口径。",
     "- 如果规格信息不足，必须返回 blocker、owner、unblock action。"
   ].join("\n"),
   test_writer: [
     "- 你负责 TDD/BDD，只能编写 features_test/ 与必要测试用例。",
     "- 你不得写业务实现代码。",
+    "- 如果分配了 Workspace Root，你必须只在隔离 workspace 内写文件并等待 Dionysus 生成 patch。",
     "- 你必须说明覆盖的规格、测试命令、预期红灯或绿灯状态。",
     "- 如果没有先失败的红灯测试证据，不得让 Worker 进入实现。"
   ].join("\n"),

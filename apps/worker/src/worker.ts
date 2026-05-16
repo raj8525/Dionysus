@@ -166,10 +166,28 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   }
   const role = roleName as AgentRole;
   const taskContext = await loadTaskContext(message.task_id);
+  const taskTargetRoot = targetRootForGoal(taskContext.goal, targetRoot);
+  let cwd = taskTargetRoot;
+  let workspacePath: string | undefined;
+  if (role !== "master") {
+    const workspace = await createIsolatedWorkspace({
+      targetRoot: taskTargetRoot,
+      workspaceRoot,
+      taskId: message.task_id
+    });
+    cwd = workspace.workspacePath;
+    workspacePath = workspace.workspacePath;
+    await repo.recordTaskEvent(message.task_id, "workspace.created", {
+      workspacePath: workspace.workspacePath,
+      source: taskTargetRoot,
+      role
+    });
+  }
   const prompt = buildRolePrompt({
     role,
     task: taskContext.task,
-    goal: taskContext.goal
+    goal: taskContext.goal,
+    workspacePath
   });
   const roleConfig = await repo.getAgentCliConfig(role);
   const roleAdapter = roleConfig.cliType === "mock"
@@ -193,7 +211,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   const result = await roleAdapter.run({
     taskId: message.task_id,
     prompt,
-    cwd: targetRootForGoal(taskContext.goal, targetRoot)
+    cwd
   });
   if (result.stdout) {
     await repo.appendRunLog(runId, "stdout", result.stdout, 1);
@@ -207,6 +225,28 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     cliModel: roleConfig.cliModel,
     next: roleName === "master" ? "review task tree or dispatch next role" : "return to master"
   });
+  if (result.exitCode === 0 && role !== "master" && workspacePath && message.goal_id) {
+    const patch = await createWorkspacePatch({ workspacePath });
+    if (patch.patchText.trim().length > 0) {
+      const queuedPatch = await repo.createPatch({
+        goalId: message.goal_id,
+        taskId: message.task_id,
+        patchText: patch.patchText,
+        changedFiles: patch.changedFiles
+      });
+      await repo.appendRunLog(
+        runId,
+        "stdout",
+        `Dionysus governance patch queued: ${queuedPatch.id}\nchanged_files=${patch.changedFiles.join(",")}`,
+        3
+      );
+    } else {
+      await repo.recordTaskEvent(message.task_id, "patch.skipped_empty", {
+        workspacePath,
+        role
+      });
+    }
+  }
   await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
   if (result.exitCode === 0) {
     await dispatchNextTask(message.task_id);
