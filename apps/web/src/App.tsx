@@ -5,7 +5,10 @@ import {
   createGoal,
   fetchAgentCliConfigs,
   fetchCurrentFlow,
+  fetchE2ECampaigns,
+  fetchE2ECases,
   fetchIntegrations,
+  fetchMilestones,
   fetchRuns,
   fetchSystemEvents,
   fetchTasks,
@@ -22,10 +25,13 @@ import {
   type CliModelValidationResult,
   type CliProbeResult,
   type CliType,
+  type E2ECampaignRecord,
+  type E2ECaseRecord,
   type FlowResponse,
   type Goal,
   type IntegrationRecord,
   type MasterStepResult,
+  type MilestoneRecord,
   type ReleaseReadyIntegrationsResult,
   type SystemEvent,
   type TaskRecord,
@@ -68,6 +74,9 @@ export function App() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [runs, setRuns] = useState<TaskRunRecord[]>([]);
   const [masterEvents, setMasterEvents] = useState<SystemEvent[]>([]);
+  const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
+  const [e2eCampaigns, setE2ECampaigns] = useState<E2ECampaignRecord[]>([]);
+  const [e2eCases, setE2ECases] = useState<E2ECaseRecord[]>([]);
 
   useEffect(() => {
     Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
@@ -203,16 +212,28 @@ export function App() {
 
   async function refreshGoalEvidence(goalId = activeGoalId) {
     if (!goalId) return;
-    const [nextIntegrations, nextTasks, nextRuns, nextMasterEvents] = await Promise.all([
+    const [nextIntegrations, nextTasks, nextRuns, nextMasterEvents, nextMilestones] = await Promise.all([
       fetchIntegrations(goalId),
       fetchTasks(goalId),
       fetchRuns(goalId, 20),
-      fetchSystemEvents("master_control.", 10)
+      fetchSystemEvents("master_control.", 10),
+      fetchMilestones(goalId)
     ]);
     setIntegrations(nextIntegrations);
     setTasks(nextTasks);
     setRuns(nextRuns);
     setMasterEvents(nextMasterEvents);
+    setMilestones(nextMilestones);
+    const latestMilestone = nextMilestones[0];
+    if (!latestMilestone) {
+      setE2ECampaigns([]);
+      setE2ECases([]);
+      return;
+    }
+    const campaigns = await fetchE2ECampaigns(latestMilestone.id);
+    setE2ECampaigns(campaigns);
+    const latestCampaign = campaigns[0];
+    setE2ECases(latestCampaign ? await fetchE2ECases(latestCampaign.id) : []);
   }
 
   async function releaseIntegrations() {
@@ -463,6 +484,69 @@ export function App() {
                 ))
               ) : (
                 <div className="emptyState">暂无运行记录</div>
+              )}
+            </div>
+          </div>
+        </section>
+        <section className="milestonePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Milestones / E2E</p>
+              <h3>里程碑与浏览器验收证据</h3>
+            </div>
+            <button type="button" className="secondary" onClick={() => refreshGoalEvidence()}>
+              刷新里程碑
+            </button>
+          </div>
+          <div className="milestoneGrid">
+            <div className="evidenceColumn">
+              <h4>Milestones</h4>
+              {milestones.length ? (
+                milestones.map((milestone) => (
+                  <article key={milestone.id} className="evidenceItem">
+                    <div>
+                      <strong>{milestone.name}</strong>
+                      <span>{milestone.status}</span>
+                    </div>
+                    <p>{milestone.candidate_reason ?? milestone.description}</p>
+                    {milestone.codex_verdict ? <small>Codex: {milestone.codex_verdict}</small> : null}
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">暂无 milestone</div>
+              )}
+            </div>
+            <div className="evidenceColumn">
+              <h4>E2E Campaigns</h4>
+              {e2eCampaigns.length ? (
+                e2eCampaigns.map((campaign) => (
+                  <article key={campaign.id} className="evidenceItem">
+                    <div>
+                      <strong>{campaign.target_url ?? campaign.id}</strong>
+                      <span>{campaign.status}</span>
+                    </div>
+                    <p>{campaign.case_count} cases · {new Date(campaign.updated_at).toLocaleString()}</p>
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">暂无 E2E campaign</div>
+              )}
+            </div>
+            <div className="evidenceColumn">
+              <h4>E2E Cases</h4>
+              {e2eCases.length ? (
+                e2eCases.map((testCase) => (
+                  <article key={testCase.id} className="evidenceItem">
+                    <div>
+                      <strong>{testCase.caseType}</strong>
+                      <span>{testCase.status}</span>
+                    </div>
+                    <p>{testCase.title}</p>
+                    {testCase.failureReason ? <small>{testCase.failureReason}</small> : null}
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">暂无 E2E case</div>
               )}
             </div>
           </div>

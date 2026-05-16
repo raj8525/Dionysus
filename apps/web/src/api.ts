@@ -146,6 +146,46 @@ export interface IntegrationRecord {
   updatedAt: string;
 }
 
+export interface MilestoneRecord {
+  id: string;
+  goal_id: string;
+  name: string;
+  description: string;
+  status: string;
+  candidate_reason?: string;
+  codex_verdict?: string;
+  codex_verdict_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface E2ECampaignRecord {
+  id: string;
+  milestone_id: string;
+  target_url?: string;
+  status: string;
+  case_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface E2ECaseRecord {
+  id: string;
+  campaignId: string;
+  title: string;
+  description: string;
+  caseType: string;
+  preconditions?: string;
+  steps: string[];
+  expectedResult: string;
+  status: string;
+  failureReason?: string;
+  result: Record<string, unknown>;
+  executedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ReleaseReadyIntegrationsResult {
   goalId: string;
   status: "published" | "blocked";
@@ -301,6 +341,32 @@ export async function fetchIntegrations(goalId?: string): Promise<IntegrationRec
     throw new Error(`Failed to load integrations: ${response.status}`);
   }
   return (await response.json()) as IntegrationRecord[];
+}
+
+export async function fetchMilestones(goalId?: string): Promise<MilestoneRecord[]> {
+  const query = goalId ? `?goalId=${goalId}` : "";
+  const response = await fetch(`${apiBase}/api/milestones${query}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load milestones: ${response.status}`);
+  }
+  return (await response.json()) as MilestoneRecord[];
+}
+
+export async function fetchE2ECampaigns(milestoneId?: string): Promise<E2ECampaignRecord[]> {
+  const query = milestoneId ? `?milestoneId=${milestoneId}` : "";
+  const response = await fetch(`${apiBase}/api/e2e/campaigns${query}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load E2E campaigns: ${response.status}`);
+  }
+  return (await response.json()) as E2ECampaignRecord[];
+}
+
+export async function fetchE2ECases(campaignId: string): Promise<E2ECaseRecord[]> {
+  const response = await fetch(`${apiBase}/api/e2e/campaigns/${campaignId}/cases`);
+  if (!response.ok) {
+    throw new Error(`Failed to load E2E cases: ${response.status}`);
+  }
+  return (await response.json()) as E2ECaseRecord[];
 }
 
 export async function releaseReadyIntegrations(goalId: string): Promise<ReleaseReadyIntegrationsResult> {
