@@ -223,12 +223,43 @@ button:disabled {
   color: #991b1b;
 }
 
+.preflightPanel,
 .agentsPanel {
   margin-bottom: 18px;
   border: 1px solid #d9c8aa;
   border-radius: 8px;
   background: #fffdf8;
   padding: 18px;
+}
+
+.preflightResult {
+  display: grid;
+  gap: 12px;
+}
+
+.preflightSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.blockerList {
+  display: grid;
+  gap: 8px;
+}
+
+.blockerList span {
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #7c2d12;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.preflightResult.passed .blockerList span {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .sectionHeader {
@@ -419,6 +450,10 @@ h3 {
   }
 
   .watchdogSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .preflightSummary {
     grid-template-columns: 1fr;
   }
 }

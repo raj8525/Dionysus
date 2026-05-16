@@ -7,6 +7,7 @@ import {
   fetchCurrentFlow,
   fetchWatchdogEvents,
   probeClis,
+  runTargetPreflight,
   runWatchdog,
   saveAgentCliConfig,
   type AgentCliConfig,
@@ -15,6 +16,7 @@ import {
   type CliType,
   type FlowResponse,
   type Goal,
+  type TargetPreflightResult,
   type WatchdogEvent,
   type WatchdogRunResult
 } from "./api.js";
@@ -39,6 +41,9 @@ export function App() {
   const [watchdogEvents, setWatchdogEvents] = useState<WatchdogEvent[]>([]);
   const [watchdogRun, setWatchdogRun] = useState<WatchdogRunResult | null>(null);
   const [watchdogRunning, setWatchdogRunning] = useState(false);
+  const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
+  const [preflight, setPreflight] = useState<TargetPreflightResult | null>(null);
+  const [preflightRunning, setPreflightRunning] = useState(false);
 
   useEffect(() => {
     Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
@@ -51,10 +56,11 @@ export function App() {
     const goalNode = nextFlow.nodes.find((candidate) => {
       const node = candidate as { id?: string };
       return node.id === "goal";
-    }) as { data?: { label?: string } } | undefined;
+    }) as { data?: { label?: string; goalId?: string } } | undefined;
     if (goalNode?.data?.label) {
       setFlowGoalTitle(goalNode.data.label);
     }
+    setActiveGoalId(goalNode?.data?.goalId ?? null);
   }
 
   async function createCouponGoal() {
@@ -67,6 +73,7 @@ export function App() {
         targetRoot: "/Volumes/MacMiniSSD/code/Coupon"
       });
       setCurrentGoal(goal);
+      setActiveGoalId(goal.id);
       await refreshFlow();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -126,6 +133,22 @@ export function App() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setWatchdogRunning(false);
+    }
+  }
+
+  async function executePreflight() {
+    if (!activeGoalId) {
+      setError("当前没有可执行 preflight 的目标");
+      return;
+    }
+    setPreflightRunning(true);
+    setError(null);
+    try {
+      setPreflight(await runTargetPreflight(activeGoalId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPreflightRunning(false);
     }
   }
 
@@ -190,6 +213,44 @@ export function App() {
             <Background />
             <Controls />
           </ReactFlow>
+        </section>
+        <section className="preflightPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Preflight</p>
+              <h3>真实试运行门禁</h3>
+            </div>
+            <button type="button" onClick={executePreflight} disabled={preflightRunning || !activeGoalId}>
+              {preflightRunning ? "检查中..." : "执行 Preflight"}
+            </button>
+          </div>
+          {preflight ? (
+            <div className={`preflightResult ${preflight.status}`}>
+              <div className="preflightSummary">
+                <StatusCard
+                  icon={<GitCommit />}
+                  label="Git"
+                  value={preflight.git.clean ? "clean" : `${preflight.git.changes.length} changes`}
+                  tone={preflight.git.clean ? "good" : "bad"}
+                />
+                <StatusCard
+                  icon={<CheckCircle2 />}
+                  label="Gates"
+                  value={`${preflight.gates.filter((gate) => gate.status === "passed").length}/${preflight.gates.length}`}
+                  tone={preflight.status === "passed" ? "good" : "bad"}
+                />
+              </div>
+              <div className="blockerList">
+                {preflight.blockers.length ? (
+                  preflight.blockers.map((blocker) => <span key={blocker}>{blocker}</span>)
+                ) : (
+                  <span>全部门禁通过，可以进入真实试运行。</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="emptyState">尚未执行 preflight</div>
+          )}
         </section>
         <section className="agentsPanel">
           <div className="sectionHeader">

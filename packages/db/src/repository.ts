@@ -1089,7 +1089,12 @@ export class DionysusRepository {
     const productGraph = goal ? await this.loadBuildGraph(goal.id) : null;
 
     const nodes: FlowNode[] = [
-      node("goal", "goal", 0, 0, { label: goalLabel, status: goal?.status ?? "empty" }),
+      node("goal", "goal", 0, 0, {
+        label: goalLabel,
+        status: goal?.status ?? "empty",
+        goalId: goal?.id,
+        targetRoot: goal?.targetRoot
+      }),
       node("plan", "stage", 230, 0, { label: "PLAN.md", status: "pending" }),
       node("spec", "stage", 460, 0, { label: "Specs", status: "pending" }),
       node("test", "stage", 690, 0, { label: "features_test", status: "pending" }),

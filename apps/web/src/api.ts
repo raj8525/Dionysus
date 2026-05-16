@@ -65,6 +65,24 @@ export interface WatchdogRunResult {
   }>;
 }
 
+export interface TargetPreflightResult {
+  goalId: string;
+  status: "passed" | "blocked";
+  git: {
+    status: "passed" | "blocked";
+    clean: boolean;
+    changes: string[];
+  };
+  gates: Array<{
+    gateType: string;
+    status: "passed" | "blocked";
+    required: string[];
+    present: string[];
+    missing: string[];
+  }>;
+  blockers: string[];
+}
+
 const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:23100";
 
 export async function fetchCurrentFlow(): Promise<FlowResponse> {
@@ -135,4 +153,14 @@ export async function runWatchdog(input = { runningTimeoutMinutes: 15, limit: 50
     throw new Error(`Failed to run watchdog: ${response.status}`);
   }
   return (await response.json()) as WatchdogRunResult;
+}
+
+export async function runTargetPreflight(goalId: string): Promise<TargetPreflightResult> {
+  const response = await fetch(`${apiBase}/api/goals/${goalId}/preflight`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to run target preflight: ${response.status}`);
+  }
+  return (await response.json()) as TargetPreflightResult;
 }
