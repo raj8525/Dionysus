@@ -60,6 +60,13 @@ And 将文档清单写入 `documents`
 And 将 `待补充`、`未定义`、`占位`、`后续`、`P1` 等缺口写入 `document_findings`  
 And 生成产品构建图节点和依赖边
 
+## 场景 6.1：Master 生成 SDD/TDD 任务树
+
+Given 一个已经创建的 goal  
+When Codex 调用 `/api/goals/:id/bootstrap`  
+Then Dionysus 必须创建 Master、RuleWriter、TestWriter、Worker、Master Review 任务  
+And Worker 任务必须排在规格和测试任务之后
+
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
 Given 一个指向目标项目的 goal  

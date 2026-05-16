@@ -5,7 +5,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { publishJson } from "@dionysus/mq";
-import { buildMilestoneNotificationDraft, checkSpecTestGate, compileTargetProject } from "@dionysus/core";
+import { buildMasterTaskTree, buildMilestoneNotificationDraft, checkSpecTestGate, compileTargetProject } from "@dionysus/core";
 import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -148,6 +148,40 @@ export async function buildServer() {
     const result = await compileTargetProject(goal.targetRoot);
     const saved = await repo.saveIntakeResult({ goalId: id, ...result });
     return reply.code(201).send(saved);
+  });
+
+  app.post("/api/goals/:id/bootstrap", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const existingTasks = await repo.listTasks(id);
+    const existingBootstrapTasks = existingTasks.filter((task) =>
+      typeof task.title === "string" &&
+      (task.title.startsWith("[Master]") ||
+        task.title.startsWith("[RuleWriter]") ||
+        task.title.startsWith("[TestWriter]") ||
+        task.title.startsWith("[Worker]"))
+    );
+    if (existingBootstrapTasks.length >= 5) {
+      return reply.code(200).send({ goalId: id, existing: true, tasks: existingBootstrapTasks });
+    }
+
+    const drafts = buildMasterTaskTree({ goalTitle: goal.title, targetRoot: goal.targetRoot });
+    const tasks = [];
+    for (const draft of drafts) {
+      tasks.push(
+        await repo.createTask({
+          goalId: id,
+          title: draft.title,
+          description: draft.description,
+          roleRequired: draft.roleRequired,
+          priority: draft.priority
+        })
+      );
+    }
+    return reply.code(201).send({ goalId: id, tasks });
   });
 
   app.get("/api/goals/:id/findings", async (request, reply) => {

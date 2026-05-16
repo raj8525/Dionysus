@@ -22,6 +22,7 @@ POST /api/goals
 GET /api/goals/:id
 GET /api/goals/:id/graph
 POST /api/goals/:id/intake
+POST /api/goals/:id/bootstrap
 GET /api/goals/:id/findings
 ```
 
