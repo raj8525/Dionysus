@@ -1,5 +1,18 @@
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
 
+interface E2ECampaignRecord {
+  id: string;
+  target_url?: string;
+  status: string;
+}
+
+interface E2ECaseRecord {
+  id: string;
+  title: string;
+  caseType: string;
+  status: string;
+}
+
 async function main(): Promise<void> {
   const [domain, action, ...args] = process.argv.slice(2);
 
@@ -84,12 +97,134 @@ async function main(): Promise<void> {
     }));
   }
 
+  if (domain === "e2e" && action === "run-campaign") {
+    return print(await runE2ECampaign({
+      campaignId: requiredFlag(args, "--campaign-id"),
+      mode: (readFlag(args, "--mode") ?? "strict") as "strict" | "render-only",
+      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e"
+    }));
+  }
+
   if (domain === "notification" && action === "deliver") {
     return print(await request(`/api/notifications/${requiredFlag(args, "--notification-id")}/deliver`, "POST"));
   }
 
   usage();
   process.exitCode = 1;
+}
+
+async function runE2ECampaign(input: {
+  campaignId: string;
+  mode: "strict" | "render-only";
+  screenshotDir: string;
+}): Promise<Record<string, unknown>> {
+  const campaigns = await request("/api/e2e/campaigns") as E2ECampaignRecord[];
+  const campaign = campaigns.find((candidate) => candidate.id === input.campaignId);
+  if (!campaign) {
+    throw new Error(`campaign not found: ${input.campaignId}`);
+  }
+  if (!campaign.target_url) {
+    throw new Error(`campaign has no target_url: ${input.campaignId}`);
+  }
+
+  const { chromium } = await import("playwright");
+  const { mkdir } = await import("node:fs/promises");
+  const { resolve } = await import("node:path");
+  await mkdir(input.screenshotDir, { recursive: true });
+
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  const cases = await request(`/api/e2e/campaigns/${input.campaignId}/cases`) as E2ECaseRecord[];
+  const results: Array<Record<string, unknown>> = [];
+  try {
+    for (const testCase of cases) {
+      const result = await runE2ECase({
+        page,
+        targetUrl: campaign.target_url,
+        testCase,
+        mode: input.mode,
+        screenshotDir: input.screenshotDir,
+        consoleErrors
+      });
+      const recorded = await request(`/api/e2e/cases/${testCase.id}/result`, "POST", {
+        status: result.status,
+        failureReason: result.failureReason,
+        result: result.evidence
+      });
+      results.push({ caseId: testCase.id, caseType: testCase.caseType, ...result, recorded });
+    }
+  } finally {
+    await browser.close();
+  }
+
+  return {
+    campaignId: input.campaignId,
+    targetUrl: campaign.target_url,
+    mode: input.mode,
+    screenshotDir: resolve(input.screenshotDir),
+    results
+  };
+}
+
+async function runE2ECase(input: {
+  page: import("playwright").Page;
+  targetUrl: string;
+  testCase: E2ECaseRecord;
+  mode: "strict" | "render-only";
+  screenshotDir: string;
+  consoleErrors: string[];
+}): Promise<{
+  status: "passed" | "failed" | "blocked";
+  failureReason?: string;
+  evidence: Record<string, unknown>;
+}> {
+  const actionable = input.testCase.caseType === "smoke" || input.testCase.caseType === "persistence";
+  if (!actionable && input.mode === "strict") {
+    return {
+      status: "blocked",
+      failureReason: `caseType=${input.testCase.caseType} requires product-specific browser actions; rerun with --mode render-only only for static/document milestones, or record explicit case-result after Codex executes the workflow.`,
+      evidence: {
+        mode: input.mode,
+        caseType: input.testCase.caseType,
+        targetUrl: input.targetUrl
+      }
+    };
+  }
+
+  const beforeErrorCount = input.consoleErrors.length;
+  await input.page.goto(input.targetUrl, { waitUntil: "networkidle" });
+  if (input.testCase.caseType === "persistence") {
+    await input.page.reload({ waitUntil: "networkidle" });
+  }
+  const title = await input.page.title();
+  const bodyTextLength = await input.page.locator("body").innerText().then((text) => text.trim().length);
+  const screenshotPath = `${input.screenshotDir}/${input.testCase.id}-${input.testCase.caseType}.png`;
+  await input.page.screenshot({ path: screenshotPath, fullPage: false });
+  const newConsoleErrors = input.consoleErrors.slice(beforeErrorCount);
+  const failed = bodyTextLength === 0 || newConsoleErrors.length > 0;
+  return {
+    status: failed ? "failed" : "passed",
+    failureReason: failed ? `bodyTextLength=${bodyTextLength}; consoleErrors=${newConsoleErrors.length}` : undefined,
+    evidence: {
+      mode: input.mode,
+      caveat: !actionable && input.mode === "render-only"
+        ? "render-only mode checks rendering only; it does not prove the product workflow."
+        : undefined,
+      caseType: input.testCase.caseType,
+      targetUrl: input.targetUrl,
+      title,
+      bodyTextLength,
+      consoleErrors: newConsoleErrors,
+      screenshotPath
+    }
+  };
 }
 
 async function request(path: string, method = "GET", body?: unknown): Promise<unknown> {
@@ -168,6 +303,7 @@ function usage(): void {
   tsx tools/dionysus.ts milestone notify --milestone-id "..." --summary "..." --target-url "..."
   tsx tools/dionysus.ts e2e cases --campaign-id "..."
   tsx tools/dionysus.ts e2e case-result --case-id "..." --status passed --result-json '{"note":"..."}'
+  tsx tools/dionysus.ts e2e run-campaign --campaign-id "..." --mode strict
   tsx tools/dionysus.ts notification deliver --notification-id "..."
 `);
 }

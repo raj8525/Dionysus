@@ -46,10 +46,16 @@ pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
 pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"
 pnpm dionysus e2e cases --campaign-id "<campaign-id>"
 pnpm dionysus e2e case-result --case-id "<case-id>" --status passed --result-json '{"evidence":"checked by Codex"}'
+pnpm dionysus e2e run-campaign --campaign-id "<campaign-id>" --mode strict
 pnpm dionysus milestone verdict --milestone-id "<milestone-id>" --verdict passed --reason "E2E passed"
 pnpm dionysus milestone notify --milestone-id "<milestone-id>" --summary "里程碑完成" --target-url "http://localhost:23101"
 pnpm dionysus notification deliver --notification-id "<notification-id>"
 ```
+
+`e2e run-campaign` 有两种模式：
+
+- `strict`：只自动通过通用 smoke / persistence；需要真实产品操作的 happy_path / negative_path 会标记 blocked，防止伪验收。
+- `render-only`：只验证页面渲染和控制台错误，适合静态文档或演示型里程碑；不证明真实业务流程。
 
 ## 目标项目配置
 

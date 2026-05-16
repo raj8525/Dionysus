@@ -253,6 +253,14 @@ Then 每条 case 必须能写入 passed、failed、blocked 或 skipped
 And 必须保存失败原因与截图、控制台日志、网络错误等证据 JSON  
 And campaign 状态必须由所有 case 状态自动汇总
 
+## 场景 10.2：Codex CLI 必须能自动执行通用浏览器 E2E
+
+Given Dionysus 已创建 E2E campaign  
+When Codex 运行 `pnpm dionysus e2e run-campaign --campaign-id <id> --mode strict`  
+Then smoke 和 persistence 用例必须通过 Playwright 打开目标 URL、截图并回写结果  
+And 需要业务特定操作的 happy_path / negative_path 在 strict 模式下必须标记 blocked  
+And 系统不得把未执行的业务流程伪造成 passed
+
 ## 场景 11：里程碑通过后必须通知
 
 Given Codex E2E verdict 为 passed  
