@@ -61,4 +61,33 @@ describe("integration patch applier", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("rolls back the patch when verification command fails", async () => {
+    const root = await initRepo();
+    try {
+      const patch = [
+        "diff --git a/README.md b/README.md",
+        "index 5a60f7d..61e9f52 100644",
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        ""
+      ].join("\n");
+
+      const result = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch,
+        verificationCommands: ["false"]
+      });
+      const status = await execFileAsync("git", ["status", "--porcelain"], { cwd: root });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toContain("verification command failed");
+      expect(status.stdout.trim()).toBe("");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

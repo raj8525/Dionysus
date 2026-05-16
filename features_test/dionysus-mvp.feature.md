@@ -83,6 +83,7 @@ And 目标主工作区是干净 Git 状态
 When integration worker 消费消息  
 Then Dionysus 必须先执行 `git apply --check`  
 And 成功后应用 patch  
+And 如果配置了验证命令，必须执行验证命令  
 And 将 patch 标记为 `applied`  
 And 将 integration 标记为 `passed`
 
@@ -93,6 +94,15 @@ When integration worker 尝试应用 patch
 Then Dionysus 必须拒绝应用  
 And 将 integration 标记为 `failed`  
 And result_json 必须记录 dirty worktree 原因
+
+## 场景 8.3：验证失败必须自动回滚
+
+Given patch 已成功应用  
+And integration 验证命令失败  
+When integration worker 处理结果  
+Then Dionysus 必须反向应用 patch 回滚  
+And 目标 Git 工作区必须恢复干净  
+And integration 必须标记为 `failed`
 
 ## 场景 9：Master 自动识别里程碑候选
 

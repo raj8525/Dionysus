@@ -15,6 +15,7 @@ export interface PatchApplyResult {
 export async function applyPatchToTarget(input: {
   targetRoot: string;
   patchText: string;
+  verificationCommands?: string[];
 }): Promise<PatchApplyResult> {
   const dirty = await runGit(input.targetRoot, ["status", "--porcelain"]);
   if (dirty.exitCode !== 0) {
@@ -36,6 +37,12 @@ export async function applyPatchToTarget(input: {
       return { status: "failed", changedFiles: [], reason: apply.stderr };
     }
 
+    const verification = await runVerificationCommands(input.targetRoot, input.verificationCommands ?? []);
+    if (verification) {
+      await runGit(input.targetRoot, ["apply", "-R", patchFile]);
+      return { status: "failed", changedFiles: [], reason: verification };
+    }
+
     const names = await runGit(input.targetRoot, ["diff", "--name-only", "--", "."]);
     return {
       status: "applied",
@@ -49,6 +56,16 @@ export async function applyPatchToTarget(input: {
   }
 }
 
+async function runVerificationCommands(cwd: string, commands: string[]): Promise<string | null> {
+  for (const command of commands) {
+    const result = await runShell(cwd, command);
+    if (result.exitCode !== 0) {
+      return `verification command failed: ${command}\n${result.stderr || result.stdout}`;
+    }
+  }
+  return null;
+}
+
 async function writeTempPatch(patchText: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "dionysus-patch-"));
   const patchFile = join(dir, "change.patch");
@@ -59,6 +76,24 @@ async function writeTempPatch(patchText: string): Promise<string> {
 async function runGit(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
     const result = await execFileAsync("git", args, {
+      cwd,
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024 * 20
+    });
+    return { stdout: result.stdout, stderr: result.stderr, exitCode: 0 };
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string; code?: number };
+    return {
+      stdout: err.stdout ?? "",
+      stderr: err.stderr ?? err.message,
+      exitCode: typeof err.code === "number" ? err.code : 1
+    };
+  }
+}
+
+async function runShell(cwd: string, command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  try {
+    const result = await execFileAsync("sh", ["-lc", command], {
       cwd,
       timeout: 120_000,
       maxBuffer: 1024 * 1024 * 20

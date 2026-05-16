@@ -16,6 +16,7 @@ const adapter = workerCliType === "mock"
   : createCliAdapter({ cliType: workerCliType, model: workerCliModel });
 const targetRoot = process.env.TARGET_COUPON_ROOT ?? process.cwd();
 const workspaceRoot = process.env.DIONYSUS_WORKSPACE_ROOT ?? resolve(process.cwd(), "../../.dionysus/workspaces");
+const integrationVerificationCommands = readCommandList(process.env.DIONYSUS_INTEGRATION_VERIFY_COMMANDS);
 const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
@@ -122,7 +123,8 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
   await repo.markIntegrationRunning(integration.id);
   const result = await applyPatchToTarget({
     targetRoot,
-    patchText: integration.patchText
+    patchText: integration.patchText,
+    verificationCommands: integrationVerificationCommands
   });
   await repo.completeIntegration({
     integrationId: integration.id,
@@ -133,7 +135,8 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
       applyStatus: result.status,
       changedFiles: result.changedFiles,
       reason: result.reason,
-      testStatus: result.status === "applied" ? "missing" : "blocked"
+      testStatus: result.status === "applied" ? (integrationVerificationCommands.length ? "passed" : "missing") : "blocked",
+      verificationCommands: integrationVerificationCommands
     }
   });
 }
@@ -143,6 +146,13 @@ function parseWorkerCliType(value: string | undefined): CliType {
     return value;
   }
   return "mock";
+}
+
+function readCommandList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(/\r?\n|&&/)
+    .map((command) => command.trim())
+    .filter(Boolean);
 }
 
 console.log(`Dionysus worker consuming ${workerQueue} and ${integrationQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}`);
