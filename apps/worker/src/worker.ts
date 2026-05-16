@@ -164,6 +164,10 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
         patchId: dispatchDecision.patchId,
         reason: dispatchDecision.reason
       });
+    } else if (dispatchDecision.action === "wait_for_review") {
+      await repo.recordTaskEvent(message.task_id, "dispatch.waiting_for_review", {
+        reason: dispatchDecision.reason
+      });
     }
 
     await publishJson(integrationQueue, {
@@ -320,6 +324,10 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
       patchId: dispatchDecision.patchId,
       reason: dispatchDecision.reason
     });
+  } else if (dispatchDecision.action === "wait_for_review") {
+    await repo.recordTaskEvent(message.task_id, "dispatch.waiting_for_review", {
+      reason: dispatchDecision.reason
+    });
   }
 }
 
@@ -361,6 +369,12 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
   });
   if (shouldDispatchAfterIntegration({ applyStatus: result.status })) {
     await dispatchNextTask(integration.taskId);
+  } else if (result.status === "applied") {
+    await repo.recordTaskEvent(integration.taskId, "integration.awaiting_task_review", {
+      integrationId: integration.id,
+      patchId: integration.patchId,
+      reason: "patch applied; task review must approve before dispatching next task"
+    });
   } else {
     await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
       goalId: integration.goalId,

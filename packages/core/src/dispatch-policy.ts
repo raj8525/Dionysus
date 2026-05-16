@@ -4,6 +4,10 @@ export type DispatchDecision =
       reason: string;
     }
   | {
+      action: "wait_for_review";
+      reason: string;
+    }
+  | {
       action: "wait_for_integration";
       reason: string;
       patchId: string;
@@ -33,13 +37,13 @@ export function decidePostRunDispatch(input: {
   }
 
   return {
-    action: "dispatch_next",
-    reason: "run succeeded without target patch"
+    action: "wait_for_review",
+    reason: "successful run requires task review before dispatching next task"
   };
 }
 
 export function shouldDispatchAfterIntegration(input: {
   applyStatus: "applied" | "blocked" | "failed";
 }): boolean {
-  return input.applyStatus === "applied";
+  return false;
 }

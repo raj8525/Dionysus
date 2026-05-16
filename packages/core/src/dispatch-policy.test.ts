@@ -17,15 +17,15 @@ describe("dispatch policy", () => {
     });
   });
 
-  it("dispatches the next task only when no patch needs integration", () => {
+  it("waits for review even when a successful run has no patch", () => {
     expect(decidePostRunDispatch({ exitCode: 0 })).toEqual({
-      action: "dispatch_next",
-      reason: "run succeeded without target patch"
+      action: "wait_for_review",
+      reason: "successful run requires task review before dispatching next task"
     });
   });
 
-  it("continues only after integration applied", () => {
-    expect(shouldDispatchAfterIntegration({ applyStatus: "applied" })).toBe(true);
+  it("does not dispatch directly after integration because review is still required", () => {
+    expect(shouldDispatchAfterIntegration({ applyStatus: "applied" })).toBe(false);
     expect(shouldDispatchAfterIntegration({ applyStatus: "blocked" })).toBe(false);
     expect(shouldDispatchAfterIntegration({ applyStatus: "failed" })).toBe(false);
   });

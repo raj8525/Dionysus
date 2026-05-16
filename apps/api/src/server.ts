@@ -23,6 +23,7 @@ import {
   findUnmanagedGitChanges,
   resolveNotificationChannels,
   queueForRole,
+  shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
   taskReviewStatusForVerdict
 } from "@dionysus/core";
@@ -552,6 +553,9 @@ export async function buildServer() {
         idempotency_key: `${id}:${roleRequired}:review-reject:${Date.now()}`,
         created_at: new Date().toISOString()
       });
+    }
+    if (shouldDispatchAfterTaskReview(parsed.data.verdict)) {
+      await dispatchNextTaskAfterReview(repo, task);
     }
     return reply.code(202).send(task);
   });
@@ -1176,6 +1180,31 @@ async function postJson(url: string, body: Record<string, string>): Promise<{ ok
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTask: Record<string, unknown>): Promise<void> {
+  const reviewedTaskId = String(reviewedTask.id);
+  const goalId = String(reviewedTask.goal_id);
+  const priority = Number(reviewedTask.priority ?? 0);
+  const nextTask = await repo.findNextCreatedTask({ goalId, afterPriority: priority });
+  if (!nextTask) {
+    await repo.recordTaskEvent(reviewedTaskId, "review.no_next_task", { goalId });
+    return;
+  }
+  await repo.markTaskQueued(nextTask.id);
+  await publishJson(queueForRole(nextTask.roleRequired), {
+    message_id: randomUUID(),
+    goal_id: goalId,
+    task_id: nextTask.id,
+    type: `${nextTask.roleRequired}_task_review_approved_next`,
+    attempt: 1,
+    idempotency_key: `${nextTask.id}:${nextTask.roleRequired}:review-approved:${Date.now()}`,
+    created_at: new Date().toISOString()
+  });
+  await repo.recordTaskEvent(reviewedTaskId, "review.dispatch_next_task", {
+    nextTaskId: nextTask.id,
+    nextRole: nextTask.roleRequired
+  });
 }
 
 function countBootstrapTasks(tasks: Array<Record<string, unknown>>): number {

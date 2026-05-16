@@ -11,3 +11,7 @@ export function taskReviewStatusForVerdict(verdict: TaskReviewVerdict): TaskRevi
   } satisfies Record<TaskReviewVerdict, TaskReviewNextStatus>;
   return statuses[verdict];
 }
+
+export function shouldDispatchAfterTaskReview(verdict: TaskReviewVerdict): boolean {
+  return verdict === "approve";
+}

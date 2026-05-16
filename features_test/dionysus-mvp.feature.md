@@ -474,12 +474,27 @@ Given 一个 task 处于 `needs_review`
 When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict approve`
 Then task 状态必须变为 `done`
 And 系统必须记录 `task.review_approve` 事件
+And Dionysus 必须只在 approve 后放行同一 goal 的下一条 created task
 When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict reject`
 Then task 状态必须变为 `queued`
 And Dionysus 必须重新投递到该 task 的角色队列
+And Dionysus 不得放行下一条 task
 When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict block --reason "需要人工澄清"`
 Then task 状态必须变为 `blocked`
 And blocker reason 必须保存在 task 上
+And Dionysus 不得放行下一条 task
+
+## 场景 17.2：成功 run 和 integration 都不能绕过 review
+
+Given 一个 Agent run 成功且没有 patch
+When Agent Runtime 更新任务状态
+Then task 必须进入 `needs_review`
+And Dionysus 必须记录 `dispatch.waiting_for_review`
+And 不得自动 dispatch 下一条 task
+Given 一个 Agent run 产生 patch 且 integration 已 applied
+When Integration Worker 完成 patch 应用
+Then Dionysus 必须记录 `integration.awaiting_task_review`
+And 不得自动 dispatch 下一条 task
 
 ## 场景 18：有 patch 的任务必须等 integration 成功后再放行下一任务
 
@@ -488,7 +503,8 @@ When Dionysus 将 patch 写入 integration queue
 Then 当前任务不得立即 dispatch 下一优先级任务
 And 当前任务必须记录 `dispatch.waiting_for_integration`
 When integration worker 成功应用 patch 并通过验证命令
-Then Dionysus 才能 dispatch 下一优先级 created task
+Then Dionysus 必须记录 `integration.awaiting_task_review`
+And 只有 Codex 或 Master approve 当前 task 后，才能 dispatch 下一优先级 created task
 And 如果 integration blocked 或 failed，必须创建 `codex_outbox` blocker，而不是继续放行 Worker
 
 ## 运行命令
