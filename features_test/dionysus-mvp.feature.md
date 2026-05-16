@@ -60,6 +60,22 @@ And 将文档清单写入 `documents`
 And 将 `待补充`、`未定义`、`占位`、`后续`、`P1` 等缺口写入 `document_findings`  
 And 生成产品构建图节点和依赖边
 
+## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
+
+Given 一个指向目标项目的 goal  
+When Codex 调用 `/api/goals/:id/gate-check`  
+Then Dionysus 必须检查 `docs/PLAN.md`、`docs/specs/`、`features_test/`  
+And 将检查结果写入 `gate_checks`  
+And 如果缺少任一门禁，则返回 `blocked`
+
+## 场景 8：Worker patch 必须进入 Integration Queue
+
+Given Worker 完成隔离 workspace 内的实现  
+When Worker 提交 patch  
+Then Dionysus 必须写入 `patches`  
+And 同时创建 `integration_queue` 记录  
+And task event 必须记录 `patch.queued`
+
 ## 运行命令
 
 ```bash

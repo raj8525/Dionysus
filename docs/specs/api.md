@@ -73,3 +73,15 @@ POST /api/notifications
 POST /api/cli/probe
 GET /api/cli/models
 ```
+
+## Gatekeeper
+
+```text
+POST /api/goals/:id/gate-check
+```
+
+## Patch Queue
+
+```text
+POST /api/patches
+```

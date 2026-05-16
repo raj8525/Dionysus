@@ -6,7 +6,8 @@ import type {
   BuildGraphEdgeDraft,
   BuildGraphNodeDraft,
   CompiledDocument,
-  DocumentFinding
+  DocumentFinding,
+  GateCheckResult
 } from "@dionysus/core";
 import type { CliProbeResult } from "@dionysus/cli-adapters";
 
@@ -454,6 +455,90 @@ export class DionysusRepository {
        order by cli_type asc, model asc`
     );
     return result.rows;
+  }
+
+  async saveGateChecks(input: {
+    goalId: string;
+    taskId?: string;
+    checks: GateCheckResult[];
+  }): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      for (const check of input.checks) {
+        await client.query(
+          `insert into ${this.table("gate_checks")}
+            (id, goal_id, task_id, gate_type, status, details_json)
+           values ($1, $2, $3, $4, $5, $6)`,
+          [
+            randomUUID(),
+            input.goalId,
+            input.taskId ?? null,
+            check.gateType,
+            check.status,
+            JSON.stringify(check)
+          ]
+        );
+      }
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [
+          randomUUID(),
+          "gate.checked",
+          JSON.stringify({
+            goalId: input.goalId,
+            taskId: input.taskId,
+            blocked: input.checks.filter((check) => check.status === "blocked").length
+          })
+        ]
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createPatch(input: {
+    goalId: string;
+    taskId: string;
+    patchText: string;
+    changedFiles: string[];
+  }): Promise<{ id: string; status: string }> {
+    const id = randomUUID();
+    const queueId = randomUUID();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `insert into ${this.table("patches")}
+          (id, goal_id, task_id, patch_text, changed_files_json, status)
+         values ($1, $2, $3, $4, $5, 'queued')
+         returning id, status`,
+        [id, input.goalId, input.taskId, input.patchText, JSON.stringify(input.changedFiles)]
+      );
+      await client.query(
+        `insert into ${this.table("integration_queue")}
+          (id, patch_id, goal_id, task_id, status)
+         values ($1, $2, $3, $4, 'queued')`,
+        [queueId, id, input.goalId, input.taskId]
+      );
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [randomUUID(), input.taskId, "patch.queued", JSON.stringify({ patchId: id, queueId })]
+      );
+      await client.query("commit");
+      return { id: String(result.rows[0].id), status: String(result.rows[0].status) };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async buildFlow(goalId?: string): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] } | null> {

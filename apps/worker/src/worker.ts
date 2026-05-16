@@ -1,12 +1,17 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { MockAdapter } from "@dionysus/cli-adapters";
+import type { CliType } from "@dionysus/core";
+import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
 
 const workerQueue = "dionysus.worker";
 const integrationQueue = "dionysus.integration";
-const adapter = new MockAdapter();
+const workerCliType = parseWorkerCliType(process.env.DIONYSUS_WORKER_CLI_TYPE);
+const workerCliModel = process.env.DIONYSUS_WORKER_CLI_MODEL || undefined;
+const adapter = workerCliType === "mock"
+  ? new MockAdapter()
+  : createCliAdapter({ cliType: workerCliType, model: workerCliModel });
 const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
@@ -19,8 +24,9 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
   const prompt = `Execute Dionysus task ${message.task_id}`;
   const runId = await repo.createTaskRun({
     taskId: message.task_id,
-    cliType: "mock",
-    command: "MockAdapter.run",
+    cliType: workerCliType,
+    cliModel: workerCliModel,
+    command: `${workerCliType}.run`,
     prompt
   });
 
@@ -49,5 +55,12 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
   });
 }
 
-console.log(`Dionysus worker consuming ${workerQueue}`);
+function parseWorkerCliType(value: string | undefined): CliType {
+  if (value === "claude_code" || value === "gemini_cli" || value === "opencode" || value === "mock") {
+    return value;
+  }
+  return "mock";
+}
+
+console.log(`Dionysus worker consuming ${workerQueue} with ${workerCliType}`);
 await consumeJson(workerQueue, handleWorkerTask);

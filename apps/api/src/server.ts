@@ -5,7 +5,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { publishJson } from "@dionysus/mq";
-import { compileTargetProject } from "@dionysus/core";
+import { checkSpecTestGate, compileTargetProject } from "@dionysus/core";
 import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -39,6 +39,13 @@ const createNotificationSchema = z.object({
   milestoneId: z.string().uuid(),
   title: z.string().min(1),
   body: z.string().min(1)
+});
+
+const createPatchSchema = z.object({
+  goalId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  patchText: z.string(),
+  changedFiles: z.array(z.string())
 });
 
 export async function buildServer() {
@@ -186,6 +193,26 @@ export async function buildServer() {
   });
 
   app.get("/api/cli/models", async () => repo.listCliModels());
+
+  app.post("/api/goals/:id/gate-check", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const checks = await checkSpecTestGate(goal.targetRoot);
+    await repo.saveGateChecks({ goalId: id, checks });
+    return { goalId: id, checks };
+  });
+
+  app.post("/api/patches", async (request, reply) => {
+    const parsed = createPatchSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_PATCH_INPUT", details: parsed.error.flatten() });
+    }
+    const patch = await repo.createPatch(parsed.data);
+    return reply.code(201).send(patch);
+  });
 
   return app;
 }
