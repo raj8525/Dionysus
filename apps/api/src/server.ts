@@ -5,7 +5,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { publishJson } from "@dionysus/mq";
-import { checkSpecTestGate, compileTargetProject } from "@dionysus/core";
+import { buildMilestoneNotificationDraft, checkSpecTestGate, compileTargetProject } from "@dionysus/core";
 import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -39,6 +39,18 @@ const createNotificationSchema = z.object({
   milestoneId: z.string().uuid(),
   title: z.string().min(1),
   body: z.string().min(1)
+});
+
+const createMilestoneNotificationSchema = z.object({
+  summary: z.string().min(1),
+  targetUrl: z.string().min(1),
+  verificationCommands: z.array(z.string()).default([]),
+  residualRisks: z.array(z.string()).default([])
+});
+
+const createE2ECampaignSchema = z.object({
+  targetUrl: z.string().min(1),
+  acceptance: z.array(z.string()).default([])
 });
 
 const createPatchSchema = z.object({
@@ -147,6 +159,16 @@ export async function buildServer() {
     return repo.listDocumentFindings(id);
   });
 
+  app.post("/api/goals/:id/detect-milestones", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const milestones = await repo.detectMilestoneCandidates(id);
+    return reply.code(201).send({ goalId: id, created: milestones });
+  });
+
   app.get("/api/milestones", async (request) => {
     const query = request.query as { goalId?: string };
     return repo.listMilestones(query.goalId);
@@ -167,6 +189,21 @@ export async function buildServer() {
     return reply.code(202).send({ id, status: "e2e_required" });
   });
 
+  app.post("/api/milestones/:id/e2e-campaigns", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = createE2ECampaignSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_E2E_CAMPAIGN_INPUT", details: parsed.error.flatten() });
+    }
+    const campaign = await repo.createE2ECampaign({ milestoneId: id, ...parsed.data });
+    return reply.code(201).send(campaign);
+  });
+
+  app.get("/api/e2e/campaigns", async (request) => {
+    const query = request.query as { milestoneId?: string };
+    return repo.listE2ECampaigns(query.milestoneId);
+  });
+
   app.post("/api/milestones/:id/codex-verdict", async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = codexVerdictSchema.safeParse(request.body);
@@ -184,6 +221,30 @@ export async function buildServer() {
     }
     const notification = await repo.createNotification(parsed.data);
     return reply.code(201).send(notification);
+  });
+
+  app.post("/api/milestones/:id/notifications", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = createMilestoneNotificationSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_MILESTONE_NOTIFICATION_INPUT", details: parsed.error.flatten() });
+    }
+    const milestone = await repo.getMilestone(id);
+    if (!milestone) {
+      return reply.code(404).send({ error: "MILESTONE_NOT_FOUND" });
+    }
+    const draft = buildMilestoneNotificationDraft({
+      milestoneName: String(milestone.name),
+      ...parsed.data
+    });
+    const notification = await repo.createNotification({ milestoneId: id, ...draft });
+    return reply.code(201).send(notification);
+  });
+
+  app.post("/api/notifications/:id/deliver", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const delivery = await repo.deliverNotification(id);
+    return reply.code(202).send(delivery);
   });
 
   app.post("/api/cli/probe", async () => {

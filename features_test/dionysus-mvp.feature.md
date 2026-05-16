@@ -76,6 +76,29 @@ Then Dionysus 必须写入 `patches`
 And 同时创建 `integration_queue` 记录  
 And task event 必须记录 `patch.queued`
 
+## 场景 9：Master 自动识别里程碑候选
+
+Given integration queue 已通过  
+And patch 已应用  
+And 测试状态为 passed  
+When Codex 或 Master 触发 milestone detection  
+Then Dionysus 必须创建 milestone candidate  
+And milestone 不得跳过 Codex E2E
+
+## 场景 10：E2E campaign 必须覆盖浏览器级验收
+
+Given milestone candidate 已进入 E2E 阶段  
+When Dionysus 创建 E2E campaign  
+Then 必须包含 smoke、happy path、negative path、persistence 用例  
+And Codex 执行后才能写入 verdict
+
+## 场景 11：里程碑通过后必须通知
+
+Given Codex E2E verdict 为 passed  
+When Dionysus 生成 milestone notification  
+Then 通知正文必须包含实现内容、如何使用、如何验收和剩余风险  
+And 投递记录必须进入 `notification_deliveries`
+
 ## 运行命令
 
 ```bash

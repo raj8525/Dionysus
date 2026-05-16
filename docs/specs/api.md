@@ -57,15 +57,31 @@ GET /api/flow/goal/:goalId
 ```text
 GET /api/milestones
 POST /api/milestones
+POST /api/goals/:id/detect-milestones
 POST /api/milestones/:id/request-e2e
+POST /api/milestones/:id/e2e-campaigns
 POST /api/milestones/:id/codex-verdict
+POST /api/milestones/:id/notifications
 ```
+
+`detect-milestones` 只接受已经通过 integration、patch 已 applied、测试状态 passed 且存在变更文件的结果。创建出的 milestone 必须进入 `candidate`，之后必须经过 E2E。
+
+## E2E
+
+```text
+GET /api/e2e/campaigns
+```
+
+E2E campaign 由 Dionysus 生成用例草案，由 Codex 执行浏览器级测试并提交 verdict。
 
 ## Notifications
 
 ```text
 POST /api/notifications
+POST /api/notifications/:id/deliver
 ```
+
+通知创建和投递必须都落库；console 投递用于 Codex 会话内反馈，email/Telegram 后续扩展。
 
 ## CLI
 

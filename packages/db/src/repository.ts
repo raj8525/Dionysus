@@ -9,6 +9,7 @@ import type {
   DocumentFinding,
   GateCheckResult
 } from "@dionysus/core";
+import { buildE2ECampaignDraft, detectMilestoneCandidate } from "@dionysus/core";
 import type { CliProbeResult } from "@dionysus/cli-adapters";
 
 export class DionysusRepository {
@@ -345,6 +346,69 @@ export class DionysusRepository {
     await this.recordSystemEvent("milestone.e2e_required", { milestoneId });
   }
 
+  async getMilestone(milestoneId: string): Promise<Record<string, unknown> | null> {
+    const result = await this.pool.query(
+      `select id, goal_id, name, description, status, main_commit_sha, candidate_reason,
+              codex_verdict, codex_verdict_reason, created_at, updated_at
+       from ${this.table("milestones")}
+       where id = $1`,
+      [milestoneId]
+    );
+    return result.rowCount ? result.rows[0] : null;
+  }
+
+  async detectMilestoneCandidates(goalId: string): Promise<Array<{ id: string; status: string }>> {
+    const goal = await this.getGoal(goalId);
+    if (!goal) return [];
+
+    const integrations = await this.pool.query(
+      `select iq.id as integration_queue_id,
+              iq.status as integration_status,
+              iq.result_json,
+              p.id as patch_id,
+              p.status as patch_status,
+              p.changed_files_json
+       from ${this.table("integration_queue")} iq
+       join ${this.table("patches")} p on p.id = iq.patch_id
+       where iq.goal_id = $1
+         and iq.status = 'passed'
+         and p.status = 'applied'
+         and not exists (
+           select 1
+           from ${this.table("milestones")} m
+           where m.goal_id = iq.goal_id
+             and m.candidate_reason like '%' || p.id::text || '%'
+         )
+       order by iq.updated_at asc`,
+      [goalId]
+    );
+
+    const created: Array<{ id: string; status: string }> = [];
+    for (const row of integrations.rows) {
+      const resultJson = row.result_json ?? {};
+      const testStatus = resultJson.testStatus === "passed" ? "passed" : "missing";
+      const changedFiles = Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : [];
+      const candidate = detectMilestoneCandidate({
+        goalTitle: goal.title,
+        integrationStatus: row.integration_status,
+        patchStatus: row.patch_status,
+        changedFiles,
+        testStatus
+      });
+      if (!candidate.shouldCreate) continue;
+
+      const milestone = await this.createMilestoneCandidate({
+        goalId,
+        name: candidate.name,
+        description: candidate.description,
+        candidateReason: `${candidate.candidateReason}; patch=${row.patch_id}; integration=${row.integration_queue_id}`
+      });
+      created.push(milestone);
+    }
+    await this.recordSystemEvent("milestone.detected", { goalId, created: created.length });
+    return created;
+  }
+
   async recordCodexVerdict(input: {
     milestoneId: string;
     verdict: "passed" | "failed" | "blocked";
@@ -371,6 +435,94 @@ export class DionysusRepository {
        from ${this.table("milestones")}
        ${where}
        order by created_at desc`,
+      params
+    );
+    return result.rows;
+  }
+
+  async createE2ECampaign(input: {
+    milestoneId: string;
+    targetUrl: string;
+    acceptance: string[];
+  }): Promise<{ id: string; status: string; cases: number }> {
+    const milestone = await this.getMilestone(input.milestoneId);
+    if (!milestone) {
+      throw new Error(`Milestone not found: ${input.milestoneId}`);
+    }
+    const campaignDraft = buildE2ECampaignDraft({
+      milestoneName: String(milestone.name),
+      targetUrl: input.targetUrl,
+      acceptance: input.acceptance
+    });
+    const campaignId = randomUUID();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const campaign = await client.query(
+        `insert into ${this.table("e2e_campaigns")}
+          (id, milestone_id, target_url, status)
+         values ($1, $2, $3, 'created')
+         returning id, status`,
+        [campaignId, input.milestoneId, campaignDraft.targetUrl]
+      );
+      for (const testCase of campaignDraft.cases) {
+        await client.query(
+          `insert into ${this.table("e2e_cases")}
+            (id, campaign_id, title, description, case_type, preconditions, steps_json, expected_result, status)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, 'created')`,
+          [
+            randomUUID(),
+            campaignId,
+            testCase.title,
+            testCase.description,
+            testCase.caseType,
+            testCase.preconditions,
+            JSON.stringify(testCase.steps),
+            testCase.expectedResult
+          ]
+        );
+      }
+      await client.query(
+        `update ${this.table("milestones")}
+         set status = 'e2e_running', updated_at = now()
+         where id = $1 and status in ('candidate', 'e2e_required')`,
+        [input.milestoneId]
+      );
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [
+          randomUUID(),
+          "e2e.campaign_created",
+          JSON.stringify({ milestoneId: input.milestoneId, campaignId, cases: campaignDraft.cases.length })
+        ]
+      );
+      await client.query("commit");
+      return {
+        id: String(campaign.rows[0].id),
+        status: String(campaign.rows[0].status),
+        cases: campaignDraft.cases.length
+      };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listE2ECampaigns(milestoneId?: string): Promise<Array<Record<string, unknown>>> {
+    const params: string[] = [];
+    const where = milestoneId ? "where c.milestone_id = $1" : "";
+    if (milestoneId) params.push(milestoneId);
+    const result = await this.pool.query(
+      `select c.id, c.milestone_id, c.target_url, c.status, c.created_at, c.updated_at,
+              coalesce(count(ec.id), 0)::int as case_count
+       from ${this.table("e2e_campaigns")} c
+       left join ${this.table("e2e_cases")} ec on ec.campaign_id = c.id
+       ${where}
+       group by c.id
+       order by c.created_at desc`,
       params
     );
     return result.rows;
@@ -409,6 +561,60 @@ export class DionysusRepository {
       );
       await client.query("commit");
       return { id: String(result.rows[0].id), status: String(result.rows[0].status) };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deliverNotification(notificationId: string): Promise<{ id: string; status: string }> {
+    const id = randomUUID();
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const notification = await client.query(
+        `select milestone_id, title, body
+         from ${this.table("notifications")}
+         where id = $1`,
+        [notificationId]
+      );
+      if (!notification.rowCount) {
+        throw new Error(`Notification not found: ${notificationId}`);
+      }
+      const channel = await client.query(
+        `insert into ${this.table("notification_channels")} (id, type, name, config_json, enabled)
+         values ($1, 'console', 'Codex console', '{}', true)
+         on conflict do nothing
+         returning id`,
+        [randomUUID()]
+      );
+      const channelId = channel.rows[0]?.id ?? null;
+      await client.query(
+        `insert into ${this.table("notification_deliveries")}
+          (id, milestone_id, channel_id, status, payload_json, sent_at)
+         values ($1, $2, $3, 'sent', $4, now())`,
+        [
+          id,
+          notification.rows[0].milestone_id,
+          channelId,
+          JSON.stringify({ notificationId, title: notification.rows[0].title, body: notification.rows[0].body })
+        ]
+      );
+      await client.query(
+        `update ${this.table("notifications")}
+         set status = 'sent', updated_at = now()
+         where id = $1`,
+        [notificationId]
+      );
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [randomUUID(), "notification.sent", JSON.stringify({ notificationId, deliveryId: id })]
+      );
+      await client.query("commit");
+      return { id, status: "sent" };
     } catch (error) {
       await client.query("rollback");
       throw error;
