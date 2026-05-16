@@ -30,8 +30,10 @@
 cp .env.example .env
 pnpm install
 pnpm db:migrate
-pnpm dev
+pnpm dev:all
 ```
+
+`pnpm dev:all` 会同时启动 API、Web、Worker。只调试单个模块时才使用 `pnpm dev:api`、`pnpm dev:web` 或 `pnpm dev:worker`。
 
 ## Codex CLI 入口
 

@@ -33,8 +33,8 @@
 - `pnpm test` 成功。
 - `pnpm typecheck` 成功。
 - `pnpm db:migrate` 可连接数据库并创建 schema。
-- `pnpm dev:api` 可启动 API。
-- `pnpm dev:web` 可启动前端。
+- `pnpm dev:all` 可同时启动 API、Web、Worker。
+- `pnpm dev:api`、`pnpm dev:web`、`pnpm dev:worker` 可分别调试单个模块。
 - API 可创建 goal。
 - Flow 页面能展示目标和默认执行流程。
 

@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @dionysus/api --filter @dionysus/web dev",
+    "dev:all": "pnpm --parallel --filter @dionysus/api --filter @dionysus/web --filter @dionysus/worker dev",
     "dev:api": "pnpm --filter @dionysus/api dev",
     "dev:web": "pnpm --filter @dionysus/web dev",
     "dev:worker": "pnpm --filter @dionysus/worker dev",
