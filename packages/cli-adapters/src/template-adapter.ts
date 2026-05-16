@@ -82,6 +82,8 @@ export class TemplateCliAdapter implements CliAdapter {
     if (this.options.cliType === "opencode") {
       return [
         "run",
+        "--dir",
+        input.cwd,
         "--format",
         process.env.DIONYSUS_OPENCODE_FORMAT ?? "default",
         ...optionalPair("--model", this.options.model),

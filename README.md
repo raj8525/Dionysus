@@ -276,7 +276,7 @@ DIONYSUS_WORKER_CLI_MODEL=
 
 - Claude Code：`claude --print --output-format text --permission-mode acceptEdits [--model <model>] <prompt>`
 - Gemini CLI：`gemini --prompt <prompt> --output-format text --skip-trust --approval-mode auto_edit [--model <model>]`
-- OpenCode：`opencode run --format default [--model <model>] --dangerously-skip-permissions <prompt>`
+- OpenCode：`opencode run --dir <cwd> --format default [--model <model>] --dangerously-skip-permissions <prompt>`
 
 运行时超时：
 
@@ -304,7 +304,7 @@ DIONYSUS_OPENCODE_SKIP_PERMISSIONS=true
 ```env
 DIONYSUS_CLAUDE_CODE_ARGS="--print --output-format text --permission-mode acceptEdits {prompt}"
 DIONYSUS_GEMINI_CLI_ARGS="--prompt {prompt} --output-format text --skip-trust --approval-mode auto_edit"
-DIONYSUS_OPENCODE_ARGS="run --format default --model {model} --dangerously-skip-permissions {prompt}"
+DIONYSUS_OPENCODE_ARGS="run --dir {cwd} --format default --model {model} --dangerously-skip-permissions {prompt}"
 ```
 
 集成验证命令：

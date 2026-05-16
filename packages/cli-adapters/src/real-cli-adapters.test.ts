@@ -77,6 +77,8 @@ describe("real CLI adapters", () => {
     const args = JSON.parse(result.stdout) as string[];
     expect(args).toEqual([
       "run",
+      "--dir",
+      process.cwd(),
       "--format",
       "default",
       "--model",
