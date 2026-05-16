@@ -167,6 +167,8 @@ Master Step 每次只执行一个动作：创建任务树、生成 preflight rem
 
 Dashboard 的 “任务与运行证据” 面板会展示当前 goal 的任务树和最近 task runs，包括任务角色、状态、尝试次数、CLI、命令、退出码和日志预览，用于 Codex 判断 Agent 是否真的推进。
 
+Worker Runtime 会按 `DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS` 周期投递 `dionysus.master_control`，扫描 active goals 并自动执行同一套 Master Step 决策；每次决策写入 `system_events`。默认只扫描最新 1 个 active goal，可用 `DIONYSUS_MASTER_CONTROL_GOAL_LIMIT` 放大范围，避免历史试验目标制造噪声。
+
 ## Milestone / E2E / Notification
 
 ```bash

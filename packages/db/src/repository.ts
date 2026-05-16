@@ -76,6 +76,18 @@ export class DionysusRepository {
     return result.rows.map(mapGoal);
   }
 
+  async listActiveGoals(limit = 20): Promise<Goal[]> {
+    const result = await this.pool.query(
+      `select id, title, description, target_root, status, created_at, updated_at
+       from ${this.table("goals")}
+       where status not in ('done', 'failed', 'cancelled')
+       order by updated_at desc, created_at desc
+       limit $1`,
+      [limit]
+    );
+    return result.rows.map(mapGoal);
+  }
+
   async createTask(input: {
     goalId: string;
     title: string;

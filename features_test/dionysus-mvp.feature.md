@@ -158,6 +158,15 @@ And 如果存在 queued integration 且目标 Git 干净，必须发布 integrat
 And 如果缺少 PLAN/specs/features_test，必须只创建 preflight remediation patch，不直接写目标仓库  
 And 如果全部门禁通过，才允许进入实现准备状态
 
+## 场景 7.6：Worker Runtime 必须周期性运行 Master Control
+
+Given Dionysus worker 已启动  
+When 达到 `DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS`  
+Then worker 必须投递 `dionysus.master_control` 消息  
+And 消费该消息后必须扫描 active goals  
+And 每个 goal 只能推进一个合法 Master Step  
+And 决策结果必须写入 `system_events`
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现  

@@ -4,9 +4,16 @@ import { resolve } from "node:path";
 import type { AgentRole, CliType, Goal, RolePromptTask } from "@dionysus/core";
 import {
   applyPatchToTarget,
+  buildAddFilesPatch,
+  buildPreflightRemediation,
+  buildTargetPreflight,
   buildRolePrompt,
+  buildMasterTaskTree,
+  checkGitPreflight,
+  checkSpecTestGate,
   createIsolatedWorkspace,
   createPatch as createWorkspacePatch,
+  decideMasterStep,
   evaluateWatchdogTask,
   queueForRole
 } from "@dionysus/core";
@@ -20,6 +27,7 @@ const ruleWriterQueue = "dionysus.rule_writer";
 const testWriterQueue = "dionysus.test_writer";
 const integrationQueue = "dionysus.integration";
 const watchdogQueue = "dionysus.watchdog";
+const masterControlQueue = "dionysus.master_control";
 const workerCliType = parseWorkerCliType(process.env.DIONYSUS_WORKER_CLI_TYPE);
 const workerCliModel = process.env.DIONYSUS_WORKER_CLI_MODEL || undefined;
 const adapter = workerCliType === "mock"
@@ -30,6 +38,8 @@ const workspaceRoot = process.env.DIONYSUS_WORKSPACE_ROOT ?? resolve(process.cwd
 const integrationVerificationCommands = readCommandList(process.env.DIONYSUS_INTEGRATION_VERIFY_COMMANDS);
 const watchdogIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_INTERVAL_SECONDS, 60);
 const watchdogRunningTimeoutMinutes = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_RUNNING_TIMEOUT_MINUTES, 15);
+const masterControlIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS, 120);
+const masterControlGoalLimit = parsePositiveInteger(process.env.DIONYSUS_MASTER_CONTROL_GOAL_LIMIT, 1);
 const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
@@ -256,6 +266,145 @@ async function handleWatchdogTask(message: QueueMessage): Promise<void> {
   });
 }
 
+async function handleMasterControlTask(message: QueueMessage): Promise<void> {
+  const goals = message.goal_id
+    ? [await repo.getGoal(message.goal_id)]
+    : await repo.listActiveGoals(masterControlGoalLimit);
+  let stepped = 0;
+  for (const goal of goals) {
+    if (!goal) continue;
+    await runMasterStepForGoal(goal, message);
+    stepped += 1;
+  }
+  await repo.recordSystemEvent("master_control.run", {
+    messageId: message.message_id,
+    goalId: message.goal_id,
+    stepped
+  });
+}
+
+async function runMasterStepForGoal(goal: Goal, message: QueueMessage): Promise<void> {
+  const [git, gates, tasks, queuedIntegrations] = await Promise.all([
+    checkGitPreflight(goal.targetRoot),
+    checkSpecTestGate(goal.targetRoot),
+    repo.listTasks(goal.id),
+    repo.listQueuedIntegrations(goal.id)
+  ]);
+  await repo.saveGateChecks({ goalId: goal.id, checks: gates });
+  const preflight = buildTargetPreflight({ git, gates });
+  const decision = decideMasterStep({
+    bootstrapTaskCount: countBootstrapTasks(tasks),
+    queuedIntegrationCount: queuedIntegrations.length,
+    preflight
+  });
+
+  if (decision.action === "bootstrap_tasks") {
+    const drafts = buildMasterTaskTree({ goalTitle: goal.title, targetRoot: goal.targetRoot });
+    const createdTasks = [];
+    for (const draft of drafts) {
+      createdTasks.push(
+        await repo.createTask({
+          goalId: goal.id,
+          title: draft.title,
+          description: draft.description,
+          roleRequired: draft.roleRequired,
+          priority: draft.priority
+        })
+      );
+    }
+    const firstMaster = createdTasks[0];
+    if (firstMaster) {
+      await repo.markTaskQueued(firstMaster.id);
+      await publishJson(queueForRole("master"), {
+        message_id: randomUUID(),
+        goal_id: goal.id,
+        task_id: firstMaster.id,
+        type: "master_task",
+        attempt: 1,
+        idempotency_key: `${firstMaster.id}:master-control:1`,
+        created_at: new Date().toISOString()
+      });
+      firstMaster.status = "queued";
+    }
+    await repo.recordSystemEvent("master_control.step", {
+      messageId: message.message_id,
+      goalId: goal.id,
+      decision,
+      createdTasks
+    });
+    return;
+  }
+
+  if (decision.action === "queue_preflight_remediation") {
+    const files = buildPreflightRemediation({ goal, gates });
+    if (!files.length) {
+      await repo.recordSystemEvent("master_control.step", {
+        messageId: message.message_id,
+        goalId: goal.id,
+        decision: { action: "ready_for_implementation", reason: "no remediation files needed" }
+      });
+      return;
+    }
+    const task = await repo.createTask({
+      goalId: goal.id,
+      title: "[Master] Queue preflight remediation patch",
+      description: "Dionysus generated missing PLAN/specs/features_test remediation files as a patch for integration.",
+      roleRequired: "master",
+      priority: 5
+    });
+    const patch = await repo.createPatch({
+      goalId: goal.id,
+      taskId: task.id,
+      patchText: buildAddFilesPatch(files),
+      changedFiles: files.map((file) => file.path)
+    });
+    const integrationPublished = git.clean;
+    if (integrationPublished) {
+      await publishJson(integrationQueue, {
+        message_id: randomUUID(),
+        goal_id: goal.id,
+        task_id: task.id,
+        type: "preflight_remediation_patch",
+        attempt: 1,
+        idempotency_key: `${task.id}:master-control-preflight-remediation:1`,
+        created_at: new Date().toISOString()
+      });
+    }
+    await repo.recordSystemEvent("master_control.step", {
+      messageId: message.message_id,
+      goalId: goal.id,
+      decision,
+      taskId: task.id,
+      patchId: patch.id,
+      integrationPublished,
+      blockers: git.clean ? [] : [`git worktree dirty: ${git.changes.length} changes`]
+    });
+    return;
+  }
+
+  if (decision.action === "release_queued_integrations") {
+    for (const integration of queuedIntegrations) {
+      await publishJson(integrationQueue, {
+        message_id: randomUUID(),
+        goal_id: goal.id,
+        task_id: integration.taskId,
+        type: "master_control_release_integration",
+        attempt: 1,
+        idempotency_key: `${integration.taskId}:master-control-release:${integration.id}`,
+        created_at: new Date().toISOString()
+      });
+    }
+  }
+
+  await repo.recordSystemEvent("master_control.step", {
+    messageId: message.message_id,
+    goalId: goal.id,
+    decision,
+    queuedIntegrationCount: queuedIntegrations.length,
+    blockers: preflight.blockers
+  });
+}
+
 async function dispatchNextTask(completedTaskId: string): Promise<void> {
   const completedTask = await repo.getTask(completedTaskId);
   if (!completedTask) return;
@@ -280,6 +429,16 @@ async function dispatchNextTask(completedTaskId: string): Promise<void> {
     nextTaskId: nextTask.id,
     nextRole: nextTask.roleRequired
   });
+}
+
+function countBootstrapTasks(tasks: Array<Record<string, unknown>>): number {
+  return tasks.filter((task) =>
+    typeof task.title === "string" &&
+    (task.title.startsWith("[Master]") ||
+      task.title.startsWith("[RuleWriter]") ||
+      task.title.startsWith("[TestWriter]") ||
+      task.title.startsWith("[Worker]"))
+  ).length;
 }
 
 async function loadTaskContext(taskId: string): Promise<{ task: RolePromptTask; goal: Goal | null }> {
@@ -332,15 +491,31 @@ function startWatchdogScheduler(): void {
   }, watchdogIntervalSeconds * 1000);
 }
 
+function startMasterControlScheduler(): void {
+  setInterval(() => {
+    publishJson(masterControlQueue, {
+      message_id: randomUUID(),
+      type: "master_control_tick",
+      attempt: 1,
+      idempotency_key: `master-control:${Date.now()}`,
+      created_at: new Date().toISOString()
+    }).catch((error: unknown) => {
+      console.error("failed to enqueue master control tick", error);
+    });
+  }, masterControlIntervalSeconds * 1000);
+}
+
 console.log(
-  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; watchdog=${watchdogIntervalSeconds}s`
+  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue}, ${masterControlQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; watchdog=${watchdogIntervalSeconds}s; masterControl=${masterControlIntervalSeconds}s; masterControlGoalLimit=${masterControlGoalLimit}`
 );
 startWatchdogScheduler();
+startMasterControlScheduler();
 await Promise.all([
   consumeJson(masterQueue, (message) => handleGovernanceTask(message, "master")),
   consumeJson(ruleWriterQueue, (message) => handleGovernanceTask(message, "rule_writer")),
   consumeJson(testWriterQueue, (message) => handleGovernanceTask(message, "test_writer")),
   consumeJson(workerQueue, handleWorkerTask),
   consumeJson(integrationQueue, handleIntegrationTask),
-  consumeJson(watchdogQueue, handleWatchdogTask)
+  consumeJson(watchdogQueue, handleWatchdogTask),
+  consumeJson(masterControlQueue, handleMasterControlTask)
 ]);
