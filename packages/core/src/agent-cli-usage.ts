@@ -8,6 +8,7 @@ export interface AgentCliUsageRow {
   cliModel?: string | null;
   status: string;
   cliCalls?: number;
+  modelCalls?: number | null;
   runAt?: string | null;
 }
 
@@ -32,7 +33,7 @@ export function buildAgentCliUsageSummary(input: {
   for (const row of input.rows) {
     const cliModel = normalizeModel(row.cliModel);
     const cliCalls = Math.max(row.cliCalls ?? 1, 0);
-    const modelCalls = row.cliType === "mock" ? 0 : cliCalls;
+    const modelCalls = row.cliType === "mock" ? 0 : Math.max(row.modelCalls ?? cliCalls, 0);
     const runningCalls = row.status === "running" ? cliCalls : 0;
     const succeededCalls = row.status === "succeeded" ? cliCalls : 0;
     const failedCalls = row.status === "failed" ? cliCalls : 0;

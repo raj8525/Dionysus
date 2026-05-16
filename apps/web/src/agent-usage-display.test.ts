@@ -15,7 +15,7 @@ describe("agent usage display helpers", () => {
     expect(describeUsageScope({})).toBe("当前没有选中目标，展示全部 Agent CLI 调用统计");
   });
 
-  it("labels model calls as inferred when provider usage is unavailable", () => {
-    expect(modelCallLabel()).toBe("Model Calls（估算）");
+  it("labels model calls as real-first with fallback estimation", () => {
+    expect(modelCallLabel()).toBe("Model Calls（真实优先）");
   });
 });

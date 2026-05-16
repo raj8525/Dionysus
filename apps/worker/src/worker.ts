@@ -18,6 +18,7 @@ import {
   decideMasterStep,
   evaluateWatchdogTask,
   mergeIntegrationVerificationCommands,
+  parseCliUsageReceipt,
   resolveAgentRunConfig,
   shouldDispatchAfterIntegration,
   queueForRole
@@ -147,7 +148,14 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       }
     }
 
-    await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
+    const usageReceipt = parseCliUsageReceipt(`${result.stdout}\n${result.stderr}`);
+    await repo.completeTaskRun({
+      taskId: message.task_id,
+      runId,
+      exitCode: result.exitCode,
+      modelCallCount: usageReceipt?.modelCalls,
+      modelUsageJson: usageReceipt?.raw
+    });
     const dispatchDecision = decidePostRunDispatch({ exitCode: result.exitCode, queuedPatchId });
     if (dispatchDecision.action === "dispatch_next") {
       await dispatchNextTask(message.task_id);
@@ -296,7 +304,14 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
       });
     }
   }
-  await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
+  const usageReceipt = parseCliUsageReceipt(`${result.stdout}\n${result.stderr}`);
+  await repo.completeTaskRun({
+    taskId: message.task_id,
+    runId,
+    exitCode: result.exitCode,
+    modelCallCount: usageReceipt?.modelCalls,
+    modelUsageJson: usageReceipt?.raw
+  });
   const dispatchDecision = decidePostRunDispatch({ exitCode: result.exitCode, queuedPatchId });
   if (dispatchDecision.action === "dispatch_next") {
     await dispatchNextTask(message.task_id);

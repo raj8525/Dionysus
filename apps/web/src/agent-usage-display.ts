@@ -12,5 +12,5 @@ export function describeUsageScope(input: {
 }
 
 export function modelCallLabel(): string {
-  return "Model Calls（估算）";
+  return "Model Calls（真实优先）";
 }

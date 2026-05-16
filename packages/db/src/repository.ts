@@ -351,6 +351,7 @@ export class DionysusRepository {
               coalesce(nullif(tr.cli_model, ''), 'default/unknown') as cli_model,
               tr.status,
               count(*)::int as cli_calls,
+              sum(coalesce(tr.model_call_count, case when tr.cli_type = 'mock' then 0 else 1 end))::int as model_calls,
               max(coalesce(tr.finished_at, tr.started_at, tr.created_at)) as run_at
        from ${this.table("task_runs")} tr
        join ${this.table("tasks")} t on t.id = tr.task_id
@@ -375,6 +376,7 @@ export class DionysusRepository {
         cliModel: row.cli_model ? String(row.cli_model) : null,
         status: String(row.status),
         cliCalls: Number(row.cli_calls),
+        modelCalls: Number(row.model_calls),
         runAt: row.run_at ? new Date(row.run_at).toISOString() : null
       }))
     });
@@ -724,7 +726,13 @@ export class DionysusRepository {
     );
   }
 
-  async completeTaskRun(input: { taskId: string; runId: string; exitCode: number }): Promise<void> {
+  async completeTaskRun(input: {
+    taskId: string;
+    runId: string;
+    exitCode: number;
+    modelCallCount?: number | null;
+    modelUsageJson?: Record<string, unknown> | null;
+  }): Promise<void> {
     const runStatus = input.exitCode === 0 ? "succeeded" : "failed";
     const taskStatus = input.exitCode === 0 ? "needs_review" : "failed";
     const client = await this.pool.connect();
@@ -732,10 +740,20 @@ export class DionysusRepository {
       await client.query("begin");
       const runUpdate = await client.query(
         `update ${this.table("task_runs")}
-         set status = $1, exit_code = $2, finished_at = now()
-         where id = $3
+         set status = $1,
+             exit_code = $2,
+             model_call_count = $3,
+             model_usage_json = $4,
+             finished_at = now()
+         where id = $5
          returning agent_id`,
-        [runStatus, input.exitCode, input.runId]
+        [
+          runStatus,
+          input.exitCode,
+          input.modelCallCount ?? null,
+          input.modelUsageJson ? JSON.stringify(input.modelUsageJson) : null,
+          input.runId
+        ]
       );
       await this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows));
       await client.query(

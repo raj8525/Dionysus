@@ -91,4 +91,47 @@ describe("buildAgentCliUsageSummary", () => {
       failedCalls: 4
     });
   });
+
+  it("uses persisted model call counts before falling back to inferred CLI calls", () => {
+    const summary = buildAgentCliUsageSummary({
+      rows: [
+        {
+          role: "worker",
+          agentId: "worker-a",
+          agentName: "WorkerA",
+          cliType: "opencode",
+          cliModel: "minimax/MiniMax-M2.7",
+          status: "succeeded",
+          cliCalls: 2,
+          modelCalls: 7,
+          runAt: "2026-05-17T00:00:04.000Z"
+        },
+        {
+          role: "test_writer",
+          agentId: "test-writer",
+          agentName: "TestWriter",
+          cliType: "gemini_cli",
+          cliModel: "gemini-2.5-pro",
+          status: "succeeded",
+          cliCalls: 3,
+          runAt: "2026-05-17T00:00:05.000Z"
+        }
+      ]
+    });
+
+    expect(summary.totals.cliCalls).toBe(5);
+    expect(summary.totals.modelCalls).toBe(10);
+    expect(summary.byAgentInstance).toEqual([
+      expect.objectContaining({
+        agentName: "TestWriter",
+        cliCalls: 3,
+        modelCalls: 3
+      }),
+      expect.objectContaining({
+        agentName: "WorkerA",
+        cliCalls: 2,
+        modelCalls: 7
+      })
+    ]);
+  });
 });
