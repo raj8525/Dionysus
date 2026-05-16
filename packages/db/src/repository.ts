@@ -1,6 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { normalizeAgentCliConfig } from "@dionysus/core";
-import type { AgentCliConfig, AgentRole, CliType, FlowEdge, FlowNode, Goal, TaskStatus } from "@dionysus/core";
+import type {
+  AgentCliConfig,
+  AgentRole,
+  CliType,
+  FlowEdge,
+  FlowNode,
+  Goal,
+  NotificationChannelType,
+  TaskStatus
+} from "@dionysus/core";
 import type pg from "pg";
 import { quoteIdent } from "./connection.js";
 import type {
@@ -764,52 +773,100 @@ export class DionysusRepository {
     }
   }
 
-  async deliverNotification(notificationId: string): Promise<{ id: string; status: string }> {
+  async getNotification(notificationId: string): Promise<Record<string, unknown> | null> {
+    const result = await this.pool.query(
+      `select id, milestone_id, title, body, status, created_at, updated_at
+       from ${this.table("notifications")}
+       where id = $1`,
+      [notificationId]
+    );
+    if (!result.rowCount) return null;
+    const row = result.rows[0];
+    return {
+      id: String(row.id),
+      milestoneId: String(row.milestone_id),
+      title: String(row.title),
+      body: String(row.body),
+      status: String(row.status),
+      createdAt: new Date(row.created_at).toISOString(),
+      updatedAt: new Date(row.updated_at).toISOString()
+    };
+  }
+
+  async ensureNotificationChannel(input: {
+    type: NotificationChannelType;
+    name: string;
+    config: Record<string, unknown>;
+  }): Promise<string> {
+    const existing = await this.pool.query(
+      `select id
+       from ${this.table("notification_channels")}
+       where type = $1 and name = $2
+       order by created_at asc
+       limit 1`,
+      [input.type, input.name]
+    );
+    if (existing.rowCount) {
+      return String(existing.rows[0].id);
+    }
+    const id = randomUUID();
+    await this.pool.query(
+      `insert into ${this.table("notification_channels")}
+        (id, type, name, config_json, enabled)
+       values ($1, $2, $3, $4, true)`,
+      [id, input.type, input.name, JSON.stringify(redactChannelConfig(input.config))]
+    );
+    return id;
+  }
+
+  async recordNotificationDelivery(input: {
+    notificationId: string;
+    milestoneId: string;
+    channelId: string | null;
+    status: "sent" | "failed";
+    payload: Record<string, unknown>;
+    errorMessage?: string;
+  }): Promise<string> {
     const id = randomUUID();
     const client = await this.pool.connect();
     try {
       await client.query("begin");
-      const notification = await client.query(
-        `select milestone_id, title, body
-         from ${this.table("notifications")}
-         where id = $1`,
-        [notificationId]
-      );
-      if (!notification.rowCount) {
-        throw new Error(`Notification not found: ${notificationId}`);
-      }
-      const channel = await client.query(
-        `insert into ${this.table("notification_channels")} (id, type, name, config_json, enabled)
-         values ($1, 'console', 'Codex console', '{}', true)
-         on conflict do nothing
-         returning id`,
-        [randomUUID()]
-      );
-      const channelId = channel.rows[0]?.id ?? null;
       await client.query(
         `insert into ${this.table("notification_deliveries")}
-          (id, milestone_id, channel_id, status, payload_json, sent_at)
-         values ($1, $2, $3, 'sent', $4, now())`,
+          (id, milestone_id, channel_id, status, payload_json, error_message, sent_at)
+         values ($1, $2, $3, $4, $5, $6, $7)`,
         [
           id,
-          notification.rows[0].milestone_id,
-          channelId,
-          JSON.stringify({ notificationId, title: notification.rows[0].title, body: notification.rows[0].body })
+          input.milestoneId,
+          input.channelId,
+          input.status,
+          JSON.stringify(input.payload),
+          input.errorMessage ?? null,
+          input.status === "sent" ? new Date() : null
         ]
       );
       await client.query(
         `update ${this.table("notifications")}
-         set status = 'sent', updated_at = now()
+         set status = case
+             when $2 = 'sent' then 'sent'
+             when status <> 'sent' then 'failed'
+             else status
+           end,
+           updated_at = now()
          where id = $1`,
-        [notificationId]
+        [input.notificationId, input.status]
       );
       await client.query(
         `insert into ${this.table("system_events")} (id, event_type, payload_json)
          values ($1, $2, $3)`,
-        [randomUUID(), "notification.sent", JSON.stringify({ notificationId, deliveryId: id })]
+        [
+          randomUUID(),
+          input.status === "sent" ? "notification.sent" : "notification.failed",
+          JSON.stringify({ notificationId: input.notificationId, deliveryId: id, error: input.errorMessage })
+        ]
       );
       await client.query("commit");
-      return { id, status: "sent" };
+      return id;
     } catch (error) {
       await client.query("rollback");
       throw error;
@@ -1170,6 +1227,14 @@ export class DionysusRepository {
     ]);
     return { nodes: nodes.rows, edges: edges.rows };
   }
+}
+
+function redactChannelConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const redacted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    redacted[key] = /token|secret|password/i.test(key) ? "[REDACTED]" : value;
+  }
+  return redacted;
 }
 
 function mapGoal(row: Record<string, unknown>): Goal {

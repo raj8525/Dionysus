@@ -8,11 +8,15 @@ import { publishJson } from "@dionysus/mq";
 import {
   buildMasterTaskTree,
   buildMilestoneNotificationDraft,
+  buildNotificationPayload,
+  buildTelegramRequest,
   checkSpecTestGate,
   compileTargetProject,
   evaluateWatchdogTask,
+  resolveNotificationChannels,
   queueForRole
 } from "@dionysus/core";
+import type { NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
 import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -381,8 +385,45 @@ export async function buildServer() {
 
   app.post("/api/notifications/:id/deliver", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const delivery = await repo.deliverNotification(id);
-    return reply.code(202).send(delivery);
+    const notification = await repo.getNotification(id);
+    if (!notification) {
+      return reply.code(404).send({ error: "NOTIFICATION_NOT_FOUND" });
+    }
+    const message: NotificationMessage = {
+      id,
+      milestoneId: String(notification.milestoneId),
+      title: String(notification.title),
+      body: String(notification.body)
+    };
+    const channels = resolveNotificationChannels(process.env);
+    const deliveries = [];
+    for (const channel of channels) {
+      const channelId = await repo.ensureNotificationChannel({
+        type: channel.type,
+        name: channel.name,
+        config: channel.config
+      });
+      const result = await deliverToChannel(channel, message);
+      const deliveryId = await repo.recordNotificationDelivery({
+        notificationId: id,
+        milestoneId: message.milestoneId,
+        channelId,
+        status: result.ok ? "sent" : "failed",
+        payload: {
+          ...buildNotificationPayload(message),
+          channelType: channel.type,
+          channelName: channel.name
+        },
+        errorMessage: result.error
+      });
+      deliveries.push({
+        id: deliveryId,
+        channelType: channel.type,
+        status: result.ok ? "sent" : "failed",
+        error: result.error
+      });
+    }
+    return reply.code(202).send({ notificationId: id, deliveries });
   });
 
   app.post("/api/cli/probe", async () => {
@@ -414,6 +455,55 @@ export async function buildServer() {
   });
 
   return app;
+}
+
+async function deliverToChannel(
+  channel: NotificationChannelDraft,
+  message: NotificationMessage
+): Promise<{ ok: boolean; error?: string }> {
+  if (channel.type === "console") {
+    console.log(`[Dionysus Notification] ${message.title}\n${message.body}`);
+    return { ok: true };
+  }
+
+  if (channel.type === "telegram") {
+    const botToken = channel.config.botToken;
+    const chatId = channel.config.chatId;
+    if (!botToken || !chatId) {
+      return { ok: false, error: "telegram channel missing botToken or chatId" };
+    }
+    const request = buildTelegramRequest({ botToken, chatId, message });
+    return postJson(request.url, request.body);
+  }
+
+  if (channel.type === "email" || channel.type === "webhook") {
+    const url = channel.config.url;
+    if (!url) {
+      return { ok: false, error: `${channel.type} channel missing url` };
+    }
+    return postJson(url, {
+      ...buildNotificationPayload(message),
+      to: channel.config.to ?? ""
+    });
+  }
+
+  return { ok: false, error: `unsupported channel ${channel.type}` };
+}
+
+async function postJson(url: string, body: Record<string, string>): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      return { ok: false, error: `HTTP ${response.status}` };
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

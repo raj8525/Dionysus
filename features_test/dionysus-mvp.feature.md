@@ -171,6 +171,16 @@ When Dionysus 生成 milestone notification
 Then 通知正文必须包含实现内容、如何使用、如何验收和剩余风险  
 And 投递记录必须进入 `notification_deliveries`
 
+## 场景 11.1：通知通道必须可审计且失败隔离
+
+Given milestone notification 已创建  
+When Codex 调用 `/api/notifications/:id/deliver`  
+Then console 通道必须始终记录一次投递  
+And 如果配置 Telegram，必须向 Telegram API 投递  
+And 如果配置 email webhook，必须向邮件网关投递  
+And 每个通道必须独立记录 `sent` 或 `failed`  
+And 通道配置中的 token / secret 不得明文写入数据库
+
 ## 场景 12：Watchdog 必须处理停滞任务
 
 Given 一个 task 处于 `running` 且超过超时时间  
