@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRuntimeProcessSpecs, summarizeRuntimeStatus } from "./dionysus-runtime.js";
+import { buildRuntimeProcessSpecs, summarizeRuntimeStatus, waitForRuntimeReady } from "./dionysus-runtime.js";
 
 describe("Dionysus runtime process management", () => {
   it("builds stable API and Worker process specs from the repo root", () => {
@@ -42,5 +42,55 @@ describe("Dionysus runtime process management", () => {
       ],
       nextAction: "运行 pnpm dionysus system runtime start"
     });
+  });
+
+  it("waits until the API readiness check succeeds before reporting runtime ready", async () => {
+    let attempts = 0;
+    const result = await waitForRuntimeReady({
+      timeoutMs: 1000,
+      intervalMs: 1,
+      status: () => ({
+        ok: true,
+        processes: [
+          { name: "api", pid: 101, running: true, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: true, pidFile: "worker.pid", logFile: "worker.log" }
+        ],
+        nextAction: "运行 pnpm dionysus system doctor --brief 验证依赖"
+      }),
+      ready: async () => {
+        attempts += 1;
+        return attempts === 3;
+      },
+      sleep: async () => undefined
+    });
+
+    expect(result.ready).toBe(true);
+    expect(result.readiness?.attempts).toBe(3);
+    expect(result.nextAction).toBe("运行 pnpm dionysus system doctor --brief 验证依赖");
+  });
+
+  it("keeps runtime not ready when processes run but API health never responds", async () => {
+    const result = await waitForRuntimeReady({
+      timeoutMs: 3,
+      intervalMs: 1,
+      status: () => ({
+        ok: true,
+        processes: [
+          { name: "api", pid: 101, running: true, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: true, pidFile: "worker.pid", logFile: "worker.log" }
+        ],
+        nextAction: "运行 pnpm dionysus system doctor --brief 验证依赖"
+      }),
+      ready: async () => false,
+      sleep: async () => undefined,
+      now: (() => {
+        let current = 0;
+        return () => current++;
+      })()
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.ready).toBe(false);
+    expect(result.nextAction).toBe("API health 未就绪，查看 .dionysus/logs/api.log");
   });
 });

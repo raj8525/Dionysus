@@ -19,6 +19,18 @@ export interface RuntimeProcessStatus {
   logFile: string;
 }
 
+export interface RuntimeStatusSummary {
+  ok: boolean;
+  ready?: boolean;
+  readiness?: {
+    attempts: number;
+    healthUrl?: string;
+    timeoutMs: number;
+  };
+  processes: RuntimeProcessStatus[];
+  nextAction: string;
+}
+
 export function buildRuntimeProcessSpecs(input: {
   repoRoot: string;
   logDir?: string;
@@ -74,7 +86,14 @@ export function getRuntimeStatus(specs: RuntimeProcessSpec[]): ReturnType<typeof
   }));
 }
 
-export function startRuntime(specs: RuntimeProcessSpec[]): ReturnType<typeof summarizeRuntimeStatus> {
+export async function startRuntime(
+  specs: RuntimeProcessSpec[],
+  options: {
+    healthUrl?: string;
+    readinessTimeoutMs?: number;
+    readinessIntervalMs?: number;
+  } = {}
+): Promise<RuntimeStatusSummary> {
   mkdirSync(resolve(specs[0]?.logFile ?? ".dionysus/logs", ".."), { recursive: true });
   mkdirSync(resolve(specs[0]?.pidFile ?? ".dionysus/pids", ".."), { recursive: true });
 
@@ -94,7 +113,13 @@ export function startRuntime(specs: RuntimeProcessSpec[]): ReturnType<typeof sum
     writeFileSync(spec.pidFile, `${child.pid ?? ""}\n`, "utf8");
   }
 
-  return getRuntimeStatus(specs);
+  return waitForRuntimeReady({
+    timeoutMs: options.readinessTimeoutMs ?? 10_000,
+    intervalMs: options.readinessIntervalMs ?? 200,
+    healthUrl: options.healthUrl ?? defaultRuntimeHealthUrl(),
+    status: () => getRuntimeStatus(specs),
+    ready: () => checkHttpReady(options.healthUrl ?? defaultRuntimeHealthUrl())
+  });
 }
 
 export function stopRuntime(specs: RuntimeProcessSpec[]): ReturnType<typeof summarizeRuntimeStatus> {
@@ -143,6 +168,84 @@ function waitForStopped(specs: RuntimeProcessSpec[], timeoutMs: number): void {
   }
 }
 
+export async function waitForRuntimeReady(input: {
+  timeoutMs: number;
+  intervalMs: number;
+  healthUrl?: string;
+  status: () => RuntimeStatusSummary;
+  ready: () => Promise<boolean>;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+}): Promise<RuntimeStatusSummary> {
+  const now = input.now ?? Date.now;
+  const sleep = input.sleep ?? sleepAsync;
+  const startedAt = now();
+  let attempts = 0;
+
+  while (now() - startedAt <= input.timeoutMs) {
+    const status = input.status();
+    if (!status.ok) {
+      return {
+        ...status,
+        ready: false,
+        readiness: {
+          attempts,
+          healthUrl: input.healthUrl,
+          timeoutMs: input.timeoutMs
+        }
+      };
+    }
+    attempts += 1;
+    if (await input.ready()) {
+      return {
+        ...status,
+        ok: true,
+        ready: true,
+        readiness: {
+          attempts,
+          healthUrl: input.healthUrl,
+          timeoutMs: input.timeoutMs
+        },
+        nextAction: "运行 pnpm dionysus system doctor --brief 验证依赖"
+      };
+    }
+    await sleep(input.intervalMs);
+  }
+
+  const status = input.status();
+  return {
+    ...status,
+    ok: false,
+    ready: false,
+    readiness: {
+      attempts,
+      healthUrl: input.healthUrl,
+      timeoutMs: input.timeoutMs
+    },
+    nextAction: "API health 未就绪，查看 .dionysus/logs/api.log"
+  };
+}
+
 function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+async function sleepAsync(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function checkHttpReady(healthUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(healthUrl);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function defaultRuntimeHealthUrl(): string {
+  const configuredHost = process.env.API_HOST ?? "127.0.0.1";
+  const host = configuredHost === "0.0.0.0" ? "127.0.0.1" : configuredHost;
+  const port = process.env.API_PORT ?? "23100";
+  return `http://${host}:${port}/health`;
 }

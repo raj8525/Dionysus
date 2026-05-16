@@ -183,7 +183,7 @@ pnpm dionysus codex reconcile
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
-`system runtime start` 必须本地启动 API 与 Worker 后台进程，并把 pid/log 位置返回给 Codex；`status` 必须基于 pid 文件检查进程是否仍在运行；`stop` 必须停止由 Dionysus 管理的 API 与 Worker。这个能力不依赖 API 已经可用，因为它用于修复 `fetch failed` 级别的基础阻断。
+`system runtime start` 必须本地启动 API 与 Worker 后台进程，并把 pid/log 位置返回给 Codex；返回前必须等待 API `/health` 至少可访问，避免 Codex 紧接着执行 `agent config list`、`goal status` 等 API 命令时遇到 `fetch failed` 竞态；`status` 必须基于 pid 文件检查进程是否仍在运行；`stop` 必须停止由 Dionysus 管理的 API 与 Worker。这个能力不依赖 API 已经可用，因为它用于修复 `fetch failed` 级别的基础阻断。
 
 `reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
 

@@ -89,7 +89,7 @@ async function main(): Promise<void> {
       pidDir: readFlag(args, "--pid-dir") ?? ".dionysus/pids"
     });
     if (runtimeAction === "start") {
-      return print(startRuntime(specs));
+      return print(await startRuntime(specs));
     }
     if (runtimeAction === "status") {
       return print(getRuntimeStatus(specs));
