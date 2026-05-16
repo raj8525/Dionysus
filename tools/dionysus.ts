@@ -4,7 +4,8 @@ import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
 import { summarizeSupervisionStep } from "./dionysus-supervise.js";
-import type { AgentRole, CliType } from "@dionysus/core";
+import { formatCodexHeartbeat } from "@dionysus/core";
+import type { AgentRole, CliType, CodexOutboxEvent } from "@dionysus/core";
 
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
 
@@ -209,6 +210,25 @@ async function main(): Promise<void> {
     return print(await request(`/api/notifications/${requiredFlag(args, "--notification-id")}/deliver`, "POST"));
   }
 
+  if (domain === "codex" && action === "outbox") {
+    const status = readFlag(args, "--status") ?? "pending";
+    const limit = optionalNumberFlag(args, "--limit") ?? 20;
+    return print(await request(`/api/codex/outbox?status=${encodeURIComponent(status)}&limit=${limit}`));
+  }
+
+  if (domain === "codex" && action === "ack") {
+    return print(await request(`/api/codex/outbox/${requiredFlag(args, "--event-id")}/ack`, "POST"));
+  }
+
+  if (domain === "codex" && action === "heartbeat") {
+    const limit = optionalNumberFlag(args, "--limit") ?? 5;
+    const events = await request(`/api/codex/outbox?status=pending&limit=${limit}`) as CodexOutboxEvent[];
+    return print({
+      ...formatCodexHeartbeat(events),
+      events
+    });
+  }
+
   const apiCommand = resolveApiCommand([domain, action, ...args].filter((value): value is string => Boolean(value)));
   if (apiCommand) {
     return print(await request(apiCommand.path, apiCommand.method));
@@ -387,6 +407,17 @@ async function superviseGoal(input: {
       runCycleSummary: runCycle.summary
     });
     if (!summary.shouldContinue) {
+      await request("/api/codex/outbox", "POST", {
+        goalId: input.goalId,
+        eventType: summary.status === "e2e_required" ? "e2e_required" : "blocker",
+        reason: summary.reason,
+        source: "goal.supervise",
+        payload: {
+          iteration: index + 1,
+          agentSummary: agentStatus.summary,
+          runCycleSummary: runCycle.summary
+        }
+      });
       return {
         goalId: input.goalId,
         status: summary.status,
@@ -586,6 +617,9 @@ function usage(): void {
   tsx tools/dionysus.ts e2e case-result --case-id "..." --status passed --result-json '{"note":"..."}'
   tsx tools/dionysus.ts e2e run-campaign --campaign-id "..." --mode strict
   tsx tools/dionysus.ts notification deliver --notification-id "..."
+  tsx tools/dionysus.ts codex outbox --limit 5
+  tsx tools/dionysus.ts codex heartbeat --limit 5
+  tsx tools/dionysus.ts codex ack --event-id "..."
 `);
 }
 

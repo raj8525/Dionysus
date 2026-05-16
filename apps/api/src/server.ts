@@ -9,6 +9,7 @@ import {
   buildMasterTaskTree,
   buildMilestoneNotificationDraft,
   buildNotificationPayload,
+  buildCodexOutboxDraft,
   buildAddFilesPatch,
   buildTelegramRequest,
   buildTargetPreflight,
@@ -100,6 +101,14 @@ const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HE
 const watchdogRunSchema = z.object({
   runningTimeoutMinutes: z.number().int().positive().max(24 * 60).default(15),
   limit: z.number().int().positive().max(200).default(50)
+});
+
+const codexOutboxCreateSchema = z.object({
+  goalId: z.string().uuid().optional(),
+  eventType: z.enum(["blocker", "e2e_required", "release_ready", "user_notify"]),
+  reason: z.string().min(1),
+  source: z.string().min(1),
+  payload: z.record(z.string(), z.unknown()).optional()
 });
 
 export async function buildServer() {
@@ -267,6 +276,37 @@ export async function buildServer() {
     const query = request.query as { prefix?: string; limit?: string };
     const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "30", 10) || 30, 1), 100);
     return repo.listSystemEvents({ eventPrefix: query.prefix, limit });
+  });
+
+  app.get("/api/codex/outbox", async (request) => {
+    const query = request.query as { status?: string; eventType?: string; limit?: string };
+    const status = query.status === "pending" || query.status === "acked" || query.status === "cancelled"
+      ? query.status
+      : undefined;
+    const eventType = query.eventType === "blocker" || query.eventType === "e2e_required" ||
+      query.eventType === "release_ready" || query.eventType === "user_notify"
+      ? query.eventType
+      : undefined;
+    const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "20", 10) || 20, 1), 100);
+    return repo.listCodexOutboxEvents({ status, eventType, limit });
+  });
+
+  app.post("/api/codex/outbox", async (request, reply) => {
+    const parsed = codexOutboxCreateSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_CODEX_OUTBOX_INPUT", details: parsed.error.flatten() });
+    }
+    const event = await repo.createCodexOutboxEvent(buildCodexOutboxDraft(parsed.data));
+    return reply.code(201).send(event);
+  });
+
+  app.post("/api/codex/outbox/:id/ack", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const event = await repo.ackCodexOutboxEvent(id);
+    if (!event) {
+      return reply.code(404).send({ error: "CODEX_OUTBOX_EVENT_NOT_FOUND" });
+    }
+    return reply.code(202).send(event);
   });
 
   app.post("/api/tasks", async (request, reply) => {
@@ -506,6 +546,16 @@ export async function buildServer() {
   app.post("/api/milestones/:id/request-e2e", async (request, reply) => {
     const { id } = request.params as { id: string };
     await repo.requestMilestoneE2E(id);
+    const milestone = await repo.getMilestone(id);
+    if (milestone) {
+      await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+        goalId: String(milestone.goal_id),
+        eventType: "e2e_required",
+        reason: `里程碑需要 Codex 浏览器级 E2E：${String(milestone.name)}`,
+        source: "milestone.request-e2e",
+        payload: { milestoneId: id }
+      }));
+    }
     return reply.code(202).send({ id, status: "e2e_required" });
   });
 

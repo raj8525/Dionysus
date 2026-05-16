@@ -68,12 +68,34 @@ pnpm dionysus e2e run-campaign --campaign-id "<campaign-id>" --mode strict
 pnpm dionysus milestone verdict --milestone-id "<milestone-id>" --verdict passed --reason "E2E passed"
 pnpm dionysus milestone notify --milestone-id "<milestone-id>" --summary "里程碑完成" --target-url "http://localhost:23101"
 pnpm dionysus notification deliver --notification-id "<notification-id>"
+pnpm dionysus codex heartbeat --limit 5
+pnpm dionysus codex outbox --limit 5
+pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
 `e2e run-campaign` 有两种模式：
 
 - `strict`：只自动通过通用 smoke / persistence；需要真实产品操作的 happy_path / negative_path 会标记 blocked，防止伪验收。
 - `render-only`：只验证页面渲染和控制台错误，适合静态文档或演示型里程碑；不证明真实业务流程。
+
+## Codex Outbox
+
+Dionysus 主动请求 Codex 介入时必须写入 PostgreSQL `codex_outbox`，不要只把问题写在 Agent 输出里。
+
+常见事件：
+
+- `blocker`：目标被阻断，需要 Codex 清理工作区、改计划或询问用户。
+- `e2e_required`：出现里程碑，需要 Codex 执行浏览器级 E2E。
+- `release_ready`：内部门禁通过，等待 Codex 最终验证、提交和推送。
+- `user_notify`：需要 Codex 用中文通知用户查看结果。
+
+Codex 的固定循环：
+
+```bash
+pnpm dionysus codex heartbeat --limit 5
+# 处理最高优先级事件
+pnpm dionysus codex ack --event-id "<event-id>"
+```
 
 ## 目标项目配置
 

@@ -3,6 +3,10 @@ import { normalizeAgentCliConfig } from "@dionysus/core";
 import type {
   AgentCliConfig,
   AgentRole,
+  CodexOutboxDraft,
+  CodexOutboxEvent,
+  CodexOutboxEventType,
+  CodexOutboxStatus,
   CliType,
   E2ECaseStatus,
   FlowEdge,
@@ -1385,6 +1389,78 @@ export class DionysusRepository {
     );
   }
 
+  async createCodexOutboxEvent(input: CodexOutboxDraft): Promise<CodexOutboxEvent> {
+    const result = await this.pool.query(
+      `insert into ${this.table("codex_outbox")}
+        (id, goal_id, event_type, severity, title, summary, payload_json, dedupe_key)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       on conflict (dedupe_key)
+       do update set updated_at = ${this.table("codex_outbox")}.updated_at
+       returning id, goal_id, event_type, severity, status, title, summary, payload_json,
+                 created_at, updated_at, acked_at`,
+      [
+        randomUUID(),
+        input.goalId ?? null,
+        input.eventType,
+        input.severity,
+        input.title,
+        input.summary,
+        JSON.stringify(input.payload),
+        input.dedupeKey
+      ]
+    );
+    await this.recordSystemEvent("codex.outbox_event", {
+      eventId: String(result.rows[0].id),
+      goalId: input.goalId,
+      eventType: input.eventType,
+      title: input.title
+    });
+    return mapCodexOutboxEvent(result.rows[0]);
+  }
+
+  async listCodexOutboxEvents(input: {
+    status?: CodexOutboxStatus;
+    eventType?: CodexOutboxEventType;
+    limit?: number;
+  } = {}): Promise<CodexOutboxEvent[]> {
+    const params: Array<string | number> = [input.limit ?? 20];
+    const filters: string[] = [];
+    if (input.status) {
+      params.push(input.status);
+      filters.push(`status = $${params.length}`);
+    }
+    if (input.eventType) {
+      params.push(input.eventType);
+      filters.push(`event_type = $${params.length}`);
+    }
+    const where = filters.length ? `where ${filters.join(" and ")}` : "";
+    const result = await this.pool.query(
+      `select id, goal_id, event_type, severity, status, title, summary, payload_json,
+              created_at, updated_at, acked_at
+       from ${this.table("codex_outbox")}
+       ${where}
+       order by case severity when 'error' then 0 when 'warning' then 1 else 2 end,
+                created_at asc
+       limit $1`,
+      params
+    );
+    return result.rows.map(mapCodexOutboxEvent);
+  }
+
+  async ackCodexOutboxEvent(eventId: string): Promise<CodexOutboxEvent | null> {
+    const result = await this.pool.query(
+      `update ${this.table("codex_outbox")}
+       set status = 'acked', acked_at = now(), updated_at = now()
+       where id = $1
+       returning id, goal_id, event_type, severity, status, title, summary, payload_json,
+                 created_at, updated_at, acked_at`,
+      [eventId]
+    );
+    if (!result.rowCount) return null;
+    await this.recordSystemEvent("codex.outbox_acked", { eventId });
+    return mapCodexOutboxEvent(result.rows[0]);
+  }
+
   async listWatchdogEvents(limit = 30): Promise<Array<Record<string, unknown>>> {
     const result = await this.pool.query(
       `select *
@@ -1505,6 +1581,24 @@ function mapGoal(row: Record<string, unknown>): Goal {
     status: row.status as Goal["status"],
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString()
+  };
+}
+
+function mapCodexOutboxEvent(row: Record<string, unknown>): CodexOutboxEvent {
+  return {
+    id: String(row.id),
+    goalId: row.goal_id ? String(row.goal_id) : undefined,
+    eventType: row.event_type as CodexOutboxEvent["eventType"],
+    severity: row.severity as CodexOutboxEvent["severity"],
+    status: row.status as CodexOutboxEvent["status"],
+    title: String(row.title),
+    summary: String(row.summary),
+    payload: row.payload_json && typeof row.payload_json === "object" && !Array.isArray(row.payload_json)
+      ? row.payload_json as Record<string, unknown>
+      : {},
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+    ackedAt: row.acked_at ? new Date(String(row.acked_at)).toISOString() : undefined
   };
 }
 

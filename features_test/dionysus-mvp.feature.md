@@ -9,351 +9,367 @@
 
 ## 场景 1：创建目标
 
-Given Dionysus API 已启动  
-When Codex 提交一个 goal  
-Then PostgreSQL 中必须出现 goal 记录  
-And goal 状态为 `created`  
+Given Dionysus API 已启动
+When Codex 提交一个 goal
+Then PostgreSQL 中必须出现 goal 记录
+And goal 状态为 `created`
 And 系统事件中记录 `goal.created`
 
 ## 场景 1.1：系统 Doctor 必须检查真实依赖
 
-Given Dionysus API 已启动  
-When Codex 运行 `pnpm dionysus system doctor`  
-Then 返回必须包含 API health、PostgreSQL health、RabbitMQ health、Worker health 和 CLI probe  
+Given Dionysus API 已启动
+When Codex 运行 `pnpm dionysus system doctor`
+Then 返回必须包含 API health、PostgreSQL health、RabbitMQ health、Worker health 和 CLI probe
 And `/health` 不得只返回静态 ok，必须检查数据库连接
 And Worker 必须通过 `worker.started` 或 `worker.heartbeat` system event 证明 Runtime 正在运行
 And 如果 Worker 心跳超过 `DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS`，doctor 必须显示 stale 或 missing
 
 ## 场景 2：任务状态机拒绝非法迁移
 
-Given 一个状态为 `created` 的 task  
-When 系统试图直接迁移到 `done`  
-Then 状态机必须拒绝  
+Given 一个状态为 `created` 的 task
+When 系统试图直接迁移到 `done`
+Then 状态机必须拒绝
 And 返回非法迁移错误
 
 ## 场景 3：里程碑不能跳过 E2E
 
-Given 一个状态为 `candidate` 的 milestone  
-When 系统试图直接迁移到 `passed`  
-Then 状态机必须拒绝  
+Given 一个状态为 `candidate` 的 milestone
+When 系统试图直接迁移到 `passed`
+Then 状态机必须拒绝
 And 要求先进入 `e2e_required`
 
 ## 场景 4：Flow 页面展示目标执行链路
 
-Given Dionysus API 已启动  
-When Codex 创建 Coupon goal  
-And 前端请求 `/api/flow/current`  
-Then 响应必须包含 goal、PLAN、specs、features_test、Workers、Integration Queue、Milestone、Codex E2E、Notify User 节点  
+Given Dionysus API 已启动
+When Codex 创建 Coupon goal
+And 前端请求 `/api/flow/current`
+Then 响应必须包含 goal、PLAN、specs、features_test、Workers、Integration Queue、Milestone、Codex E2E、Notify User 节点
 And 节点之间必须按执行顺序连接
 
 ## 场景 5：里程碑通过后生成通知
 
-Given 一个 milestone 已通过 Codex E2E  
-When Notification Service 发送通知  
+Given 一个 milestone 已通过 Codex E2E
+When Notification Service 发送通知
 Then 通知内容必须包含已完成功能、启动方式、使用方式、验收方式、E2E 证据、main commit、已知风险和下一步计划
 
 ## 场景 5.1：里程碑不能绕过 Codex verdict
 
-Given Master 创建了 milestone candidate  
-When Master 请求 E2E  
-Then milestone 状态必须进入 `e2e_required`  
-When Codex 提交 `passed` verdict  
+Given Master 创建了 milestone candidate
+When Master 请求 E2E
+Then milestone 状态必须进入 `e2e_required`
+When Codex 提交 `passed` verdict
 Then milestone 状态才能进入 `passed`
 
 ## 场景 6：文档编译和缺口扫描
 
-Given 一个指向 Coupon 项目的 goal  
-When Codex 调用 `/api/goals/:id/intake`  
-Then Dionysus 必须扫描 `AGENTS.md`、`docs/`、管理后台 HTML / Vue 页面  
-And 将文档清单写入 `documents`  
-And 将 `待补充`、`未定义`、`占位`、`后续`、`P1` 等缺口写入 `document_findings`  
+Given 一个指向 Coupon 项目的 goal
+When Codex 调用 `/api/goals/:id/intake`
+Then Dionysus 必须扫描 `AGENTS.md`、`docs/`、管理后台 HTML / Vue 页面
+And 将文档清单写入 `documents`
+And 将 `待补充`、`未定义`、`占位`、`后续`、`P1` 等缺口写入 `document_findings`
 And 生成产品构建图节点和依赖边
 
 ## 场景 6.1：Master 生成 SDD/TDD 任务树
 
-Given 一个已经创建的 goal  
-When Codex 调用 `/api/goals/:id/bootstrap`  
-Then Dionysus 必须创建 Master、RuleWriter、TestWriter、Worker、Master Review 任务  
+Given 一个已经创建的 goal
+When Codex 调用 `/api/goals/:id/bootstrap`
+Then Dionysus 必须创建 Master、RuleWriter、TestWriter、Worker、Master Review 任务
 And Worker 任务必须排在规格和测试任务之后
 
 ## 场景 6.2：角色任务必须自动串联
 
-Given bootstrap 已创建任务树  
-When 第一个 Master 任务完成  
-Then Dionysus 必须自动投递 RuleWriter 任务  
-And RuleWriter 完成后必须投递 TestWriter  
-And TestWriter 完成后必须投递 Worker  
+Given bootstrap 已创建任务树
+When 第一个 Master 任务完成
+Then Dionysus 必须自动投递 RuleWriter 任务
+And RuleWriter 完成后必须投递 TestWriter
+And TestWriter 完成后必须投递 Worker
 And Worker 完成后必须投递 Review Master
 
 ## 场景 6.3：每个角色必须读取独立 CLI 配置
 
-Given Codex 为 Master、RuleWriter、TestWriter 或 Worker 配置了 CLI 类型和模型  
-When 对应角色任务被 Runtime 消费  
-Then Dionysus 必须读取数据库中的 `agent_cli_configs`  
-And 使用该角色配置的 CLI Adapter 执行  
-And run 记录必须保存实际使用的 cli_type 和 cli_model  
+Given Codex 为 Master、RuleWriter、TestWriter 或 Worker 配置了 CLI 类型和模型
+When 对应角色任务被 Runtime 消费
+Then Dionysus 必须读取数据库中的 `agent_cli_configs`
+And 使用该角色配置的 CLI Adapter 执行
+And run 记录必须保存实际使用的 cli_type 和 cli_model
 And 未配置角色必须默认使用 `mock`
 
 ## 场景 6.4：真实 Agent 执行前必须收到强约束角色 Prompt
 
-Given 一个角色任务即将执行  
-When Runtime 调用 Agent CLI  
-Then prompt 必须包含目标目录、目标描述、任务标题、任务描述、角色边界、SDD/TDD 门禁和输出格式  
-And Master prompt 必须禁止直接写业务实现代码  
-And RuleWriter prompt 必须限制为 specs 产出  
-And TestWriter prompt 必须限制为 features_test 和测试产出  
+Given 一个角色任务即将执行
+When Runtime 调用 Agent CLI
+Then prompt 必须包含目标目录、目标描述、任务标题、任务描述、角色边界、SDD/TDD 门禁和输出格式
+And Master prompt 必须禁止直接写业务实现代码
+And RuleWriter prompt 必须限制为 specs 产出
+And TestWriter prompt 必须限制为 features_test 和测试产出
 And Worker prompt 必须要求 gate-check 通过、隔离 workspace 和 patch 证据
 
 ## 场景 6.5：前端必须能配置固定角色 CLI
 
-Given Dionysus Web UI 已启动  
-When Codex 打开 Dashboard  
-Then 页面必须展示 Master、RuleWriter、TestWriter、Worker 四个角色配置卡  
-And 每个角色必须能选择 CLI、填写模型、启用或禁用并保存  
-And 页面必须提供 CLI 探测入口  
-And 保存 OpenCode 配置前必须调用 `/api/cli/validate-model`  
-And 如果模型可用，页面必须显示 input model 到 resolved model 的映射并保存 resolved model  
-And 如果模型不可用，页面必须阻止保存并显示原因与建议模型  
+Given Dionysus Web UI 已启动
+When Codex 打开 Dashboard
+Then 页面必须展示 Master、RuleWriter、TestWriter、Worker 四个角色配置卡
+And 每个角色必须能选择 CLI、填写模型、启用或禁用并保存
+And 页面必须提供 CLI 探测入口
+And 保存 OpenCode 配置前必须调用 `/api/cli/validate-model`
+And 如果模型可用，页面必须显示 input model 到 resolved model 的映射并保存 resolved model
+And 如果模型不可用，页面必须阻止保存并显示原因与建议模型
 And React Flow 控制台不得出现缺失 handle 的 edge warning
 
 ## 场景 6.5.1：Codex CLI 必须能配置固定角色 CLI
 
-Given Dionysus API 已启动  
-When Codex 运行 `pnpm dionysus agent config set --role worker --cli opencode --model minimax/MiniMax-M2.7`  
-Then CLI 必须先调用 `/api/cli/validate-model`  
-And 如果模型可用，必须保存 resolved model 到 `agent_cli_configs`  
-And 如果模型不可用，必须拒绝保存并返回失败原因  
+Given Dionysus API 已启动
+When Codex 运行 `pnpm dionysus agent config set --role worker --cli opencode --model minimax/MiniMax-M2.7`
+Then CLI 必须先调用 `/api/cli/validate-model`
+And 如果模型可用，必须保存 resolved model 到 `agent_cli_configs`
+And 如果模型不可用，必须拒绝保存并返回失败原因
 And Codex 不需要打开前端就能配置 Master、RuleWriter、TestWriter、Worker
 
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
 
-Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode  
-When Runtime 调用真实 CLI Adapter  
-Then Adapter 必须使用该 CLI 的非交互参数执行  
-And 必须记录 stdout、stderr、exit_code、cli_type 和 cli_model  
-And 如果 CLI 超过 `DIONYSUS_AGENT_RUN_TIMEOUT_MS` 未退出  
-Then Runtime 必须终止 CLI 进程组  
-And task_run 的 exit_code 必须记录为 `124`  
-And stderr 必须包含超时原因  
+Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode
+When Runtime 调用真实 CLI Adapter
+Then Adapter 必须使用该 CLI 的非交互参数执行
+And 必须记录 stdout、stderr、exit_code、cli_type 和 cli_model
+And 如果 CLI 超过 `DIONYSUS_AGENT_RUN_TIMEOUT_MS` 未退出
+Then Runtime 必须终止 CLI 进程组
+And task_run 的 exit_code 必须记录为 `124`
+And stderr 必须包含超时原因
 And Watchdog 可以基于该失败继续重试或标记 blocked
 
 ## 场景 6.7：OpenCode 模型必须在运行前可验证
 
-Given Codex 为 OpenCode 配置了模型 `minimax/MiniMax-M2.7`  
-When Codex 调用 `/api/cli/validate-model`  
-Then Dionysus 必须先解析 provider alias  
-And 返回 `resolvedModel=minimax-cn-coding-plan/MiniMax-M2.7`  
-And 必须通过 `opencode models` 验证该模型可用  
-And 如果模型不可用，必须返回 `available=false`、失败原因和可选建议模型  
+Given Codex 为 OpenCode 配置了模型 `minimax/MiniMax-M2.7`
+When Codex 调用 `/api/cli/validate-model`
+Then Dionysus 必须先解析 provider alias
+And 返回 `resolvedModel=minimax-cn-coding-plan/MiniMax-M2.7`
+And 必须通过 `opencode models` 验证该模型可用
+And 如果模型不可用，必须返回 `available=false`、失败原因和可选建议模型
 And 不得等到 Worker 执行任务时才发现模型解析失败
 
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
-Given 一个指向目标项目的 goal  
-When Codex 调用 `/api/goals/:id/gate-check`  
-Then Dionysus 必须检查 `docs/PLAN.md`、`docs/specs/`、`features_test/`  
-And 将检查结果写入 `gate_checks`  
+Given 一个指向目标项目的 goal
+When Codex 调用 `/api/goals/:id/gate-check`
+Then Dionysus 必须检查 `docs/PLAN.md`、`docs/specs/`、`features_test/`
+And 将检查结果写入 `gate_checks`
 And 如果缺少任一门禁，则返回 `blocked`
 
 ## 场景 7.0：Codex CLI 覆盖完整 Goal 生命周期
 
-Given Dionysus API 已启动  
-When Codex 需要推进一个 goal 的 intake、bootstrap、gate-check、remediation、remediation-patch、master-step、release-ready 或 integration list  
-Then `pnpm dionysus` 必须提供对应命令  
-And 命令必须映射到已有 API 端点  
+Given Dionysus API 已启动
+When Codex 需要推进一个 goal 的 intake、bootstrap、gate-check、remediation、remediation-patch、master-step、release-ready 或 integration list
+Then `pnpm dionysus` 必须提供对应命令
+And 命令必须映射到已有 API 端点
 And Codex 不需要手写 `curl` 或临时脚本才能操作 Dionysus
 
 ## 场景 7.0.1：Codex CLI 提供单步推进循环
 
-Given Dionysus API 已启动  
-When Codex 运行 `pnpm dionysus goal run-cycle --goal-id <id>`  
-Then CLI 必须执行 preflight、master-step、detect-milestones  
-And 返回 blocker、nextOwner、nextActions  
-And 如果传入 `--target-url`，必须创建或复用 E2E campaign  
+Given Dionysus API 已启动
+When Codex 运行 `pnpm dionysus goal run-cycle --goal-id <id>`
+Then CLI 必须执行 preflight、master-step、detect-milestones
+And 返回 blocker、nextOwner、nextActions
+And 如果传入 `--target-url`，必须创建或复用 E2E campaign
 And 如果未显式传入 `--run-e2e`，不得自动提交 E2E 结果或 milestone verdict
 
 ## 场景 7.0.2：Codex CLI 提供持续监督循环
 
-Given Dionysus API、RabbitMQ 和 Worker 已启动  
-When Codex 运行 `pnpm dionysus goal supervise --goal-id <id> --iterations 5`  
-Then CLI 必须每轮检查 Agent runtime 状态和运行一次 goal run-cycle  
-And 如果 runtime blocked、业务 blocked 或 E2E 需要 Codex 介入，必须停止并返回原因  
+Given Dionysus API、RabbitMQ 和 Worker 已启动
+When Codex 运行 `pnpm dionysus goal supervise --goal-id <id> --iterations 5`
+Then CLI 必须每轮检查 Agent runtime 状态和运行一次 goal run-cycle
+And 如果 runtime blocked、业务 blocked 或 E2E 需要 Codex 介入，必须停止并返回原因
 And 如果仍可推进，必须继续下一轮直到达到 iteration 上限
 
 ## 场景 7.1：Target Preflight 必须阻止脏工作区试运行
 
-Given 一个指向目标项目的 goal  
-When Codex 调用 `/api/goals/:id/preflight`  
-Then Dionysus 必须检查目标 Git 工作区是否干净  
-And 必须同时运行 PLAN / specs / features_test gate  
-And 如果 Git 脏或任一 gate blocked，则 preflight 返回 `blocked`  
+Given 一个指向目标项目的 goal
+When Codex 调用 `/api/goals/:id/preflight`
+Then Dionysus 必须检查目标 Git 工作区是否干净
+And 必须同时运行 PLAN / specs / features_test gate
+And 如果 Git 脏或任一 gate blocked，则 preflight 返回 `blocked`
 And response 必须包含 blockers 汇总
 
 ## 场景 7.2：Preflight Remediation 只能生成草案
 
-Given target preflight 因缺少 PLAN / specs / features_test 被阻塞  
-When Codex 调用 `/api/goals/:id/preflight-remediation`  
-Then Dionysus 必须返回缺失文件的 path 和 content 草案  
-And 不得直接写入目标项目主工作区  
+Given target preflight 因缺少 PLAN / specs / features_test 被阻塞
+When Codex 调用 `/api/goals/:id/preflight-remediation`
+Then Dionysus 必须返回缺失文件的 path 和 content 草案
+And 不得直接写入目标项目主工作区
 And Codex 必须在审查草案后决定是否应用
 
 ## 场景 7.3：Preflight Remediation Patch 必须尊重 Git 干净门禁
 
-Given target preflight 因缺少 PLAN / specs / features_test 被阻塞  
-When Codex 调用 `/api/goals/:id/preflight-remediation/patch`  
-Then Dionysus 必须将草案转换为 git patch  
-And 必须创建 patch 与 integration queue 记录  
-And 如果目标 Git 工作区不干净，不得发布 integration 消息  
+Given target preflight 因缺少 PLAN / specs / features_test 被阻塞
+When Codex 调用 `/api/goals/:id/preflight-remediation/patch`
+Then Dionysus 必须将草案转换为 git patch
+And 必须创建 patch 与 integration queue 记录
+And 如果目标 Git 工作区不干净，不得发布 integration 消息
 And 如果目标 Git 工作区干净，才允许发布 integration 消息
 
 ## 场景 7.4：清理工作区后必须能恢复 queued integration
 
-Given integration queue 中存在 queued patch  
-When Codex 调用 `/api/goals/:id/integrations/release-ready`  
-Then Dionysus 必须先检查目标 Git 工作区  
-And 如果工作区仍然不干净，返回 `status: blocked` 和 queued integrations  
-And 业务阻塞不得触发前端控制台 HTTP 错误  
+Given integration queue 中存在 queued patch
+When Codex 调用 `/api/goals/:id/integrations/release-ready`
+Then Dionysus 必须先检查目标 Git 工作区
+And 如果工作区仍然不干净，返回 `status: blocked` 和 queued integrations
+And 业务阻塞不得触发前端控制台 HTTP 错误
 And 如果工作区干净，必须发布 integration 消息
 
 ## 场景 7.5：Master 必须能单步推进下一合法动作
 
-Given Codex 已创建一个 goal  
-When Codex 调用 `/api/goals/:id/master-step`  
-Then Dionysus 必须根据任务树、SDD/TDD 门禁、integration queue 和目标 Git 状态决定一个下一步动作  
-And 如果没有 Master 任务树，必须先创建并投递 Master 任务  
-And 如果存在 queued integration 且目标 Git 不干净，必须返回 `blocked_dirty_worktree`  
-And 如果存在 queued integration 且目标 Git 干净，必须发布 integration 消息  
-And 如果缺少 PLAN/specs/features_test，必须只创建 preflight remediation patch，不直接写目标仓库  
+Given Codex 已创建一个 goal
+When Codex 调用 `/api/goals/:id/master-step`
+Then Dionysus 必须根据任务树、SDD/TDD 门禁、integration queue 和目标 Git 状态决定一个下一步动作
+And 如果没有 Master 任务树，必须先创建并投递 Master 任务
+And 如果存在 queued integration 且目标 Git 不干净，必须返回 `blocked_dirty_worktree`
+And 如果存在 queued integration 且目标 Git 干净，必须发布 integration 消息
+And 如果缺少 PLAN/specs/features_test，必须只创建 preflight remediation patch，不直接写目标仓库
 And 如果全部门禁通过，才允许进入实现准备状态
 
 ## 场景 7.6：Worker Runtime 必须周期性运行 Master Control
 
-Given Dionysus worker 已启动  
-When 达到 `DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS`  
-Then worker 必须投递 `dionysus.master_control` 消息  
-And 消费该消息后必须扫描 active goals  
-And 每个 goal 只能推进一个合法 Master Step  
+Given Dionysus worker 已启动
+When 达到 `DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS`
+Then worker 必须投递 `dionysus.master_control` 消息
+And 消费该消息后必须扫描 active goals
+And 每个 goal 只能推进一个合法 Master Step
 And 决策结果必须写入 `system_events`
 And Dashboard 必须能展示最近的 `master_control.step` 与 `master_control.run` 事件
 
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
-Given Worker 完成隔离 workspace 内的实现  
-When Worker 提交 patch  
-Then Dionysus 必须写入 `patches`  
-And 同时创建 `integration_queue` 记录  
+Given Worker 完成隔离 workspace 内的实现
+When Worker 提交 patch
+Then Dionysus 必须写入 `patches`
+And 同时创建 `integration_queue` 记录
 And task event 必须记录 `patch.queued`
 
 ## 场景 8.1：Integration Queue 自动应用 patch
 
-Given `integration_queue` 中存在 queued patch  
-And 目标主工作区是干净 Git 状态  
-When integration worker 消费消息  
-Then Dionysus 必须先执行 `git apply --check`  
-And 成功后应用 patch  
-And 如果配置了验证命令，必须执行验证命令  
-And 将 patch 标记为 `applied`  
+Given `integration_queue` 中存在 queued patch
+And 目标主工作区是干净 Git 状态
+When integration worker 消费消息
+Then Dionysus 必须先执行 `git apply --check`
+And 成功后应用 patch
+And 如果配置了验证命令，必须执行验证命令
+And 将 patch 标记为 `applied`
 And 将 integration 标记为 `passed`
 
 ## 场景 8.2：脏工作区必须阻止集成
 
-Given 目标主工作区存在未提交改动  
-When integration worker 尝试应用 patch  
-Then Dionysus 必须拒绝应用  
-And 将 integration 标记为 `failed`  
+Given 目标主工作区存在未提交改动
+When integration worker 尝试应用 patch
+Then Dionysus 必须拒绝应用
+And 将 integration 标记为 `failed`
 And result_json 必须记录 dirty worktree 原因
 
 ## 场景 8.3：验证失败必须自动回滚
 
-Given patch 已成功应用  
-And integration 验证命令失败  
-When integration worker 处理结果  
-Then Dionysus 必须反向应用 patch 回滚  
-And 目标 Git 工作区必须恢复干净  
+Given patch 已成功应用
+And integration 验证命令失败
+When integration worker 处理结果
+Then Dionysus 必须反向应用 patch 回滚
+And 目标 Git 工作区必须恢复干净
 And integration 必须标记为 `failed`
 
 ## 场景 9：Master 自动识别里程碑候选
 
-Given integration queue 已通过  
-And patch 已应用  
-And 测试状态为 passed  
-When Codex 或 Master 触发 milestone detection  
-Then Dionysus 必须创建 milestone candidate  
+Given integration queue 已通过
+And patch 已应用
+And 测试状态为 passed
+When Codex 或 Master 触发 milestone detection
+Then Dionysus 必须创建 milestone candidate
 And milestone 不得跳过 Codex E2E
 
 ## 场景 10：E2E campaign 必须覆盖浏览器级验收
 
-Given milestone candidate 已进入 E2E 阶段  
-When Dionysus 创建 E2E campaign  
-Then 必须包含 smoke、happy path、negative path、persistence 用例  
+Given milestone candidate 已进入 E2E 阶段
+When Dionysus 创建 E2E campaign
+Then 必须包含 smoke、happy path、negative path、persistence 用例
 And Codex 执行后才能写入 verdict
 
 ## 场景 10.1：E2E case 结果必须逐条落库
 
-Given Dionysus 已创建 E2E campaign  
-When Codex 执行浏览器级用例  
-Then 每条 case 必须能写入 passed、failed、blocked 或 skipped  
-And 必须保存失败原因与截图、控制台日志、网络错误等证据 JSON  
+Given Dionysus 已创建 E2E campaign
+When Codex 执行浏览器级用例
+Then 每条 case 必须能写入 passed、failed、blocked 或 skipped
+And 必须保存失败原因与截图、控制台日志、网络错误等证据 JSON
 And campaign 状态必须由所有 case 状态自动汇总
 
 ## 场景 10.2：Codex CLI 必须能自动执行通用浏览器 E2E
 
-Given Dionysus 已创建 E2E campaign  
-When Codex 运行 `pnpm dionysus e2e run-campaign --campaign-id <id> --mode strict`  
-Then smoke 和 persistence 用例必须通过 Playwright 打开目标 URL、截图并回写结果  
-And 需要业务特定操作的 happy_path / negative_path 在 strict 模式下必须标记 blocked  
+Given Dionysus 已创建 E2E campaign
+When Codex 运行 `pnpm dionysus e2e run-campaign --campaign-id <id> --mode strict`
+Then smoke 和 persistence 用例必须通过 Playwright 打开目标 URL、截图并回写结果
+And 需要业务特定操作的 happy_path / negative_path 在 strict 模式下必须标记 blocked
 And 系统不得把未执行的业务流程伪造成 passed
 
 ## 场景 11：里程碑通过后必须通知
 
-Given Codex E2E verdict 为 passed  
-When Dionysus 生成 milestone notification  
-Then 通知正文必须包含实现内容、如何使用、如何验收和剩余风险  
+Given Codex E2E verdict 为 passed
+When Dionysus 生成 milestone notification
+Then 通知正文必须包含实现内容、如何使用、如何验收和剩余风险
 And 投递记录必须进入 `notification_deliveries`
 
 ## 场景 11.1：通知通道必须可审计且失败隔离
 
-Given milestone notification 已创建  
-When Codex 调用 `/api/notifications/:id/deliver`  
-Then console 通道必须始终记录一次投递  
-And 如果配置 Telegram，必须向 Telegram API 投递  
-And 如果配置 email webhook，必须向邮件网关投递  
-And 每个通道必须独立记录 `sent` 或 `failed`  
+Given milestone notification 已创建
+When Codex 调用 `/api/notifications/:id/deliver`
+Then console 通道必须始终记录一次投递
+And 如果配置 Telegram，必须向 Telegram API 投递
+And 如果配置 email webhook，必须向邮件网关投递
+And 每个通道必须独立记录 `sent` 或 `failed`
 And 通道配置中的 token / secret 不得明文写入数据库
 
 ## 场景 12：Watchdog 必须处理停滞任务
 
-Given 一个 task 处于 `running` 且超过超时时间  
-When Codex 调用 `/api/watchdog/run`  
-Then 未超过最大尝试次数的 task 必须重新入队  
-And 超过最大尝试次数的 task 必须标记为 `blocked`  
-And `failed` task 在未超过最大尝试次数时也必须重新入队  
+Given 一个 task 处于 `running` 且超过超时时间
+When Codex 调用 `/api/watchdog/run`
+Then 未超过最大尝试次数的 task 必须重新入队
+And 超过最大尝试次数的 task 必须标记为 `blocked`
+And `failed` task 在未超过最大尝试次数时也必须重新入队
 And 每个处理动作必须写入 `task_events`
 
 ## 场景 12.1：Worker Runtime 必须自动运行 Watchdog
 
-Given Dionysus worker 已启动  
-When 达到 `DIONYSUS_WATCHDOG_INTERVAL_SECONDS`  
-Then worker 必须投递 `dionysus.watchdog` 消息  
-And 消费该消息后必须扫描停滞任务  
+Given Dionysus worker 已启动
+When 达到 `DIONYSUS_WATCHDOG_INTERVAL_SECONDS`
+Then worker 必须投递 `dionysus.watchdog` 消息
+And 消费该消息后必须扫描停滞任务
 And 巡检摘要必须写入 `system_events`
 
 ## 场景 12.2：Dashboard 必须展示 Watchdog 异常与巡检结果
 
-Given Dionysus Web UI 已启动  
-When Codex 打开 Dashboard  
-Then 页面必须展示 Watchdog 面板  
-And 可以手动触发巡检  
-And 可以查看最近的 `watchdog.run`、`watchdog.retry_queued`、`watchdog.blocked` 记录  
+Given Dionysus Web UI 已启动
+When Codex 打开 Dashboard
+Then 页面必须展示 Watchdog 面板
+And 可以手动触发巡检
+And 可以查看最近的 `watchdog.run`、`watchdog.retry_queued`、`watchdog.blocked` 记录
 And 面板必须展示 checked、retry、blocked 摘要
 
 ## 场景 13：Dashboard 必须展示任务与运行证据
 
-Given goal 下存在 tasks 和 task_runs  
-When Codex 打开 Dashboard  
-Then 页面必须展示任务标题、角色、状态、优先级和尝试次数  
-And 页面必须展示最近运行的 CLI、命令、状态、退出码和日志预览  
+Given goal 下存在 tasks 和 task_runs
+When Codex 打开 Dashboard
+Then 页面必须展示任务标题、角色、状态、优先级和尝试次数
+And 页面必须展示最近运行的 CLI、命令、状态、退出码和日志预览
 And Codex 必须能一键刷新当前目标的证据
+
+## 场景 14：Dionysus 主动请求 Codex 介入
+
+Given Dionysus 正在监督一个 Coupon goal
+And `goal run-cycle` 返回 `blocked`
+When Codex 执行 `pnpm dionysus goal supervise --goal-id "<goal-id>"`
+Then Dionysus 必须创建 `codex_outbox` 事件
+And 事件类型必须是 `blocker`
+And `pnpm dionysus codex heartbeat --limit 5` 必须能读到该事件
+
+## 场景 14.1：Codex 处理事件后 ack
+
+Given `codex_outbox` 中存在 `pending` 事件
+When Codex 完成处理并执行 `pnpm dionysus codex ack --event-id "<event-id>"`
+Then 该事件状态必须变为 `acked`
+And 后续 heartbeat 不应继续返回该事件
 
 ## 运行命令
 

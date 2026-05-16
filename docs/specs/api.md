@@ -118,6 +118,45 @@ POST /api/notifications/:id/deliver
 
 通知创建和投递必须都落库；console 投递用于 Codex 会话内反馈，email/Telegram 后续扩展。
 
+## Codex Outbox
+
+```text
+GET /api/codex/outbox
+POST /api/codex/outbox
+POST /api/codex/outbox/:id/ack
+```
+
+Dionysus 主动请求 Codex 介入时必须写入 `codex_outbox`，不能只依赖 Agent 输出或当前会话上下文。
+
+事件类型：
+
+- `blocker`：目标被阻断，需要 Codex 清理工作区、改计划或询问用户。
+- `e2e_required`：出现里程碑，需要 Codex 执行浏览器级 E2E。
+- `release_ready`：内部门禁已过，等待 Codex 最终验证、提交和推送。
+- `user_notify`：需要 Codex 通知用户查看成果。
+
+创建请求：
+
+```json
+{
+  "goalId": "18adb562-7ed3-45ae-b99a-b9a76dd2a928",
+  "eventType": "blocker",
+  "reason": "run-cycle blocked: clean git worktree",
+  "source": "goal.supervise",
+  "payload": {}
+}
+```
+
+`goalId + eventType + reason` 必须去重，防止监督循环重复刷屏。
+
+Codex CLI 必须支持：
+
+```text
+pnpm dionysus codex heartbeat --limit 5
+pnpm dionysus codex outbox --limit 5
+pnpm dionysus codex ack --event-id "<event-id>"
+```
+
 ## CLI
 
 ```text
