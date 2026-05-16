@@ -4,6 +4,53 @@ export type AgentStatus = "idle" | "working" | "blocked" | "disabled";
 
 export type CliType = "mock" | "claude_code" | "gemini_cli" | "opencode";
 
+export interface AgentCliModelUsage {
+  cliType: CliType;
+  cliModel: string;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+}
+
+export interface AgentCliUsage {
+  role: AgentRole;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+  models: AgentCliModelUsage[];
+}
+
+export interface CliUsage {
+  cliType: CliType;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+}
+
+export interface AgentCliUsageSummary {
+  goalId?: string;
+  generatedAt: string;
+  totals: {
+    cliCalls: number;
+    modelCalls: number;
+    runningCalls: number;
+    succeededCalls: number;
+    failedCalls: number;
+    distinctModels: number;
+  };
+  byAgent: AgentCliUsage[];
+  byCli: CliUsage[];
+}
+
 export type GoalStatus =
   | "created"
   | "intake"

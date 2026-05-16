@@ -165,6 +165,7 @@ GET /api/cli/models
 POST /api/cli/validate-model
 GET /api/agent-cli-configs
 PUT /api/agent-cli-configs
+GET /api/usage/agent-cli
 ```
 
 `validate-model` 请求：
@@ -203,6 +204,54 @@ pnpm dionysus agent status --goal-id "<goal-id>"
 `agent config set` 必须先调用模型验证；验证通过后保存 resolved model，验证失败时不得写入 `agent_cli_configs`。
 
 `agent status` 必须聚合 `/health`、`/api/agent-cli-configs`、`/api/tasks` 和 `/api/runs`，返回 Runtime 是否可推进、已配置/禁用 Agent 数、queued/running/blocked 任务数和下一步动作建议。
+
+`/api/usage/agent-cli` 用于前端和 Codex 实时查看 Agent 调用消耗。它必须基于 PostgreSQL `task_runs` 做全量聚合，不能只统计前端当前分页。支持可选 `goalId` 过滤：
+
+```text
+GET /api/usage/agent-cli?goalId=<goal-id>
+```
+
+返回按 Agent、CLI、模型聚合的调用数：
+
+```json
+{
+  "goalId": "18adb562-7ed3-45ae-b99a-b9a76dd2a928",
+  "generatedAt": "2026-05-16T16:10:00.000Z",
+  "totals": {
+    "cliCalls": 8,
+    "modelCalls": 8,
+    "runningCalls": 1,
+    "succeededCalls": 6,
+    "failedCalls": 1,
+    "distinctModels": 3
+  },
+  "byAgent": [
+    {
+      "role": "worker",
+      "cliCalls": 3,
+      "modelCalls": 3,
+      "runningCalls": 1,
+      "succeededCalls": 1,
+      "failedCalls": 1,
+      "lastRunAt": "2026-05-16T16:09:30.000Z",
+      "models": [
+        {
+          "cliType": "opencode",
+          "cliModel": "minimax-cn-coding-plan/MiniMax-M2.7",
+          "cliCalls": 3,
+          "modelCalls": 3,
+          "runningCalls": 1,
+          "succeededCalls": 1,
+          "failedCalls": 1
+        }
+      ]
+    }
+  ],
+  "byCli": []
+}
+```
+
+当前 `modelCalls` 的口径是 Dionysus 发起的非 mock CLI run 次数。CLI 进程内部的真实模型 API 调用次数只有在对应 CLI 输出 usage 回执后才能进一步精确解析。
 
 ## Gatekeeper
 

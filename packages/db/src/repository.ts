@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { normalizeAgentCliConfig } from "@dionysus/core";
 import type {
   AgentCliConfig,
+  AgentCliUsageSummary,
   AgentRole,
   CodexOutboxDraft,
   CodexOutboxEvent,
@@ -277,6 +278,119 @@ export class DionysusRepository {
     }));
   }
 
+  async getAgentCliUsage(input: {
+    goalId?: string;
+  } = {}): Promise<AgentCliUsageSummary> {
+    const params: string[] = [];
+    const where = input.goalId ? "where t.goal_id = $1" : "";
+    if (input.goalId) params.push(input.goalId);
+    const result = await this.pool.query(
+      `select t.role_required,
+              tr.cli_type,
+              coalesce(nullif(tr.cli_model, ''), 'default/unknown') as cli_model,
+              count(*)::int as cli_calls,
+              count(*) filter (where tr.cli_type <> 'mock')::int as model_calls,
+              count(*) filter (where tr.status = 'running')::int as running_calls,
+              count(*) filter (where tr.status = 'succeeded')::int as succeeded_calls,
+              count(*) filter (where tr.status = 'failed')::int as failed_calls,
+              max(coalesce(tr.finished_at, tr.started_at, tr.created_at)) as last_run_at
+       from ${this.table("task_runs")} tr
+       join ${this.table("tasks")} t on t.id = tr.task_id
+       ${where}
+       group by t.role_required, tr.cli_type, coalesce(nullif(tr.cli_model, ''), 'default/unknown')
+       order by t.role_required asc, cli_calls desc, tr.cli_type asc, cli_model asc`,
+      params
+    );
+
+    const byAgent = new Map<AgentRole, AgentCliUsageSummary["byAgent"][number]>();
+    const byCli = new Map<CliType, AgentCliUsageSummary["byCli"][number]>();
+    const distinctModels = new Set<string>();
+    const totals = {
+      cliCalls: 0,
+      modelCalls: 0,
+      runningCalls: 0,
+      succeededCalls: 0,
+      failedCalls: 0,
+      distinctModels: 0
+    };
+
+    for (const row of result.rows) {
+      const role = row.role_required as AgentRole;
+      const cliType = row.cli_type as CliType;
+      const cliModel = String(row.cli_model);
+      const cliCalls = Number(row.cli_calls);
+      const modelCalls = Number(row.model_calls);
+      const runningCalls = Number(row.running_calls);
+      const succeededCalls = Number(row.succeeded_calls);
+      const failedCalls = Number(row.failed_calls);
+      const lastRunAt = row.last_run_at ? new Date(row.last_run_at).toISOString() : undefined;
+
+      totals.cliCalls += cliCalls;
+      totals.modelCalls += modelCalls;
+      totals.runningCalls += runningCalls;
+      totals.succeededCalls += succeededCalls;
+      totals.failedCalls += failedCalls;
+      if (modelCalls > 0) {
+        distinctModels.add(`${cliType}:${cliModel}`);
+      }
+
+      const agentUsage = byAgent.get(role) ?? {
+        role,
+        cliCalls: 0,
+        modelCalls: 0,
+        runningCalls: 0,
+        succeededCalls: 0,
+        failedCalls: 0,
+        lastRunAt: undefined,
+        models: []
+      };
+      agentUsage.cliCalls += cliCalls;
+      agentUsage.modelCalls += modelCalls;
+      agentUsage.runningCalls += runningCalls;
+      agentUsage.succeededCalls += succeededCalls;
+      agentUsage.failedCalls += failedCalls;
+      agentUsage.lastRunAt = latestIso(agentUsage.lastRunAt, lastRunAt);
+      agentUsage.models.push({
+        cliType,
+        cliModel,
+        cliCalls,
+        modelCalls,
+        runningCalls,
+        succeededCalls,
+        failedCalls,
+        lastRunAt
+      });
+      byAgent.set(role, agentUsage);
+
+      const cliUsage = byCli.get(cliType) ?? {
+        cliType,
+        cliCalls: 0,
+        modelCalls: 0,
+        runningCalls: 0,
+        succeededCalls: 0,
+        failedCalls: 0,
+        lastRunAt: undefined
+      };
+      cliUsage.cliCalls += cliCalls;
+      cliUsage.modelCalls += modelCalls;
+      cliUsage.runningCalls += runningCalls;
+      cliUsage.succeededCalls += succeededCalls;
+      cliUsage.failedCalls += failedCalls;
+      cliUsage.lastRunAt = latestIso(cliUsage.lastRunAt, lastRunAt);
+      byCli.set(cliType, cliUsage);
+    }
+
+    totals.distinctModels = distinctModels.size;
+
+    return {
+      goalId: input.goalId,
+      generatedAt: new Date().toISOString(),
+      totals,
+      byAgent: Array.from(byAgent.values()).sort((left, right) => roleSort(left.role) - roleSort(right.role)),
+      byCli: Array.from(byCli.values()).sort((left, right) => left.cliType.localeCompare(right.cliType))
+    };
+  }
+
   async findNextCreatedTask(input: {
     goalId: string;
     afterPriority: number;
@@ -367,6 +481,14 @@ export class DionysusRepository {
         [input.taskId]
       );
       await client.query(
+        `update ${this.table("task_runs")}
+         set status = 'failed',
+             exit_code = coalesce(exit_code, 124),
+             finished_at = coalesce(finished_at, now())
+         where task_id = $1 and status = 'running'`,
+        [input.taskId]
+      );
+      await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
         [
@@ -399,6 +521,14 @@ export class DionysusRepository {
         [input.taskId, input.reason]
       );
       await client.query(
+        `update ${this.table("task_runs")}
+         set status = 'failed',
+             exit_code = coalesce(exit_code, 124),
+             finished_at = coalesce(finished_at, now())
+         where task_id = $1 and status = 'running'`,
+        [input.taskId]
+      );
+      await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
         [randomUUID(), input.taskId, "watchdog.blocked", JSON.stringify({ reason: input.reason })]
@@ -418,22 +548,27 @@ export class DionysusRepository {
     cliModel?: string;
     command: string;
     prompt: string;
-  }): Promise<string> {
+  }): Promise<string | null> {
     const id = randomUUID();
     const client = await this.pool.connect();
     try {
       await client.query("begin");
+      const taskUpdate = await client.query(
+        `update ${this.table("tasks")}
+         set status = 'running', current_attempt = current_attempt + 1, updated_at = now()
+         where id = $1 and status in ('created', 'queued', 'failed')
+         returning id`,
+        [input.taskId]
+      );
+      if (!taskUpdate.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
       await client.query(
         `insert into ${this.table("task_runs")}
           (id, task_id, cli_type, cli_model, command, prompt, status, started_at)
          values ($1, $2, $3, $4, $5, $6, 'running', now())`,
         [id, input.taskId, input.cliType, input.cliModel ?? null, input.command, input.prompt]
-      );
-      await client.query(
-        `update ${this.table("tasks")}
-         set status = 'running', current_attempt = current_attempt + 1, updated_at = now()
-         where id = $1`,
-        [input.taskId]
       );
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
@@ -1600,6 +1735,22 @@ function mapCodexOutboxEvent(row: Record<string, unknown>): CodexOutboxEvent {
     updatedAt: new Date(String(row.updated_at)).toISOString(),
     ackedAt: row.acked_at ? new Date(String(row.acked_at)).toISOString() : undefined
   };
+}
+
+function latestIso(current?: string, candidate?: string): string | undefined {
+  if (!candidate) return current;
+  if (!current) return candidate;
+  return Date.parse(candidate) > Date.parse(current) ? candidate : current;
+}
+
+function roleSort(role: AgentRole): number {
+  const order: Record<AgentRole, number> = {
+    master: 0,
+    rule_writer: 1,
+    test_writer: 2,
+    worker: 3
+  };
+  return order[role] ?? 99;
 }
 
 function node(id: string, type: string, x: number, y: number, data: Record<string, unknown>): FlowNode {

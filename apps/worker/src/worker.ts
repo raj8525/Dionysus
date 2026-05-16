@@ -5,6 +5,7 @@ import type { AgentRole, CliType, Goal, RolePromptTask } from "@dionysus/core";
 import {
   applyPatchToTarget,
   buildAddFilesPatch,
+  buildCodexOutboxDraft,
   buildPreflightRemediation,
   buildTargetPreflight,
   buildRolePrompt,
@@ -79,6 +80,13 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       command: `${workerCliType}.run`,
       prompt
     });
+    if (!runId) {
+      await repo.recordTaskEvent(message.task_id, "task.run_skipped_already_active", {
+        messageId: message.message_id,
+        attempt: message.attempt
+      });
+      return;
+    }
 
     const result = await adapter.run({
       taskId: message.task_id,
@@ -174,6 +182,14 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     command: `${roleName}.governance`,
     prompt
   });
+  if (!runId) {
+    await repo.recordTaskEvent(message.task_id, "task.run_skipped_already_active", {
+      messageId: message.message_id,
+      attempt: message.attempt,
+      role
+    });
+    return;
+  }
   const result = await roleAdapter.run({
     taskId: message.task_id,
     prompt,
@@ -269,6 +285,17 @@ async function handleWatchdogTask(message: QueueMessage): Promise<void> {
         taskId: task.id,
         reason: decision.reason
       });
+      await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+        goalId: task.goalId,
+        eventType: "blocker",
+        reason: `watchdog blocked ${task.roleRequired} task ${task.id}: ${decision.reason}`,
+        source: "watchdog.run",
+        payload: {
+          taskId: task.id,
+          roleRequired: task.roleRequired,
+          previousStatus: task.status
+        }
+      }));
       blocked += 1;
     }
   }

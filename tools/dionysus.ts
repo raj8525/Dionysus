@@ -101,6 +101,12 @@ async function main(): Promise<void> {
     });
   }
 
+  if (domain === "agent" && action === "usage") {
+    const goalId = readFlag(args, "--goal-id");
+    const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
+    return print(await request(`/api/usage/agent-cli${query}`));
+  }
+
   if (domain === "goal" && action === "status") {
     const goalId = requiredFlag(args, "--goal-id");
     const [flow, tasks, runs, integrations, milestones] = await Promise.all([
@@ -595,6 +601,7 @@ function usage(): void {
   tsx tools/dionysus.ts agent config list
   tsx tools/dionysus.ts agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
   tsx tools/dionysus.ts agent status --goal-id "..."
+  tsx tools/dionysus.ts agent usage --goal-id "..."
   tsx tools/dionysus.ts goal status --goal-id "..."
   tsx tools/dionysus.ts goal intake --goal-id "..."
   tsx tools/dionysus.ts goal bootstrap --goal-id "..."

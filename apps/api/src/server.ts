@@ -201,6 +201,11 @@ export async function buildServer() {
     return repo.listTaskRuns({ goalId: query.goalId, limit });
   });
 
+  app.get("/api/usage/agent-cli", async (request) => {
+    const query = request.query as { goalId?: string };
+    return repo.getAgentCliUsage({ goalId: query.goalId });
+  });
+
   app.get("/api/agent-cli-configs", async () => repo.listAgentCliConfigs());
 
   app.put("/api/agent-cli-configs", async (request, reply) => {
@@ -252,6 +257,17 @@ export async function buildServer() {
           taskId: task.id,
           reason: decision.reason
         });
+        await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+          goalId: task.goalId,
+          eventType: "blocker",
+          reason: `watchdog blocked ${task.roleRequired} task ${task.id}: ${decision.reason}`,
+          source: "watchdog.run",
+          payload: {
+            taskId: task.id,
+            roleRequired: task.roleRequired,
+            previousStatus: task.status
+          }
+        }));
       }
       actions.push({
         taskId: task.id,

@@ -139,6 +139,53 @@ export interface TaskRunRecord {
   logPreview: string;
 }
 
+export interface AgentCliModelUsage {
+  cliType: CliType;
+  cliModel: string;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+}
+
+export interface AgentCliUsage {
+  role: AgentRole;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+  models: AgentCliModelUsage[];
+}
+
+export interface CliUsage {
+  cliType: CliType;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+}
+
+export interface AgentCliUsageSummary {
+  goalId?: string;
+  generatedAt: string;
+  totals: {
+    cliCalls: number;
+    modelCalls: number;
+    runningCalls: number;
+    succeededCalls: number;
+    failedCalls: number;
+    distinctModels: number;
+  };
+  byAgent: AgentCliUsage[];
+  byCli: CliUsage[];
+}
+
 export interface TargetPreflightResult {
   goalId: string;
   status: "passed" | "blocked";
@@ -342,6 +389,17 @@ export async function fetchRuns(goalId?: string, limit = 20): Promise<TaskRunRec
     throw new Error(`Failed to load runs: ${response.status}`);
   }
   return (await response.json()) as TaskRunRecord[];
+}
+
+export async function fetchAgentCliUsage(goalId?: string): Promise<AgentCliUsageSummary> {
+  const params = new URLSearchParams();
+  if (goalId) params.set("goalId", goalId);
+  const query = params.toString();
+  const response = await fetch(`${apiBase}/api/usage/agent-cli${query ? `?${query}` : ""}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load agent CLI usage: ${response.status}`);
+  }
+  return (await response.json()) as AgentCliUsageSummary;
 }
 
 export async function runWatchdog(input = { runningTimeoutMinutes: 15, limit: 50 }): Promise<WatchdogRunResult> {

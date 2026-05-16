@@ -329,6 +329,7 @@ Then 未超过最大尝试次数的 task 必须重新入队
 And 超过最大尝试次数的 task 必须标记为 `blocked`
 And `failed` task 在未超过最大尝试次数时也必须重新入队
 And 每个处理动作必须写入 `task_events`
+And Watchdog 将 task 标记为 `blocked` 时必须写入 `codex_outbox` blocker 事件
 
 ## 场景 12.1：Worker Runtime 必须自动运行 Watchdog
 
@@ -370,6 +371,15 @@ Given `codex_outbox` 中存在 `pending` 事件
 When Codex 完成处理并执行 `pnpm dionysus codex ack --event-id "<event-id>"`
 Then 该事件状态必须变为 `acked`
 And 后续 heartbeat 不应继续返回该事件
+
+## 场景 15：Dashboard 实时展示 Agent CLI / 模型调用统计
+
+Given Dionysus 已经通过 Master、RuleWriter、TestWriter 或 Worker 发起过 CLI run
+When Codex 或前端请求 `GET /api/usage/agent-cli?goalId=<goal-id>`
+Then 返回每个 Agent 的累计 CLI 调用次数
+And 返回每个 Agent 使用的 CLI 与模型维度调用次数
+And Dashboard 每 5 秒自动刷新该统计
+And 统计口径必须来自 PostgreSQL `task_runs` 全量聚合，而不是只看最近列表分页
 
 ## 运行命令
 

@@ -47,6 +47,7 @@ pnpm dionysus agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
 pnpm dionysus agent config list
 pnpm dionysus agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
 pnpm dionysus agent status --goal-id "<goal-id>"
+pnpm dionysus agent usage --goal-id "<goal-id>"
 pnpm dionysus goal status --goal-id "<goal-id>"
 pnpm dionysus goal intake --goal-id "<goal-id>"
 pnpm dionysus goal bootstrap --goal-id "<goal-id>"

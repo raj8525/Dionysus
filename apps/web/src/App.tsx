@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { Activity, AlertTriangle, CheckCircle2, GitCommit, Network, Settings2 } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, CheckCircle2, GitCommit, Network, Settings2 } from "lucide-react";
 import {
   createGoal,
   fetchAgentCliConfigs,
+  fetchAgentCliUsage,
   fetchCurrentFlow,
   fetchE2ECampaigns,
   fetchE2ECases,
@@ -22,6 +23,7 @@ import {
   saveAgentCliConfig,
   validateCliModel,
   type AgentCliConfig,
+  type AgentCliUsageSummary,
   type AgentRole,
   type CliModelValidationResult,
   type CliProbeResult,
@@ -81,9 +83,10 @@ export function App() {
   const [e2eCampaigns, setE2ECampaigns] = useState<E2ECampaignRecord[]>([]);
   const [e2eCases, setE2ECases] = useState<E2ECaseRecord[]>([]);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+  const [agentCliUsage, setAgentCliUsage] = useState<AgentCliUsageSummary | null>(null);
 
   useEffect(() => {
-    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents(), refreshSystemHealth()])
+    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents(), refreshSystemHealth(), refreshAgentCliUsage()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -91,7 +94,20 @@ export function App() {
     if (activeGoalId) {
       refreshGoalEvidence(activeGoalId)
         .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      refreshAgentCliUsage(activeGoalId)
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
     }
+  }, [activeGoalId]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      Promise.all([
+        refreshSystemHealth(),
+        refreshAgentCliUsage(activeGoalId),
+        activeGoalId ? refreshGoalEvidence(activeGoalId) : Promise.resolve()
+      ]).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+    }, 5000);
+    return () => window.clearInterval(interval);
   }, [activeGoalId]);
 
   async function refreshFlow() {
@@ -181,6 +197,10 @@ export function App() {
 
   async function refreshSystemHealth() {
     setSystemHealth(await fetchSystemHealth());
+  }
+
+  async function refreshAgentCliUsage(goalId = activeGoalId) {
+    setAgentCliUsage(await fetchAgentCliUsage(goalId ?? undefined));
   }
 
   async function executeWatchdog() {
@@ -291,6 +311,10 @@ export function App() {
   }
 
   const healthSummary = summarizeSystemHealth(systemHealth);
+  const usageByRole = new Map(agentCliUsage?.byAgent.map((usage) => [usage.role, usage]) ?? []);
+  const usageGeneratedLabel = agentCliUsage?.generatedAt
+    ? new Date(agentCliUsage.generatedAt).toLocaleTimeString()
+    : "未加载";
 
   return (
     <main className="appShell">
@@ -383,6 +407,66 @@ export function App() {
             </div>
           ) : (
             <div className="emptyState">尚未加载系统健康状态</div>
+          )}
+        </section>
+        <section className="usagePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Live Usage</p>
+              <h3>Agent CLI / 模型调用统计</h3>
+            </div>
+            <div className="sectionActions">
+              <span className="refreshBadge">5s 自动刷新 · {usageGeneratedLabel}</span>
+              <button type="button" className="secondary" onClick={() => refreshAgentCliUsage()}>
+                刷新统计
+              </button>
+            </div>
+          </div>
+          {agentCliUsage ? (
+            <>
+              <div className="usageSummary">
+                <StatusCard icon={<BarChart3 />} label="CLI Calls" value={String(agentCliUsage.totals.cliCalls)} tone="neutral" />
+                <StatusCard icon={<Activity />} label="Model Calls" value={String(agentCliUsage.totals.modelCalls)} tone="neutral" />
+                <StatusCard icon={<CheckCircle2 />} label="Succeeded" value={String(agentCliUsage.totals.succeededCalls)} tone="good" />
+                <StatusCard icon={<AlertTriangle />} label="Failed" value={String(agentCliUsage.totals.failedCalls)} tone={agentCliUsage.totals.failedCalls ? "bad" : "neutral"} />
+              </div>
+              <div className="usageGrid">
+                {roleOrder.map((role) => {
+                  const usage = usageByRole.get(role);
+                  return (
+                    <article key={role} className="usageCard">
+                      <div className="usageCardHeader">
+                        <div>
+                          <strong>{roleLabels[role]}</strong>
+                          <span>{usage?.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
+                        </div>
+                        <b>{usage?.cliCalls ?? 0}</b>
+                      </div>
+                      <div className="usageMetrics">
+                        <span>模型调用 {usage?.modelCalls ?? 0}</span>
+                        <span>运行中 {usage?.runningCalls ?? 0}</span>
+                        <span>失败 {usage?.failedCalls ?? 0}</span>
+                      </div>
+                      <div className="modelUsageList">
+                        {usage?.models.length ? (
+                          usage.models.map((model) => (
+                            <div key={`${role}-${model.cliType}-${model.cliModel}`} className="modelUsageRow">
+                              <span>{model.cliType}</span>
+                              <strong>{model.cliModel}</strong>
+                              <em>{model.modelCalls}/{model.cliCalls}</em>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="modelUsageEmpty">暂无 CLI run</div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="emptyState">尚未加载 Agent 调用统计</div>
           )}
         </section>
         <section className="preflightPanel">

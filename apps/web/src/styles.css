@@ -225,6 +225,7 @@ button:disabled {
 
 .preflightPanel,
 .runtimePanel,
+.usagePanel,
 .masterPanel,
 .integrationPanel,
 .evidencePanel,
@@ -241,6 +242,131 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
   gap: 12px;
+}
+
+.usageSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.usageGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.usageCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.usageCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.usageCardHeader strong,
+.usageCardHeader span {
+  display: block;
+}
+
+.usageCardHeader span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.usageCardHeader b {
+  min-width: 42px;
+  text-align: right;
+  color: #0f3a5a;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.usageMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.usageMetrics span {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.modelUsageList {
+  display: grid;
+  gap: 6px;
+}
+
+.modelUsageRow {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 1px solid #eadcc2;
+  border-radius: 6px;
+  background: #fffdf8;
+}
+
+.modelUsageRow span,
+.modelUsageRow strong,
+.modelUsageRow em,
+.modelUsageEmpty {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.modelUsageRow span {
+  color: #8a641f;
+  font-weight: 800;
+}
+
+.modelUsageRow strong {
+  color: #334155;
+}
+
+.modelUsageRow em {
+  color: #64748b;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.modelUsageEmpty {
+  padding: 10px;
+  border: 1px dashed #d9c8aa;
+  border-radius: 6px;
+  color: #64748b;
+  text-align: center;
+}
+
+.refreshBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #eadcc2;
+  border-radius: 8px;
+  background: #fffaf1;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .preflightResult {
@@ -632,6 +758,11 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .usageSummary,
+  .usageGrid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
   .agentGrid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
@@ -661,6 +792,11 @@ h3 {
   }
 
   .agentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .usageSummary,
+  .usageGrid {
     grid-template-columns: 1fr;
   }
 
