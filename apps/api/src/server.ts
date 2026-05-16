@@ -11,6 +11,7 @@ import {
   buildNotificationPayload,
   buildTelegramRequest,
   buildTargetPreflight,
+  buildPreflightRemediation,
   checkGitPreflight,
   checkSpecTestGate,
   compileTargetProject,
@@ -461,6 +462,20 @@ export async function buildServer() {
     return {
       goalId: id,
       ...buildTargetPreflight({ git, gates })
+    };
+  });
+
+  app.post("/api/goals/:id/preflight-remediation", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const gates = await checkSpecTestGate(goal.targetRoot);
+    await repo.saveGateChecks({ goalId: id, checks: gates });
+    return {
+      goalId: id,
+      files: buildPreflightRemediation({ goal, gates })
     };
   });
 

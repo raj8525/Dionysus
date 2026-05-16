@@ -132,6 +132,12 @@ curl -X POST http://127.0.0.1:23100/api/patches \
 - SDD / TDD gate 检查结果
 - `blockers` 汇总，供 Codex 判断是否允许进入真实实现
 
+生成缺失门禁的建议文件草案，但不写入目标项目：
+
+```bash
+curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/preflight-remediation
+```
+
 ## Milestone / E2E / Notification
 
 ```bash

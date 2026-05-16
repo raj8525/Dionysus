@@ -121,6 +121,14 @@ And 必须同时运行 PLAN / specs / features_test gate
 And 如果 Git 脏或任一 gate blocked，则 preflight 返回 `blocked`  
 And response 必须包含 blockers 汇总
 
+## 场景 7.2：Preflight Remediation 只能生成草案
+
+Given target preflight 因缺少 PLAN / specs / features_test 被阻塞  
+When Codex 调用 `/api/goals/:id/preflight-remediation`  
+Then Dionysus 必须返回缺失文件的 path 和 content 草案  
+And 不得直接写入目标项目主工作区  
+And Codex 必须在审查草案后决定是否应用
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现  
