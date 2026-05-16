@@ -19,9 +19,14 @@ export async function createIsolatedWorkspace(input: {
   const workspacePath = join(input.workspaceRoot, `${basename(input.targetRoot)}-${taskSlug}`);
   await rm(workspacePath, { recursive: true, force: true });
   await mkdir(input.workspaceRoot, { recursive: true });
-  const result = await runCommand("cp", ["-R", input.targetRoot, workspacePath], input.workspaceRoot, 120_000);
+  const result = await runCommand(
+    "git",
+    ["clone", "--local", "--no-hardlinks", input.targetRoot, workspacePath],
+    input.workspaceRoot,
+    120_000
+  );
   if (result.exitCode !== 0) {
-    throw new Error(`Failed to create workspace: ${result.stderr}`);
+    throw new Error(`Failed to create git workspace: ${result.stderr}`);
   }
   await writeFile(join(workspacePath, ".dionysus-workspace"), `task_id=${input.taskId}\nsource=${input.targetRoot}\n`);
   return { workspacePath, taskSlug };
@@ -30,8 +35,19 @@ export async function createIsolatedWorkspace(input: {
 export async function createPatch(input: {
   workspacePath: string;
 }): Promise<{ patchText: string; changedFiles: string[] }> {
-  const diff = await runCommand("git", ["diff", "--", "."], input.workspacePath, 120_000);
-  const names = await runCommand("git", ["diff", "--name-only", "--", "."], input.workspacePath, 120_000);
+  const intentToAdd = await runCommand("git", ["add", "-N", "."], input.workspacePath, 120_000);
+  if (intentToAdd.exitCode !== 0) {
+    throw new Error(`Workspace is not diffable: ${intentToAdd.stderr}`);
+  }
+  const pathspec = [".", ":(exclude).dionysus-workspace"];
+  const diff = await runCommand("git", ["diff", "--binary", "--", ...pathspec], input.workspacePath, 120_000);
+  if (diff.exitCode !== 0) {
+    throw new Error(`Failed to create patch: ${diff.stderr}`);
+  }
+  const names = await runCommand("git", ["diff", "--name-only", "--", ...pathspec], input.workspacePath, 120_000);
+  if (names.exitCode !== 0) {
+    throw new Error(`Failed to list changed files: ${names.stderr}`);
+  }
   return {
     patchText: diff.stdout,
     changedFiles: names.stdout

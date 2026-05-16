@@ -20,14 +20,18 @@ export interface QueueMessage {
 
 export async function publishJson(queue: string, message: QueueMessage): Promise<void> {
   const connection = await amqp.connect(requiredMqUrl());
-  const channel = await connection.createChannel();
+  const channel = await connection.createConfirmChannel();
   try {
     await channel.assertQueue(queue, { durable: true });
-    channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)), {
+    const accepted = channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)), {
       contentType: "application/json",
       persistent: true,
       messageId: message.message_id
     });
+    if (!accepted) {
+      await new Promise((resolve) => channel.once("drain", resolve));
+    }
+    await channel.waitForConfirms();
   } finally {
     await channel.close();
     await connection.close();

@@ -7,5 +7,6 @@ dist/
 .dionysus/locks/
 .dionysus/patches/
 .dionysus/e2e/
+.dionysus/workspaces/
 coverage/
 *.log
