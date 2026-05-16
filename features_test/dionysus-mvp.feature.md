@@ -67,6 +67,15 @@ When Codex 调用 `/api/goals/:id/bootstrap`
 Then Dionysus 必须创建 Master、RuleWriter、TestWriter、Worker、Master Review 任务  
 And Worker 任务必须排在规格和测试任务之后
 
+## 场景 6.2：角色任务必须自动串联
+
+Given bootstrap 已创建任务树  
+When 第一个 Master 任务完成  
+Then Dionysus 必须自动投递 RuleWriter 任务  
+And RuleWriter 完成后必须投递 TestWriter  
+And TestWriter 完成后必须投递 Worker  
+And Worker 完成后必须投递 Review Master
+
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
 Given 一个指向目标项目的 goal  

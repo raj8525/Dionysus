@@ -2,7 +2,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { CliType } from "@dionysus/core";
-import { applyPatchToTarget, createIsolatedWorkspace, createPatch as createWorkspacePatch } from "@dionysus/core";
+import { applyPatchToTarget, createIsolatedWorkspace, createPatch as createWorkspacePatch, queueForRole } from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
@@ -85,6 +85,9 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     }
 
     await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
+    if (result.exitCode === 0) {
+      await dispatchNextTask(message.task_id);
+    }
 
     await publishJson(integrationQueue, {
       message_id: randomUUID(),
@@ -137,6 +140,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     next: roleName === "master" ? "review task tree or dispatch next role" : "return to master"
   });
   await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 0 });
+  await dispatchNextTask(message.task_id);
 }
 
 async function handleIntegrationTask(message: QueueMessage): Promise<void> {
@@ -169,6 +173,32 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
       testStatus: result.status === "applied" ? (integrationVerificationCommands.length ? "passed" : "missing") : "blocked",
       verificationCommands: integrationVerificationCommands
     }
+  });
+}
+
+async function dispatchNextTask(completedTaskId: string): Promise<void> {
+  const completedTask = await repo.getTask(completedTaskId);
+  if (!completedTask) return;
+  const goalId = String(completedTask.goal_id);
+  const priority = Number(completedTask.priority);
+  const nextTask = await repo.findNextCreatedTask({ goalId, afterPriority: priority });
+  if (!nextTask) {
+    await repo.recordTaskEvent(completedTaskId, "dispatch.no_next_task", { goalId });
+    return;
+  }
+  await repo.markTaskQueued(nextTask.id);
+  await publishJson(queueForRole(nextTask.roleRequired), {
+    message_id: randomUUID(),
+    goal_id: goalId,
+    task_id: nextTask.id,
+    type: `${nextTask.roleRequired}_task`,
+    attempt: 1,
+    idempotency_key: `${nextTask.id}:${nextTask.roleRequired}:1`,
+    created_at: new Date().toISOString()
+  });
+  await repo.recordTaskEvent(completedTaskId, "dispatch.next_task", {
+    nextTaskId: nextTask.id,
+    nextRole: nextTask.roleRequired
   });
 }
 

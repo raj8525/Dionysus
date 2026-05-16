@@ -114,6 +114,39 @@ export class DionysusRepository {
     return result.rows;
   }
 
+  async findNextCreatedTask(input: {
+    goalId: string;
+    afterPriority: number;
+  }): Promise<{ id: string; roleRequired: AgentRole; priority: number } | null> {
+    const result = await this.pool.query(
+      `select id, role_required, priority
+       from ${this.table("tasks")}
+       where goal_id = $1
+         and status = 'created'
+         and priority > $2
+       order by priority asc, created_at asc
+       limit 1`,
+      [input.goalId, input.afterPriority]
+    );
+    if (!result.rowCount) return null;
+    return {
+      id: String(result.rows[0].id),
+      roleRequired: result.rows[0].role_required as AgentRole,
+      priority: Number(result.rows[0].priority)
+    };
+  }
+
+  async getTask(taskId: string): Promise<Record<string, unknown> | null> {
+    const result = await this.pool.query(
+      `select id, goal_id, title, description, role_required, assigned_agent_id, status, priority,
+              blocked_reason, current_attempt, max_attempts, created_at, updated_at
+       from ${this.table("tasks")}
+       where id = $1`,
+      [taskId]
+    );
+    return result.rowCount ? result.rows[0] : null;
+  }
+
   async markTaskQueued(taskId: string): Promise<void> {
     await this.pool.query(
       `update ${this.table("tasks")}
