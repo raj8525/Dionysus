@@ -91,4 +91,11 @@ describe("dionysus CLI API command resolver", () => {
       method: "POST"
     });
   });
+
+  it("maps task review to the review API", () => {
+    expect(resolveApiCommand(["task", "review", "--task-id", "task-123"])).toEqual({
+      path: "/api/tasks/task-123/review",
+      method: "POST"
+    });
+  });
 });

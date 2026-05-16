@@ -468,6 +468,19 @@ Then task 状态必须变为 `cancelled`
 And 系统必须记录 `task.cancelled` 事件
 And 该 task 下仍处于 `running` 的 run 必须被收口，不能继续显示 running
 
+## 场景 17.1：Codex 可以评审 Agent 产物
+
+Given 一个 task 处于 `needs_review`
+When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict approve`
+Then task 状态必须变为 `done`
+And 系统必须记录 `task.review_approve` 事件
+When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict reject`
+Then task 状态必须变为 `queued`
+And Dionysus 必须重新投递到该 task 的角色队列
+When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict block --reason "需要人工澄清"`
+Then task 状态必须变为 `blocked`
+And blocker reason 必须保存在 task 上
+
 ## 场景 18：有 patch 的任务必须等 integration 成功后再放行下一任务
 
 Given RuleWriter、TestWriter 或 Worker run 成功并产生 patch

@@ -660,6 +660,49 @@ export class DionysusRepository {
     }
   }
 
+  async reviewTask(input: {
+    taskId: string;
+    verdict: "approve" | "reject" | "block";
+    nextStatus: "done" | "queued" | "blocked";
+    reason: string;
+  }): Promise<Record<string, unknown> | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `update ${this.table("tasks")}
+         set status = $2,
+             blocked_reason = case when $2 = 'blocked' then $3 else null end,
+             updated_at = now()
+         where id = $1 and status = 'needs_review'
+         returning id, goal_id, title, description, role_required, assigned_agent_id, status, priority,
+                   blocked_reason, current_attempt, max_attempts, created_at, updated_at`,
+        [input.taskId, input.nextStatus, input.reason]
+      );
+      if (!result.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [
+          randomUUID(),
+          input.taskId,
+          `task.review_${input.verdict}`,
+          JSON.stringify({ verdict: input.verdict, nextStatus: input.nextStatus, reason: input.reason })
+        ]
+      );
+      await client.query("commit");
+      return result.rows[0];
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async createTaskRun(input: {
     taskId: string;
     cliType: CliType;

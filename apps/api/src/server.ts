@@ -23,7 +23,8 @@ import {
   findUnmanagedGitChanges,
   resolveNotificationChannels,
   queueForRole,
-  deriveWorkerHealth
+  deriveWorkerHealth,
+  taskReviewStatusForVerdict
 } from "@dionysus/core";
 import type { NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
 import { probeAllClis, validateCliModel } from "@dionysus/cli-adapters";
@@ -101,6 +102,11 @@ const createPatchSchema = z.object({
 
 const cancelTaskSchema = z.object({
   reason: z.string().min(1).default("cancelled by Codex")
+});
+
+const reviewTaskSchema = z.object({
+  verdict: z.enum(["approve", "reject", "block"]),
+  reason: z.string().min(1).default("reviewed by Codex")
 });
 
 const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS ?? "90", 10);
@@ -517,6 +523,37 @@ export async function buildServer() {
       created_at: new Date().toISOString()
     });
     return reply.code(202).send({ id, status: "queued", roleRequired });
+  });
+
+  app.post("/api/tasks/:id/review", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = reviewTaskSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_TASK_REVIEW_INPUT", details: parsed.error.flatten() });
+    }
+    const nextStatus = taskReviewStatusForVerdict(parsed.data.verdict);
+    const task = await repo.reviewTask({
+      taskId: id,
+      verdict: parsed.data.verdict,
+      nextStatus,
+      reason: parsed.data.reason
+    });
+    if (!task) {
+      return reply.code(409).send({ error: "TASK_NOT_REVIEWABLE", requiredStatus: "needs_review" });
+    }
+    if (parsed.data.verdict === "reject") {
+      const roleRequired = String(task.role_required);
+      await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
+        message_id: randomUUID(),
+        goal_id: String(task.goal_id),
+        task_id: id,
+        type: `${roleRequired}_task_review_rejected`,
+        attempt: Number(task.current_attempt ?? 0) + 1,
+        idempotency_key: `${id}:${roleRequired}:review-reject:${Date.now()}`,
+        created_at: new Date().toISOString()
+      });
+    }
+    return reply.code(202).send(task);
   });
 
   app.post("/api/goals/:id/intake", async (request, reply) => {

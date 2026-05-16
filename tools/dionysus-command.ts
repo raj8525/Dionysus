@@ -85,6 +85,14 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "task" && action === "review") {
+    const taskId = requiredFlag(args, "--task-id");
+    return {
+      path: `/api/tasks/${encodeURIComponent(taskId)}/review`,
+      method: "POST"
+    };
+  }
+
   return undefined;
 }
 

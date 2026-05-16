@@ -22,4 +22,5 @@ export * from "./integration-verification.js";
 export * from "./agent-run-config.js";
 export * from "./agent-cli-usage.js";
 export * from "./cli-usage-receipt.js";
+export * from "./task-review.js";
 export * from "./agent-assignment.js";

@@ -413,6 +413,7 @@ pnpm dionysus integration retry --integration-id "<integration-id>"
 pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no-queue
 pnpm dionysus task enqueue --task-id "<task-id>"
 pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged sequence"
+pnpm dionysus task review --task-id "<task-id>" --verdict approve --reason "reviewed by Codex"
 ```
 
 `system worker start` 必须用 detached 进程启动 Worker Runtime，并把 stdout/stderr 写入 `.dionysus/logs/worker-*.log`。Codex 不应该依赖前台 shell 会话维持 Worker 心跳。
@@ -422,6 +423,8 @@ pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged s
 `POST /api/tasks/:id/enqueue` 用于重投递已存在的 `created` 或 `queued` 任务。当任务状态已经是 `queued` 但 RabbitMQ 消息因 worker 重启、旧消费者异常或运维操作而丢失时，Codex 必须能使用 `pnpm dionysus task enqueue --task-id "<task-id>"` 重新投递，不需要重建任务。
 
 `POST /api/tasks/:id/cancel` 用于 Codex 或 Master 取消错误排队、过宽、过期或被新任务替代的任务。取消时必须把 task 标记为 `cancelled`，记录 `task.cancelled` 事件，并收口该 task 下仍处于 `running` 的 run。
+
+`POST /api/tasks/:id/review` 是 Codex 或 Master 对 Agent 产物的正式评审入口，只允许评审状态为 `needs_review` 的任务。`verdict=approve` 必须将任务标记为 `done`；`verdict=reject` 必须将任务退回 `queued` 并重新投递到该任务 `role_required` 对应队列；`verdict=block` 必须将任务标记为 `blocked` 并写入 `blocked_reason`。每次 review 都必须记录 `task.review_approve`、`task.review_reject` 或 `task.review_block` 事件；任务不在 `needs_review` 时必须返回 `409 TASK_NOT_REVIEWABLE`。
 
 Agent Runtime 执行任务时必须优先读取 `agent_cli_configs` 中对应角色的配置。`DIONYSUS_WORKER_CLI_TYPE` 和 `DIONYSUS_WORKER_CLI_MODEL` 只能作为没有角色配置时的兼容 fallback，不得覆盖 Dashboard/CLI 已保存的 `Master`、`RuleWriter`、`TestWriter`、`Worker` 配置。否则 Dashboard 会显示 Agent 已配置为真实 CLI，但实际 run 仍可能落到 `mock`，这是不可接受的控制面漂移。
 
