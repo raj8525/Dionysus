@@ -189,9 +189,12 @@ Codex 也必须有一个高层单步循环命令：
 
 ```text
 pnpm dionysus goal run-cycle --goal-id "<goal-id>" --target-url "<local-url>" --run-e2e --mode strict
+pnpm dionysus goal supervise --goal-id "<goal-id>" --iterations 5 --interval-seconds 30
 ```
 
 `run-cycle` 必须顺序执行 preflight、master-step、detect-milestones，返回当前 blocker、nextOwner、nextActions。提供 `target-url` 时，它可以为待验收 milestone 创建或复用 E2E campaign；只有显式传入 `--run-e2e` 才运行浏览器测试，且 `strict` 模式不得伪造产品主路径通过。
+
+`supervise` 必须按轮次执行 agent status 与 run-cycle，直到出现 runtime blocker、业务 blocker、E2E 需要 Codex 介入，或达到最大轮次。它是 Codex 7x24 监督 Dionysus 的主入口，不能依赖前端刷新。
 
 ## Patch Queue
 

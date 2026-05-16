@@ -58,6 +58,7 @@ pnpm dionysus goal master-step --goal-id "<goal-id>"
 pnpm dionysus goal release-ready --goal-id "<goal-id>"
 pnpm dionysus goal detect-milestones --goal-id "<goal-id>"
 pnpm dionysus goal run-cycle --goal-id "<goal-id>" --target-url "http://localhost:23101" --run-e2e --mode strict
+pnpm dionysus goal supervise --goal-id "<goal-id>" --iterations 5 --interval-seconds 30
 pnpm dionysus integration list --goal-id "<goal-id>"
 pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
 pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"

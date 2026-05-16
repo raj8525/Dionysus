@@ -172,6 +172,14 @@ And 返回 blocker、nextOwner、nextActions
 And 如果传入 `--target-url`，必须创建或复用 E2E campaign  
 And 如果未显式传入 `--run-e2e`，不得自动提交 E2E 结果或 milestone verdict
 
+## 场景 7.0.2：Codex CLI 提供持续监督循环
+
+Given Dionysus API、RabbitMQ 和 Worker 已启动  
+When Codex 运行 `pnpm dionysus goal supervise --goal-id <id> --iterations 5`  
+Then CLI 必须每轮检查 Agent runtime 状态和运行一次 goal run-cycle  
+And 如果 runtime blocked、业务 blocked 或 E2E 需要 Codex 介入，必须停止并返回原因  
+And 如果仍可推进，必须继续下一轮直到达到 iteration 上限
+
 ## 场景 7.1：Target Preflight 必须阻止脏工作区试运行
 
 Given 一个指向目标项目的 goal  

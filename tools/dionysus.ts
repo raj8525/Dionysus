@@ -3,6 +3,7 @@ import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
+import { summarizeSupervisionStep } from "./dionysus-supervise.js";
 import type { AgentRole, CliType } from "@dionysus/core";
 
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
@@ -126,6 +127,19 @@ async function main(): Promise<void> {
   if (domain === "goal" && action === "run-cycle") {
     return print(await runGoalCycle({
       goalId: requiredFlag(args, "--goal-id"),
+      targetUrl: readFlag(args, "--target-url"),
+      runE2E: hasFlag(args, "--run-e2e"),
+      e2eMode: (readFlag(args, "--mode") ?? "strict") as "strict" | "render-only",
+      acceptance: readRepeatedFlag(args, "--acceptance"),
+      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e"
+    }));
+  }
+
+  if (domain === "goal" && action === "supervise") {
+    return print(await superviseGoal({
+      goalId: requiredFlag(args, "--goal-id"),
+      iterations: optionalNumberFlag(args, "--iterations") ?? 3,
+      intervalSeconds: optionalNumberFlag(args, "--interval-seconds") ?? 30,
       targetUrl: readFlag(args, "--target-url"),
       runE2E: hasFlag(args, "--run-e2e"),
       e2eMode: (readFlag(args, "--mode") ?? "strict") as "strict" | "render-only",
@@ -337,6 +351,65 @@ async function collectCampaignsForMilestones(milestones: Array<Record<string, un
   return campaigns;
 }
 
+async function superviseGoal(input: {
+  goalId: string;
+  iterations: number;
+  intervalSeconds: number;
+  targetUrl?: string;
+  runE2E: boolean;
+  e2eMode: "strict" | "render-only";
+  acceptance: string[];
+  screenshotDir: string;
+}): Promise<Record<string, unknown>> {
+  const steps: Array<Record<string, unknown>> = [];
+  const maxIterations = Math.max(1, Math.min(input.iterations, 50));
+  for (let index = 0; index < maxIterations; index += 1) {
+    const [health, configs, tasks, runs] = await Promise.all([
+      request("/health") as Promise<Record<string, unknown>>,
+      request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
+      request(`/api/tasks?goalId=${input.goalId}`) as Promise<Array<Record<string, unknown>>>,
+      request(`/api/runs?goalId=${input.goalId}&limit=20`) as Promise<Array<Record<string, unknown>>>
+    ]);
+    const agentStatus = {
+      goalId: input.goalId,
+      summary: summarizeAgentControlStatus({ health, configs, tasks, runs }),
+      health,
+      configs,
+      tasks,
+      runs
+    };
+    const runCycle = await runGoalCycle(input);
+    const summary = summarizeSupervisionStep({ agentStatus, runCycle });
+    steps.push({
+      iteration: index + 1,
+      summary,
+      agentSummary: agentStatus.summary,
+      runCycleSummary: runCycle.summary
+    });
+    if (!summary.shouldContinue) {
+      return {
+        goalId: input.goalId,
+        status: summary.status,
+        stoppedAtIteration: index + 1,
+        steps
+      };
+    }
+    if (index < maxIterations - 1 && input.intervalSeconds > 0) {
+      await sleep(input.intervalSeconds * 1000);
+    }
+  }
+  return {
+    goalId: input.goalId,
+    status: "working",
+    stoppedAtIteration: maxIterations,
+    steps
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function runE2ECase(input: {
   page: import("playwright").Page;
   targetUrl: string;
@@ -502,6 +575,7 @@ function usage(): void {
   tsx tools/dionysus.ts goal release-ready --goal-id "..."
   tsx tools/dionysus.ts goal detect-milestones --goal-id "..."
   tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict
+  tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30
   tsx tools/dionysus.ts integration list --goal-id "..."
   tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker
   tsx tools/dionysus.ts milestone request-e2e --milestone-id "..."
