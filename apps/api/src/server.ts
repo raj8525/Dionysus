@@ -99,7 +99,10 @@ export async function buildServer() {
   const repo = new DionysusRepository(pool, dbConfig.schema);
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  });
 
   app.addHook("onClose", async () => {
     await pool.end();

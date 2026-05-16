@@ -32,9 +32,20 @@ export interface AgentCliConfig {
 export interface CliProbeResult {
   cliType: CliType;
   available: boolean;
+  command?: string;
   version?: string;
   models?: string[];
   error?: string;
+}
+
+export interface CliModelValidationResult {
+  cliType: CliType;
+  inputModel: string | null;
+  resolvedModel: string | null;
+  available: boolean;
+  command: string;
+  reason?: string;
+  suggestions?: string[];
 }
 
 export interface WatchdogEvent {
@@ -205,6 +216,21 @@ export async function probeClis(): Promise<CliProbeResult[]> {
     throw new Error(`Failed to probe CLIs: ${response.status}`);
   }
   return (await response.json()) as CliProbeResult[];
+}
+
+export async function validateCliModel(input: {
+  cliType: CliType;
+  model?: string | null;
+}): Promise<CliModelValidationResult> {
+  const response = await fetch(`${apiBase}/api/cli/validate-model`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to validate CLI model: ${response.status}`);
+  }
+  return (await response.json()) as CliModelValidationResult;
 }
 
 export async function fetchWatchdogEvents(limit = 20): Promise<WatchdogEvent[]> {

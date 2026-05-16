@@ -239,6 +239,11 @@ curl -X POST http://127.0.0.1:23100/api/cli/validate-model \
 
 预期返回会包含 `resolvedModel`。例如 `minimax/MiniMax-M2.7` 会按 `DIONYSUS_OPENCODE_MODEL_ALIASES` 解析为 `minimax-cn-coding-plan/MiniMax-M2.7`，再与 `opencode models` 的输出比对。
 
+Dashboard 保存 OpenCode 角色配置时会自动执行同一验证：
+
+- 模型可用：页面显示 `inputModel -> resolvedModel`，并保存 `resolvedModel`。
+- 模型不可用：阻止保存，展示失败原因和建议模型。
+
 为某个角色配置 CLI：
 
 ```bash

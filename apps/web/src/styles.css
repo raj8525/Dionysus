@@ -492,6 +492,31 @@ h3 {
   padding: 0 10px;
 }
 
+.modelValidation {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.modelValidation.passed {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.modelValidation.failed {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.modelValidation span,
+.modelValidation small {
+  overflow-wrap: anywhere;
+}
+
 .inlineToggle {
   display: flex !important;
   grid-template-columns: none;

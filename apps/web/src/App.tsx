@@ -16,8 +16,10 @@ import {
   runTargetPreflight,
   runWatchdog,
   saveAgentCliConfig,
+  validateCliModel,
   type AgentCliConfig,
   type AgentRole,
+  type CliModelValidationResult,
   type CliProbeResult,
   type CliType,
   type FlowResponse,
@@ -32,6 +34,7 @@ import {
   type WatchdogEvent,
   type WatchdogRunResult
 } from "./api.js";
+import { AgentConfigValidationError, saveValidatedAgentCliConfig } from "./agent-config-validation.js";
 
 const nodeTypes = {
   goal: FlowStatusNode,
@@ -49,6 +52,7 @@ export function App() {
   const [agentConfigs, setAgentConfigs] = useState<Record<AgentRole, AgentCliConfig>>(defaultAgentConfigs);
   const [probeResults, setProbeResults] = useState<CliProbeResult[]>([]);
   const [savingRole, setSavingRole] = useState<AgentRole | null>(null);
+  const [modelValidations, setModelValidations] = useState<Partial<Record<AgentRole, CliModelValidationResult>>>({});
   const [probing, setProbing] = useState(false);
   const [watchdogEvents, setWatchdogEvents] = useState<WatchdogEvent[]>([]);
   const [watchdogRun, setWatchdogRun] = useState<WatchdogRunResult | null>(null);
@@ -124,9 +128,22 @@ export function App() {
     setSavingRole(role);
     setError(null);
     try {
-      const saved = await saveAgentCliConfig(agentConfigs[role]);
-      setAgentConfigs((current) => ({ ...current, [role]: saved }));
+      const result = await saveValidatedAgentCliConfig(agentConfigs[role], {
+        validate: validateCliModel,
+        save: saveAgentCliConfig
+      });
+      setAgentConfigs((current) => ({ ...current, [role]: result.saved }));
+      setModelValidations((current) => ({
+        ...current,
+        [role]: result.validation
+      }));
     } catch (err) {
+      if (err instanceof AgentConfigValidationError) {
+        setModelValidations((current) => ({
+          ...current,
+          [role]: err.validation
+        }));
+      }
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingRole(null);
@@ -467,6 +484,7 @@ export function App() {
                 key={role}
                 config={agentConfigs[role]}
                 probeResults={probeResults}
+                validation={modelValidations[role]}
                 saving={savingRole === role}
                 onChange={(patch) => updateRoleConfig(role, patch)}
                 onSave={() => saveRoleConfig(role)}
@@ -554,6 +572,7 @@ function StatusCard(props: {
 function AgentConfigCard(props: {
   config: AgentCliConfig;
   probeResults: CliProbeResult[];
+  validation?: CliModelValidationResult;
   saving: boolean;
   onChange: (patch: Partial<AgentCliConfig>) => void;
   onSave: () => void;
@@ -602,6 +621,17 @@ function AgentConfigCard(props: {
         />
         启用
       </label>
+      {props.validation ? (
+        <div className={`modelValidation ${props.validation.available ? "passed" : "failed"}`}>
+          <strong>{props.validation.available ? "模型可用" : "模型不可用"}</strong>
+          <span>
+            {props.validation.inputModel ?? "(默认)"} → {props.validation.resolvedModel ?? "(未解析)"}
+          </span>
+          {!props.validation.available && props.validation.suggestions?.length ? (
+            <small>建议：{props.validation.suggestions.join(", ")}</small>
+          ) : null}
+        </div>
+      ) : null}
       <button type="button" onClick={props.onSave} disabled={props.saving}>
         {props.saving ? "保存中..." : "保存配置"}
       </button>

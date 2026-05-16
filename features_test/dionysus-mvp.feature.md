@@ -102,6 +102,9 @@ When Codex 打开 Dashboard
 Then 页面必须展示 Master、RuleWriter、TestWriter、Worker 四个角色配置卡  
 And 每个角色必须能选择 CLI、填写模型、启用或禁用并保存  
 And 页面必须提供 CLI 探测入口  
+And 保存 OpenCode 配置前必须调用 `/api/cli/validate-model`  
+And 如果模型可用，页面必须显示 input model 到 resolved model 的映射并保存 resolved model  
+And 如果模型不可用，页面必须阻止保存并显示原因与建议模型  
 And React Flow 控制台不得出现缺失 handle 的 edge warning
 
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
