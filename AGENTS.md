@@ -33,6 +33,24 @@ pnpm db:migrate
 pnpm dev
 ```
 
+## Codex CLI 入口
+
+Codex 日常操作 Dionysus 优先使用统一 CLI，避免手写 `curl`：
+
+```bash
+pnpm dionysus goal status --goal-id "<goal-id>"
+pnpm dionysus goal preflight --goal-id "<goal-id>"
+pnpm dionysus goal master-step --goal-id "<goal-id>"
+pnpm dionysus goal detect-milestones --goal-id "<goal-id>"
+pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
+pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"
+pnpm dionysus e2e cases --campaign-id "<campaign-id>"
+pnpm dionysus e2e case-result --case-id "<case-id>" --status passed --result-json '{"evidence":"checked by Codex"}'
+pnpm dionysus milestone verdict --milestone-id "<milestone-id>" --verdict passed --reason "E2E passed"
+pnpm dionysus milestone notify --milestone-id "<milestone-id>" --summary "里程碑完成" --target-url "http://localhost:23101"
+pnpm dionysus notification deliver --notification-id "<notification-id>"
+```
+
 ## 目标项目配置
 
 Coupon 试点项目路径：

@@ -12,7 +12,8 @@
     "db:migrate": "pnpm --filter @dionysus/db migrate",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "goal:create": "tsx tools/dionysus.ts goal create"
+    "goal:create": "tsx tools/dionysus.ts goal create",
+    "dionysus": "tsx tools/dionysus.ts"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
