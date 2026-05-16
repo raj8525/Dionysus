@@ -95,6 +95,15 @@ export class DionysusRepository {
     return result.rows.map(mapGoal);
   }
 
+  async healthCheck(): Promise<{ ok: boolean; schema: string; databaseTime: string }> {
+    const result = await this.pool.query("select now() as database_time");
+    return {
+      ok: true,
+      schema: this.schema,
+      databaseTime: new Date(result.rows[0].database_time).toISOString()
+    };
+  }
+
   async createTask(input: {
     goalId: string;
     title: string;

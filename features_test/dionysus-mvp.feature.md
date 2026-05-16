@@ -15,6 +15,13 @@ Then PostgreSQL 中必须出现 goal 记录
 And goal 状态为 `created`  
 And 系统事件中记录 `goal.created`
 
+## 场景 1.1：系统 Doctor 必须检查真实依赖
+
+Given Dionysus API 已启动  
+When Codex 运行 `pnpm dionysus system doctor`  
+Then 返回必须包含 API health、PostgreSQL health 和 CLI probe  
+And `/health` 不得只返回静态 ok，必须检查数据库连接
+
 ## 场景 2：任务状态机拒绝非法迁移
 
 Given 一个状态为 `created` 的 task  

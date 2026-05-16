@@ -6,6 +6,8 @@
 GET /health
 ```
 
+`/health` 必须真实检查 API 与 PostgreSQL 连接状态，返回 `database.ok`、schema 和数据库时间，不能只返回静态 `ok: true`。
+
 返回：
 
 ```json

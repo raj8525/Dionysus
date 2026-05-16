@@ -24,6 +24,27 @@ async function main(): Promise<void> {
     }));
   }
 
+  if (domain === "system" && action === "doctor") {
+    const goalId = readFlag(args, "--goal-id");
+    const health = await request("/health");
+    const cliProbe = await request("/api/cli/probe", "POST");
+    const goalStatus = goalId
+      ? await request(`/api/tasks?goalId=${goalId}`).then(async (tasks) => ({
+        tasks,
+        runs: await request(`/api/runs?goalId=${goalId}&limit=10`),
+        integrations: await request(`/api/integrations?goalId=${goalId}`),
+        milestones: await request(`/api/milestones?goalId=${goalId}`)
+      }))
+      : undefined;
+    return print({
+      ok: true,
+      apiBase,
+      health,
+      cliProbe,
+      goalStatus
+    });
+  }
+
   if (domain === "goal" && action === "status") {
     const goalId = requiredFlag(args, "--goal-id");
     const [flow, tasks, runs, integrations, milestones] = await Promise.all([
@@ -292,6 +313,7 @@ function parseJsonFlag(args: string[], name: string): Record<string, unknown> | 
 function usage(): void {
   console.log(`Usage:
   pnpm goal:create -- --title "..." --description "..." --target-root "/path/to/project"
+  tsx tools/dionysus.ts system doctor
   tsx tools/dionysus.ts goal status --goal-id "..."
   tsx tools/dionysus.ts goal preflight --goal-id "..."
   tsx tools/dionysus.ts goal master-step --goal-id "..."

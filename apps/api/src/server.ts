@@ -116,7 +116,8 @@ export async function buildServer() {
 
   app.get("/health", async () => ({
     ok: true,
-    service: "dionysus-api"
+    service: "dionysus-api",
+    database: await repo.healthCheck()
   }));
 
   app.post("/api/goals", async (request, reply) => {

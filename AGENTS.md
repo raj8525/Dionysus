@@ -38,6 +38,7 @@ pnpm dev
 Codex 日常操作 Dionysus 优先使用统一 CLI，避免手写 `curl`：
 
 ```bash
+pnpm dionysus system doctor
 pnpm dionysus goal status --goal-id "<goal-id>"
 pnpm dionysus goal preflight --goal-id "<goal-id>"
 pnpm dionysus goal master-step --goal-id "<goal-id>"
