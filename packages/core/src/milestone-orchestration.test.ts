@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildE2ECampaignDraft,
   buildMilestoneNotificationDraft,
+  milestoneStatusForCodexVerdict,
   detectMilestoneCandidate
 } from "./milestone-orchestration.js";
 
@@ -64,5 +65,12 @@ describe("milestone orchestration", () => {
     expect(draft.body).toContain("新增租户闭环已通过");
     expect(draft.body).toContain("如何验收");
     expect(draft.body).toContain("尚未接入真实短信验证码");
+  });
+
+  it("does not allow Codex to mark a milestone passed before E2E is running", () => {
+    expect(() => milestoneStatusForCodexVerdict("candidate", "passed")).toThrow(/Invalid milestone transition/);
+    expect(() => milestoneStatusForCodexVerdict("e2e_required", "passed")).toThrow(/Invalid milestone transition/);
+    expect(milestoneStatusForCodexVerdict("e2e_running", "passed")).toBe("passed");
+    expect(milestoneStatusForCodexVerdict("e2e_required", "blocked")).toBe("e2e_blocked");
   });
 });

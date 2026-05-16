@@ -7,6 +7,7 @@ import type {
   FlowEdge,
   FlowNode,
   Goal,
+  MilestoneStatus,
   NotificationChannelType,
   TaskStatus
 } from "@dionysus/core";
@@ -19,7 +20,7 @@ import type {
   DocumentFinding,
   GateCheckResult
 } from "@dionysus/core";
-import { buildE2ECampaignDraft, detectMilestoneCandidate } from "@dionysus/core";
+import { buildE2ECampaignDraft, detectMilestoneCandidate, milestoneStatusForCodexVerdict } from "@dionysus/core";
 import type { CliProbeResult } from "@dionysus/cli-adapters";
 
 export class DionysusRepository {
@@ -682,8 +683,11 @@ export class DionysusRepository {
     verdict: "passed" | "failed" | "blocked";
     reason: string;
   }): Promise<void> {
-    const nextStatus =
-      input.verdict === "passed" ? "passed" : input.verdict === "failed" ? "e2e_failed" : "e2e_blocked";
+    const milestone = await this.getMilestone(input.milestoneId);
+    if (!milestone) {
+      throw new Error(`Milestone not found: ${input.milestoneId}`);
+    }
+    const nextStatus = milestoneStatusForCodexVerdict(String(milestone.status) as MilestoneStatus, input.verdict);
     await this.pool.query(
       `update ${this.table("milestones")}
        set status = $1, codex_verdict = $2, codex_verdict_reason = $3, updated_at = now()

@@ -500,7 +500,18 @@ export async function buildServer() {
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_CODEX_VERDICT", details: parsed.error.flatten() });
     }
-    await repo.recordCodexVerdict({ milestoneId: id, ...parsed.data });
+    try {
+      await repo.recordCodexVerdict({ milestoneId: id, ...parsed.data });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Invalid milestone transition")) {
+        return reply.code(409).send({ error: "INVALID_MILESTONE_TRANSITION", message });
+      }
+      if (message.includes("Milestone not found")) {
+        return reply.code(404).send({ error: "MILESTONE_NOT_FOUND", message });
+      }
+      throw error;
+    }
     return reply.code(202).send({ id, verdict: parsed.data.verdict });
   });
 

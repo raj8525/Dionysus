@@ -1,3 +1,6 @@
+import type { MilestoneStatus } from "./types.js";
+import { assertMilestoneTransition } from "./state-machine.js";
+
 export interface MilestoneDetectionInput {
   goalTitle: string;
   integrationStatus: "queued" | "running" | "passed" | "failed" | "cancelled";
@@ -112,4 +115,14 @@ export function buildMilestoneNotificationDraft(input: {
       ...(input.residualRisks.length ? input.residualRisks.map((risk) => `- ${risk}`) : ["- 无已知阻塞风险"])
     ].join("\n")
   };
+}
+
+export function milestoneStatusForCodexVerdict(
+  currentStatus: MilestoneStatus,
+  verdict: "passed" | "failed" | "blocked"
+): MilestoneStatus {
+  const nextStatus: MilestoneStatus =
+    verdict === "passed" ? "passed" : verdict === "failed" ? "e2e_failed" : "e2e_blocked";
+  assertMilestoneTransition(currentStatus, nextStatus);
+  return nextStatus;
 }
