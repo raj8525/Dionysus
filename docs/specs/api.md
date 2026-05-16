@@ -124,6 +124,7 @@ POST /api/notifications/:id/deliver
 GET /api/codex/outbox
 POST /api/codex/outbox
 POST /api/codex/outbox/:id/ack
+POST /api/codex/outbox/reconcile
 ```
 
 Dionysus 主动请求 Codex 介入时必须写入 `codex_outbox`，不能只依赖 Agent 输出或当前会话上下文。
@@ -154,8 +155,11 @@ Codex CLI 必须支持：
 ```text
 pnpm dionysus codex heartbeat --limit 5
 pnpm dionysus codex outbox --limit 5
+pnpm dionysus codex reconcile
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
+
+`reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
 
 ## CLI
 

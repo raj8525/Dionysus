@@ -336,6 +336,8 @@ export async function buildServer() {
     return reply.code(202).send(event);
   });
 
+  app.post("/api/codex/outbox/reconcile", async () => repo.reconcileResolvedCodexOutboxEvents());
+
   app.post("/api/tasks", async (request, reply) => {
     const parsed = createTaskSchema.safeParse(request.body);
     if (!parsed.success) {

@@ -74,6 +74,7 @@ pnpm dionysus milestone notify --milestone-id "<milestone-id>" --summary "里程
 pnpm dionysus notification deliver --notification-id "<notification-id>"
 pnpm dionysus codex heartbeat --limit 5
 pnpm dionysus codex outbox --limit 5
+pnpm dionysus codex reconcile
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
@@ -99,6 +100,12 @@ Codex 的固定循环：
 pnpm dionysus codex heartbeat --limit 5
 # 处理最高优先级事件
 pnpm dionysus codex ack --event-id "<event-id>"
+```
+
+`codex heartbeat` 会先自动执行一次 `codex reconcile`，把已经由 integration queue 证明解决的旧 blocker 自动 ack，避免 Codex 被陈旧阻塞误导。需要单独核查清理结果时运行：
+
+```bash
+pnpm dionysus codex reconcile
 ```
 
 ## Agent CLI 配置优先级

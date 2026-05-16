@@ -4,7 +4,7 @@ import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
 import { summarizeSupervisionStep } from "./dionysus-supervise.js";
-import { formatCodexHeartbeat } from "@dionysus/core";
+import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus/core";
 import type { AgentRole, CliType, CodexOutboxEvent } from "@dionysus/core";
 
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
@@ -233,11 +233,27 @@ async function main(): Promise<void> {
     return print(await request(`/api/codex/outbox/${requiredFlag(args, "--event-id")}/ack`, "POST"));
   }
 
+  if (domain === "codex" && action === "reconcile") {
+    const reconciliation = await request("/api/codex/outbox/reconcile", "POST") as { acked: number; events: CodexOutboxEvent[] };
+    return print({
+      ...formatCodexOutboxReconciliation({
+        acked: reconciliation.acked,
+        eventIds: reconciliation.events.map((event) => event.id)
+      }),
+      ...reconciliation
+    });
+  }
+
   if (domain === "codex" && action === "heartbeat") {
     const limit = optionalNumberFlag(args, "--limit") ?? 5;
+    const reconciliation = await request("/api/codex/outbox/reconcile", "POST") as { acked: number; events: CodexOutboxEvent[] };
     const events = await request(`/api/codex/outbox?status=pending&limit=${limit}`) as CodexOutboxEvent[];
     return print({
       ...formatCodexHeartbeat(events),
+      reconciliation: formatCodexOutboxReconciliation({
+        acked: reconciliation.acked,
+        eventIds: reconciliation.events.map((event) => event.id)
+      }),
       events
     });
   }
@@ -637,6 +653,7 @@ function usage(): void {
   tsx tools/dionysus.ts notification deliver --notification-id "..."
   tsx tools/dionysus.ts codex outbox --limit 5
   tsx tools/dionysus.ts codex heartbeat --limit 5
+  tsx tools/dionysus.ts codex reconcile
   tsx tools/dionysus.ts codex ack --event-id "..."
 `);
 }

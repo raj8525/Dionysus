@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCodexOutboxDraft, formatCodexHeartbeat } from "./codex-outbox.js";
+import { buildCodexOutboxDraft, formatCodexHeartbeat, formatCodexOutboxReconciliation } from "./codex-outbox.js";
 
 describe("codex outbox", () => {
   it("builds a blocker intervention event from a supervision stop", () => {
@@ -52,6 +52,17 @@ describe("codex outbox", () => {
         "处理 event-1：库存流水查询闭环已达到里程碑",
         "完成处理后运行：pnpm dionysus codex ack --event-id event-1"
       ]
+    });
+  });
+
+  it("summarizes automatic reconciliation of stale outbox blockers", () => {
+    expect(formatCodexOutboxReconciliation({ acked: 2, eventIds: ["event-1", "event-2"] })).toEqual({
+      changed: true,
+      userMessage: "已自动关闭 2 个根因已解决的 Codex Outbox 事件。"
+    });
+    expect(formatCodexOutboxReconciliation({ acked: 0, eventIds: [] })).toEqual({
+      changed: false,
+      userMessage: "没有发现可自动关闭的 Codex Outbox 事件。"
     });
   });
 });

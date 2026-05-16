@@ -26,6 +26,11 @@ export interface CodexOutboxDraft {
   dedupeKey: string;
 }
 
+export interface CodexOutboxReconciliationSummary {
+  acked: number;
+  eventIds: string[];
+}
+
 export function buildCodexOutboxDraft(input: {
   goalId?: string;
   eventType: CodexOutboxEventType;
@@ -59,6 +64,22 @@ export function buildCodexOutboxDraft(input: {
       source: input.source
     },
     dedupeKey: `${goalPart}:${input.eventType}:${normalizedReason}`
+  };
+}
+
+export function formatCodexOutboxReconciliation(input: CodexOutboxReconciliationSummary): {
+  changed: boolean;
+  userMessage: string;
+} {
+  if (input.acked === 0) {
+    return {
+      changed: false,
+      userMessage: "没有发现可自动关闭的 Codex Outbox 事件。"
+    };
+  }
+  return {
+    changed: true,
+    userMessage: `已自动关闭 ${input.acked} 个根因已解决的 Codex Outbox 事件。`
   };
 }
 

@@ -1719,6 +1719,35 @@ export class DionysusRepository {
     return mapCodexOutboxEvent(result.rows[0]);
   }
 
+  async reconcileResolvedCodexOutboxEvents(): Promise<{ acked: number; events: CodexOutboxEvent[] }> {
+    const result = await this.pool.query(
+      `with resolved as (
+         select co.id
+         from ${this.table("codex_outbox")} co
+         join ${this.table("integration_queue")} iq
+           on iq.id::text = co.payload_json->>'integrationId'
+         where co.status = 'pending'
+           and co.event_type = 'blocker'
+           and iq.status = 'passed'
+       )
+       update ${this.table("codex_outbox")} co
+       set status = 'acked', acked_at = now(), updated_at = now()
+       from resolved
+       where co.id = resolved.id
+       returning co.id, co.goal_id, co.event_type, co.severity, co.status, co.title, co.summary,
+                 co.payload_json, co.created_at, co.updated_at, co.acked_at`
+    );
+    const events = result.rows.map(mapCodexOutboxEvent);
+    if (events.length > 0) {
+      await this.recordSystemEvent("codex.outbox_reconciled", {
+        acked: events.length,
+        eventIds: events.map((event) => event.id),
+        reason: "integration passed"
+      });
+    }
+    return { acked: events.length, events };
+  }
+
   async listWatchdogEvents(limit = 30): Promise<Array<Record<string, unknown>>> {
     const result = await this.pool.query(
       `select *
