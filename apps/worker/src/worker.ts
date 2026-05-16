@@ -42,6 +42,7 @@ const watchdogIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_WATCHD
 const watchdogRunningTimeoutMinutes = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_RUNNING_TIMEOUT_MINUTES, 15);
 const masterControlIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS, 120);
 const masterControlGoalLimit = parsePositiveInteger(process.env.DIONYSUS_MASTER_CONTROL_GOAL_LIMIT, 1);
+const workerHeartbeatIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_WORKER_HEARTBEAT_INTERVAL_SECONDS, 30);
 const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
@@ -518,9 +519,33 @@ function startMasterControlScheduler(): void {
   }, masterControlIntervalSeconds * 1000);
 }
 
+function startWorkerHeartbeatScheduler(): void {
+  setInterval(() => {
+    repo.recordSystemEvent("worker.heartbeat", {
+      pid: process.pid,
+      workerCliType,
+      workerCliModel,
+      workspaceRoot,
+      heartbeatIntervalSeconds: workerHeartbeatIntervalSeconds
+    }).catch((error: unknown) => {
+      console.error("failed to record worker heartbeat", error);
+    });
+  }, workerHeartbeatIntervalSeconds * 1000);
+}
+
 console.log(
-  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue}, ${masterControlQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; agentRunTimeoutMs=${agentRunTimeoutMs}; watchdog=${watchdogIntervalSeconds}s; masterControl=${masterControlIntervalSeconds}s; masterControlGoalLimit=${masterControlGoalLimit}`
+  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue}, ${masterControlQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; agentRunTimeoutMs=${agentRunTimeoutMs}; watchdog=${watchdogIntervalSeconds}s; masterControl=${masterControlIntervalSeconds}s; masterControlGoalLimit=${masterControlGoalLimit}; heartbeat=${workerHeartbeatIntervalSeconds}s`
 );
+await repo.recordSystemEvent("worker.started", {
+  pid: process.pid,
+  workerCliType,
+  workerCliModel,
+  workspaceRoot,
+  watchdogIntervalSeconds,
+  masterControlIntervalSeconds,
+  workerHeartbeatIntervalSeconds
+});
+startWorkerHeartbeatScheduler();
 startWatchdogScheduler();
 startMasterControlScheduler();
 await Promise.all([

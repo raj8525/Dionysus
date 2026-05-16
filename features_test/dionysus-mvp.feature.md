@@ -19,8 +19,10 @@ And 系统事件中记录 `goal.created`
 
 Given Dionysus API 已启动  
 When Codex 运行 `pnpm dionysus system doctor`  
-Then 返回必须包含 API health、PostgreSQL health 和 CLI probe  
+Then 返回必须包含 API health、PostgreSQL health、RabbitMQ health、Worker health 和 CLI probe  
 And `/health` 不得只返回静态 ok，必须检查数据库连接
+And Worker 必须通过 `worker.started` 或 `worker.heartbeat` system event 证明 Runtime 正在运行
+And 如果 Worker 心跳超过 `DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS`，doctor 必须显示 stale 或 missing
 
 ## 场景 2：任务状态机拒绝非法迁移
 

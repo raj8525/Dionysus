@@ -58,6 +58,34 @@ export async function consumeJson(
   });
 }
 
+export async function checkRabbitMqHealth(): Promise<{
+  ok: boolean;
+  urlConfigured: boolean;
+  checkedAt: string;
+  error?: string;
+}> {
+  const checkedAt = new Date().toISOString();
+  let connection: Awaited<ReturnType<typeof amqp.connect>> | undefined;
+  try {
+    const url = requiredMqUrl();
+    connection = await amqp.connect(url);
+    return {
+      ok: true,
+      urlConfigured: true,
+      checkedAt
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      urlConfigured: Boolean(process.env.MQ_URL),
+      checkedAt,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await connection?.close().catch(() => undefined);
+  }
+}
+
 function requiredMqUrl(): string {
   const url = process.env.MQ_URL;
   if (!url) {

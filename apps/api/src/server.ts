@@ -4,7 +4,7 @@ import Fastify from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
-import { publishJson } from "@dionysus/mq";
+import { checkRabbitMqHealth, publishJson } from "@dionysus/mq";
 import {
   buildMasterTaskTree,
   buildMilestoneNotificationDraft,
@@ -19,7 +19,8 @@ import {
   decideMasterStep,
   evaluateWatchdogTask,
   resolveNotificationChannels,
-  queueForRole
+  queueForRole,
+  deriveWorkerHealth
 } from "@dionysus/core";
 import type { NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
 import { probeAllClis, validateCliModel } from "@dionysus/cli-adapters";
@@ -94,6 +95,8 @@ const createPatchSchema = z.object({
   changedFiles: z.array(z.string())
 });
 
+const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS ?? "90", 10);
+
 const watchdogRunSchema = z.object({
   runningTimeoutMinutes: z.number().int().positive().max(24 * 60).default(15),
   limit: z.number().int().positive().max(200).default(50)
@@ -114,11 +117,31 @@ export async function buildServer() {
     await pool.end();
   });
 
-  app.get("/health", async () => ({
-    ok: true,
-    service: "dionysus-api",
-    database: await repo.healthCheck()
-  }));
+  app.get("/health", async () => {
+    const [database, rabbitmq, workerEvents] = await Promise.all([
+      repo.healthCheck(),
+      checkRabbitMqHealth(),
+      repo.listSystemEvents({ eventPrefix: "worker.", limit: 5 }) as Promise<Array<{
+        eventType: string;
+        createdAt: string;
+        payload?: Record<string, unknown>;
+      }>>
+    ]);
+    const worker = deriveWorkerHealth({
+      nowIso: new Date().toISOString(),
+      maxAgeSeconds: Number.isFinite(workerHealthMaxAgeSeconds) && workerHealthMaxAgeSeconds > 0
+        ? workerHealthMaxAgeSeconds
+        : 90,
+      events: workerEvents
+    });
+    return {
+      ok: database.ok && rabbitmq.ok && worker.ok,
+      service: "dionysus-api",
+      database,
+      rabbitmq,
+      worker
+    };
+  });
 
   app.post("/api/goals", async (request, reply) => {
     const parsed = createGoalSchema.safeParse(request.body);

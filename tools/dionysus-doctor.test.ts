@@ -7,7 +7,12 @@ describe("doctor compact result", () => {
     expect(compactDoctorResult({
       ok: true,
       apiBase: "http://localhost:23100",
-      health: { ok: true, database: { ok: true } },
+      health: {
+        ok: true,
+        database: { ok: true },
+        rabbitmq: { ok: true },
+        worker: { ok: false, status: "stale" }
+      },
       cliProbe: [
         { cliType: "mock", available: true, models: ["mock/default"] },
         { cliType: "opencode", available: true, models: ["m1", "m2", "m3"] }
@@ -15,7 +20,12 @@ describe("doctor compact result", () => {
     })).toEqual({
       ok: true,
       apiBase: "http://localhost:23100",
-      health: { ok: true, database: { ok: true } },
+      health: {
+        ok: true,
+        database: { ok: true },
+        rabbitmq: { ok: true },
+        worker: { ok: false, status: "stale" }
+      },
       cliProbe: [
         { cliType: "mock", available: true, command: undefined, version: undefined, modelCount: 1 },
         { cliType: "opencode", available: true, command: undefined, version: undefined, modelCount: 3 }

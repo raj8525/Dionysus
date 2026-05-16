@@ -6,16 +6,36 @@
 GET /health
 ```
 
-`/health` 必须真实检查 API 与 PostgreSQL 连接状态，返回 `database.ok`、schema 和数据库时间，不能只返回静态 `ok: true`。
+`/health` 必须真实检查 API、PostgreSQL、RabbitMQ 与 Worker Runtime 连接状态，返回 `database.ok`、`rabbitmq.ok`、`worker.ok`、schema、数据库时间和 Worker 最后心跳，不能只返回静态 `ok: true`。
 
 返回：
 
 ```json
 {
   "ok": true,
-  "service": "dionysus-api"
+  "service": "dionysus-api",
+  "database": {
+    "ok": true,
+    "schema": "dionysus",
+    "databaseTime": "2026-05-16T12:00:00.000Z"
+  },
+  "rabbitmq": {
+    "ok": true,
+    "urlConfigured": true,
+    "checkedAt": "2026-05-16T12:00:00.000Z"
+  },
+  "worker": {
+    "ok": true,
+    "status": "ok",
+    "lastEventType": "worker.heartbeat",
+    "lastSeenAt": "2026-05-16T11:59:45.000Z",
+    "ageSeconds": 15,
+    "maxAgeSeconds": 90
+  }
 }
 ```
+
+Worker Runtime 必须在启动时写入 `worker.started` system event，并按 `DIONYSUS_WORKER_HEARTBEAT_INTERVAL_SECONDS` 定时写入 `worker.heartbeat`。API 使用 `DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS` 判断心跳是否过期。
 
 ## Goals
 
