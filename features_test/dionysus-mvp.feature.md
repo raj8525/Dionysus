@@ -104,6 +104,18 @@ And 每个角色必须能选择 CLI、填写模型、启用或禁用并保存
 And 页面必须提供 CLI 探测入口  
 And React Flow 控制台不得出现缺失 handle 的 edge warning
 
+## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
+
+Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode  
+When Runtime 调用真实 CLI Adapter  
+Then Adapter 必须使用该 CLI 的非交互参数执行  
+And 必须记录 stdout、stderr、exit_code、cli_type 和 cli_model  
+And 如果 CLI 超过 `DIONYSUS_AGENT_RUN_TIMEOUT_MS` 未退出  
+Then Runtime 必须终止 CLI 进程组  
+And task_run 的 exit_code 必须记录为 `124`  
+And stderr 必须包含超时原因  
+And Watchdog 可以基于该失败继续重试或标记 blocked
+
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
 Given 一个指向目标项目的 goal  
@@ -166,6 +178,7 @@ Then worker 必须投递 `dionysus.master_control` 消息
 And 消费该消息后必须扫描 active goals  
 And 每个 goal 只能推进一个合法 Master Step  
 And 决策结果必须写入 `system_events`
+And Dashboard 必须能展示最近的 `master_control.step` 与 `master_control.run` 事件
 
 ## 场景 8：Worker patch 必须进入 Integration Queue
 

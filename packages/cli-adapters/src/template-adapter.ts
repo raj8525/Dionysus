@@ -1,9 +1,8 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import type { CliType } from "@dionysus/core";
 import type { AgentRunInput, AgentRunResult, CliAdapter } from "./types.js";
 
-const execFileAsync = promisify(execFile);
+const MAX_OUTPUT_BYTES = 1024 * 1024 * 20;
 
 export interface TemplateCliAdapterOptions {
   cliType: Exclude<CliType, "mock">;
@@ -58,14 +57,37 @@ export class TemplateCliAdapter implements CliAdapter {
     }
 
     if (this.options.cliType === "claude_code") {
-      return ["-p", input.prompt];
+      return [
+        "--print",
+        "--output-format",
+        "text",
+        "--permission-mode",
+        process.env.DIONYSUS_CLAUDE_CODE_PERMISSION_MODE ?? "acceptEdits",
+        ...optionalPair("--model", this.options.model),
+        input.prompt
+      ];
     }
     if (this.options.cliType === "gemini_cli") {
-      return ["--prompt", input.prompt];
+      return [
+        "--prompt",
+        input.prompt,
+        "--output-format",
+        process.env.DIONYSUS_GEMINI_CLI_OUTPUT_FORMAT ?? "text",
+        "--skip-trust",
+        "--approval-mode",
+        process.env.DIONYSUS_GEMINI_CLI_APPROVAL_MODE ?? "auto_edit",
+        ...optionalPair("--model", this.options.model)
+      ];
     }
     if (this.options.cliType === "opencode") {
-      const modelArgs = this.options.model ? ["--model", this.options.model] : [];
-      return ["run", ...modelArgs, input.prompt];
+      return [
+        "run",
+        "--format",
+        process.env.DIONYSUS_OPENCODE_FORMAT ?? "default",
+        ...optionalPair("--model", this.options.model),
+        ...booleanFlag("--dangerously-skip-permissions", process.env.DIONYSUS_OPENCODE_SKIP_PERMISSIONS ?? "true"),
+        input.prompt
+      ];
     }
     return [input.prompt];
   }
@@ -100,24 +122,81 @@ function splitArgs(template: string): string[] {
   return template.match(/"[^"]*"|'[^']*'|\S+/g)?.map((part) => part.replace(/^["']|["']$/g, "")) ?? [];
 }
 
+function optionalPair(flag: string, value: string | undefined): string[] {
+  return value ? [flag, value] : [];
+}
+
+function booleanFlag(flag: string, value: string | undefined): string[] {
+  return value === "1" || value === "true" || value === "yes" ? [flag] : [];
+}
+
 async function run(command: string, args: string[], cwd: string, timeoutMs: number): Promise<{
   stdout: string;
   stderr: string;
   exitCode: number;
 }> {
-  try {
-    const result = await execFileAsync(command, args, {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const child = spawn(command, args, {
       cwd,
-      timeout: timeoutMs,
-      maxBuffer: 1024 * 1024 * 20
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"]
     });
-    return { stdout: result.stdout, stderr: result.stderr, exitCode: 0 };
-  } catch (error) {
-    const err = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string; code?: number };
-    return {
-      stdout: err.stdout ?? "",
-      stderr: err.stderr ?? err.message,
-      exitCode: typeof err.code === "number" ? err.code : 1
+
+    const append = (current: string, chunk: Buffer): string => {
+      const next = current + chunk.toString();
+      return next.length > MAX_OUTPUT_BYTES ? next.slice(-MAX_OUTPUT_BYTES) : next;
     };
-  }
+
+    const finish = (exitCode: number, extraStderr = ""): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({
+        stdout,
+        stderr: `${stderr}${extraStderr}`,
+        exitCode
+      });
+    };
+
+    const killProcessGroup = (signal: NodeJS.Signals): void => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        try {
+          child.kill(signal);
+        } catch {
+          // The process may already be gone.
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      killProcessGroup("SIGTERM");
+      setTimeout(() => killProcessGroup("SIGKILL"), 1_000).unref();
+      finish(124, `\nCommand timed out after ${timeoutMs}ms`);
+    }, timeoutMs);
+    timer.unref();
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = append(stdout, chunk);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = append(stderr, chunk);
+    });
+    child.on("error", (error) => {
+      finish(1, stderr ? `\n${error.message}` : error.message);
+    });
+    child.on("close", (code, signal) => {
+      if (signal) {
+        finish(1, stderr ? `\nProcess terminated by ${signal}` : `Process terminated by ${signal}`);
+        return;
+      }
+      finish(code ?? 1);
+    });
+  });
 }

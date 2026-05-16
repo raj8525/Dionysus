@@ -7,6 +7,7 @@ import {
   fetchCurrentFlow,
   fetchIntegrations,
   fetchRuns,
+  fetchSystemEvents,
   fetchTasks,
   fetchWatchdogEvents,
   probeClis,
@@ -24,6 +25,7 @@ import {
   type IntegrationRecord,
   type MasterStepResult,
   type ReleaseReadyIntegrationsResult,
+  type SystemEvent,
   type TaskRecord,
   type TaskRunRecord,
   type TargetPreflightResult,
@@ -61,6 +63,7 @@ export function App() {
   const [masterStepping, setMasterStepping] = useState(false);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [runs, setRuns] = useState<TaskRunRecord[]>([]);
+  const [masterEvents, setMasterEvents] = useState<SystemEvent[]>([]);
 
   useEffect(() => {
     Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
@@ -183,14 +186,16 @@ export function App() {
 
   async function refreshGoalEvidence(goalId = activeGoalId) {
     if (!goalId) return;
-    const [nextIntegrations, nextTasks, nextRuns] = await Promise.all([
+    const [nextIntegrations, nextTasks, nextRuns, nextMasterEvents] = await Promise.all([
       fetchIntegrations(goalId),
       fetchTasks(goalId),
-      fetchRuns(goalId, 20)
+      fetchRuns(goalId, 20),
+      fetchSystemEvents("master_control.", 10)
     ]);
     setIntegrations(nextIntegrations);
     setTasks(nextTasks);
     setRuns(nextRuns);
+    setMasterEvents(nextMasterEvents);
   }
 
   async function releaseIntegrations() {
@@ -348,6 +353,17 @@ export function App() {
           ) : (
             <div className="emptyState">尚未执行 Master Step</div>
           )}
+          <div className="masterEventList">
+            {masterEvents.map((event) => (
+              <article key={event.id} className="masterEvent">
+                <div>
+                  <strong>{event.eventType}</strong>
+                  <span>{new Date(event.createdAt).toLocaleString()}</span>
+                </div>
+                <p>{describePayload(event.payload)}</p>
+              </article>
+            ))}
+          </div>
         </section>
         <section className="integrationPanel">
           <div className="sectionHeader">

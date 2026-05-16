@@ -30,9 +30,10 @@ const watchdogQueue = "dionysus.watchdog";
 const masterControlQueue = "dionysus.master_control";
 const workerCliType = parseWorkerCliType(process.env.DIONYSUS_WORKER_CLI_TYPE);
 const workerCliModel = process.env.DIONYSUS_WORKER_CLI_MODEL || undefined;
+const agentRunTimeoutMs = parsePositiveInteger(process.env.DIONYSUS_AGENT_RUN_TIMEOUT_MS, 20 * 60 * 1000);
 const adapter = workerCliType === "mock"
   ? new MockAdapter()
-  : createCliAdapter({ cliType: workerCliType, model: workerCliModel });
+  : createCliAdapter({ cliType: workerCliType, model: workerCliModel, timeoutMs: agentRunTimeoutMs });
 const targetRoot = process.env.TARGET_COUPON_ROOT ?? process.cwd();
 const workspaceRoot = process.env.DIONYSUS_WORKSPACE_ROOT ?? resolve(process.cwd(), "../../.dionysus/workspaces");
 const integrationVerificationCommands = readCommandList(process.env.DIONYSUS_INTEGRATION_VERIFY_COMMANDS);
@@ -153,7 +154,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   const roleConfig = await repo.getAgentCliConfig(role);
   const roleAdapter = roleConfig.cliType === "mock"
     ? new MockAdapter()
-    : createCliAdapter({ cliType: roleConfig.cliType, model: roleConfig.cliModel });
+    : createCliAdapter({ cliType: roleConfig.cliType, model: roleConfig.cliModel, timeoutMs: agentRunTimeoutMs });
   const runId = await repo.createTaskRun({
     taskId: message.task_id,
     cliType: roleConfig.cliType,
@@ -506,7 +507,7 @@ function startMasterControlScheduler(): void {
 }
 
 console.log(
-  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue}, ${masterControlQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; watchdog=${watchdogIntervalSeconds}s; masterControl=${masterControlIntervalSeconds}s; masterControlGoalLimit=${masterControlGoalLimit}`
+  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue}, ${masterControlQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; agentRunTimeoutMs=${agentRunTimeoutMs}; watchdog=${watchdogIntervalSeconds}s; masterControl=${masterControlIntervalSeconds}s; masterControlGoalLimit=${masterControlGoalLimit}`
 );
 startWatchdogScheduler();
 startMasterControlScheduler();

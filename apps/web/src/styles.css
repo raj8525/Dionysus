@@ -285,6 +285,38 @@ button:disabled {
   color: #b91c1c;
 }
 
+.masterEventList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.masterEvent {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #eadcc2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.masterEvent > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.masterEvent strong {
+  font-size: 12px;
+}
+
+.masterEvent span,
+.masterEvent p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .integrationList {
   display: grid;
   gap: 10px;

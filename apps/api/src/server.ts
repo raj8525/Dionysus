@@ -225,6 +225,12 @@ export async function buildServer() {
     return repo.listWatchdogEvents(limit);
   });
 
+  app.get("/api/system-events", async (request) => {
+    const query = request.query as { prefix?: string; limit?: string };
+    const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "30", 10) || 30, 1), 100);
+    return repo.listSystemEvents({ eventPrefix: query.prefix, limit });
+  });
+
   app.post("/api/tasks", async (request, reply) => {
     const parsed = createTaskSchema.safeParse(request.body);
     if (!parsed.success) {

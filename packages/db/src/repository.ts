@@ -1332,6 +1332,29 @@ export class DionysusRepository {
     }));
   }
 
+  async listSystemEvents(input: {
+    eventPrefix?: string;
+    limit?: number;
+  } = {}): Promise<Array<Record<string, unknown>>> {
+    const params: Array<string | number> = [input.limit ?? 30];
+    const where = input.eventPrefix ? "where event_type like $2" : "";
+    if (input.eventPrefix) params.push(`${input.eventPrefix}%`);
+    const result = await this.pool.query(
+      `select id, event_type, payload_json, created_at
+       from ${this.table("system_events")}
+       ${where}
+       order by created_at desc
+       limit $1`,
+      params
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      eventType: String(row.event_type),
+      payload: row.payload_json ?? {},
+      createdAt: new Date(row.created_at).toISOString()
+    }));
+  }
+
   private table(name: string): string {
     return `${quoteIdent(this.schema)}.${quoteIdent(name)}`;
   }

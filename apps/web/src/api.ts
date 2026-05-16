@@ -51,6 +51,13 @@ export interface WatchdogEvent {
   scope: "task" | "system";
 }
 
+export interface SystemEvent {
+  id: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface WatchdogRunResult {
   checked: number;
   actions: Array<{
@@ -206,6 +213,17 @@ export async function fetchWatchdogEvents(limit = 20): Promise<WatchdogEvent[]> 
     throw new Error(`Failed to load watchdog events: ${response.status}`);
   }
   return (await response.json()) as WatchdogEvent[];
+}
+
+export async function fetchSystemEvents(prefix?: string, limit = 20): Promise<SystemEvent[]> {
+  const params = new URLSearchParams();
+  if (prefix) params.set("prefix", prefix);
+  params.set("limit", String(limit));
+  const response = await fetch(`${apiBase}/api/system-events?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load system events: ${response.status}`);
+  }
+  return (await response.json()) as SystemEvent[];
 }
 
 export async function fetchTasks(goalId?: string): Promise<TaskRecord[]> {
