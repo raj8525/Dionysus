@@ -37,6 +37,34 @@ export interface CliProbeResult {
   error?: string;
 }
 
+export interface WatchdogEvent {
+  id: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  taskId?: string;
+  taskTitle?: string;
+  roleRequired?: string;
+  taskStatus?: string;
+  blockedReason?: string;
+  goalId?: string;
+  scope: "task" | "system";
+}
+
+export interface WatchdogRunResult {
+  checked: number;
+  actions: Array<{
+    taskId: string;
+    roleRequired: string;
+    previousStatus: string;
+    decision: {
+      action: "ignore" | "retry" | "block";
+      reason: string;
+      nextAttempt?: number;
+    };
+  }>;
+}
+
 const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:23100";
 
 export async function fetchCurrentFlow(): Promise<FlowResponse> {
@@ -87,4 +115,24 @@ export async function probeClis(): Promise<CliProbeResult[]> {
     throw new Error(`Failed to probe CLIs: ${response.status}`);
   }
   return (await response.json()) as CliProbeResult[];
+}
+
+export async function fetchWatchdogEvents(limit = 20): Promise<WatchdogEvent[]> {
+  const response = await fetch(`${apiBase}/api/watchdog/events?limit=${limit}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load watchdog events: ${response.status}`);
+  }
+  return (await response.json()) as WatchdogEvent[];
+}
+
+export async function runWatchdog(input = { runningTimeoutMinutes: 15, limit: 50 }): Promise<WatchdogRunResult> {
+  const response = await fetch(`${apiBase}/api/watchdog/run`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to run watchdog: ${response.status}`);
+  }
+  return (await response.json()) as WatchdogRunResult;
 }

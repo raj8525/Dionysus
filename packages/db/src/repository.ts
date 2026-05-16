@@ -1092,6 +1092,58 @@ export class DionysusRepository {
     );
   }
 
+  async listWatchdogEvents(limit = 30): Promise<Array<Record<string, unknown>>> {
+    const result = await this.pool.query(
+      `select *
+       from (
+         select te.id,
+                te.event_type,
+                te.payload_json,
+                te.created_at,
+                t.id as task_id,
+                t.title as task_title,
+                t.role_required,
+                t.status as task_status,
+                t.blocked_reason,
+                t.goal_id,
+                null::text as system_scope
+         from ${this.table("task_events")} te
+         join ${this.table("tasks")} t on t.id = te.task_id
+         where te.event_type like 'watchdog.%'
+         union all
+         select se.id,
+                se.event_type,
+                se.payload_json,
+                se.created_at,
+                null::uuid as task_id,
+                null::text as task_title,
+                null::text as role_required,
+                null::text as task_status,
+                null::text as blocked_reason,
+                null::uuid as goal_id,
+                'system'::text as system_scope
+         from ${this.table("system_events")} se
+         where se.event_type = 'watchdog.run'
+       ) events
+       order by created_at desc
+       limit $1`,
+      [limit]
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      eventType: String(row.event_type),
+      payload: row.payload_json ?? {},
+      createdAt: new Date(row.created_at).toISOString(),
+      taskId: row.task_id ? String(row.task_id) : undefined,
+      taskTitle: row.task_title ? String(row.task_title) : undefined,
+      roleRequired: row.role_required ? String(row.role_required) : undefined,
+      taskStatus: row.task_status ? String(row.task_status) : undefined,
+      blockedReason: row.blocked_reason ? String(row.blocked_reason) : undefined,
+      goalId: row.goal_id ? String(row.goal_id) : undefined,
+      scope: row.system_scope ? String(row.system_scope) : "task"
+    }));
+  }
+
   private table(name: string): string {
     return `${quoteIdent(this.schema)}.${quoteIdent(name)}`;
   }

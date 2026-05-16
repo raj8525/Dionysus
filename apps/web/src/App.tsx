@@ -5,14 +5,18 @@ import {
   createGoal,
   fetchAgentCliConfigs,
   fetchCurrentFlow,
+  fetchWatchdogEvents,
   probeClis,
+  runWatchdog,
   saveAgentCliConfig,
   type AgentCliConfig,
   type AgentRole,
   type CliProbeResult,
   type CliType,
   type FlowResponse,
-  type Goal
+  type Goal,
+  type WatchdogEvent,
+  type WatchdogRunResult
 } from "./api.js";
 
 const nodeTypes = {
@@ -32,9 +36,12 @@ export function App() {
   const [probeResults, setProbeResults] = useState<CliProbeResult[]>([]);
   const [savingRole, setSavingRole] = useState<AgentRole | null>(null);
   const [probing, setProbing] = useState(false);
+  const [watchdogEvents, setWatchdogEvents] = useState<WatchdogEvent[]>([]);
+  const [watchdogRun, setWatchdogRun] = useState<WatchdogRunResult | null>(null);
+  const [watchdogRunning, setWatchdogRunning] = useState(false);
 
   useEffect(() => {
-    Promise.all([refreshFlow(), refreshAgentConfigs()])
+    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -101,6 +108,24 @@ export function App() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setProbing(false);
+    }
+  }
+
+  async function refreshWatchdogEvents() {
+    setWatchdogEvents(await fetchWatchdogEvents(20));
+  }
+
+  async function executeWatchdog() {
+    setWatchdogRunning(true);
+    setError(null);
+    try {
+      const result = await runWatchdog();
+      setWatchdogRun(result);
+      await refreshWatchdogEvents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWatchdogRunning(false);
     }
   }
 
@@ -188,6 +213,49 @@ export function App() {
                 onSave={() => saveRoleConfig(role)}
               />
             ))}
+          </div>
+        </section>
+        <section className="watchdogPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Watchdog</p>
+              <h3>停滞任务与自动修复</h3>
+            </div>
+            <div className="sectionActions">
+              <button type="button" className="secondary" onClick={refreshWatchdogEvents}>
+                刷新记录
+              </button>
+              <button type="button" onClick={executeWatchdog} disabled={watchdogRunning}>
+                {watchdogRunning ? "巡检中..." : "立即巡检"}
+              </button>
+            </div>
+          </div>
+          <div className="watchdogSummary">
+            <StatusCard
+              icon={<Activity />}
+              label="Checked"
+              value={String(watchdogRun?.checked ?? watchdogEvents.length)}
+              tone="neutral"
+            />
+            <StatusCard
+              icon={<CheckCircle2 />}
+              label="Retry"
+              value={String(watchdogRun?.actions.filter((action) => action.decision.action === "retry").length ?? 0)}
+              tone="good"
+            />
+            <StatusCard
+              icon={<AlertTriangle />}
+              label="Blocked"
+              value={String(watchdogRun?.actions.filter((action) => action.decision.action === "block").length ?? 0)}
+              tone="bad"
+            />
+          </div>
+          <div className="watchdogList">
+            {watchdogEvents.length ? (
+              watchdogEvents.map((event) => <WatchdogEventRow key={event.id} event={event} />)
+            ) : (
+              <div className="emptyState">暂无 watchdog 事件</div>
+            )}
           </div>
         </section>
       </section>
@@ -280,6 +348,37 @@ function AgentConfigCard(props: {
       </button>
     </article>
   );
+}
+
+function WatchdogEventRow({ event }: { event: WatchdogEvent }) {
+  return (
+    <article className="watchdogEvent">
+      <div>
+        <strong>{event.taskTitle ?? event.eventType}</strong>
+        <span>{new Date(event.createdAt).toLocaleString()}</span>
+      </div>
+      <div className="watchdogMeta">
+        <span className={`eventPill ${event.eventType.includes("blocked") ? "bad" : "neutral"}`}>
+          {event.eventType}
+        </span>
+        {event.roleRequired ? <span>{event.roleRequired}</span> : null}
+        {event.taskStatus ? <span>{event.taskStatus}</span> : null}
+      </div>
+      <p>{event.blockedReason ?? describePayload(event.payload)}</p>
+    </article>
+  );
+}
+
+function describePayload(payload: Record<string, unknown>): string {
+  const reason = payload.reason;
+  if (typeof reason === "string") return reason;
+  const checked = payload.checked;
+  const retried = payload.retried;
+  const blocked = payload.blocked;
+  if (typeof checked === "number") {
+    return `checked=${checked}, retried=${String(retried ?? 0)}, blocked=${String(blocked ?? 0)}`;
+  }
+  return JSON.stringify(payload);
 }
 
 const roleOrder: AgentRole[] = ["master", "rule_writer", "test_writer", "worker"];

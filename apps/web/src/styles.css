@@ -224,6 +224,7 @@ button:disabled {
 }
 
 .agentsPanel {
+  margin-bottom: 18px;
   border: 1px solid #d9c8aa;
   border-radius: 8px;
   background: #fffdf8;
@@ -236,6 +237,11 @@ button:disabled {
   gap: 16px;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.sectionActions {
+  display: flex;
+  gap: 10px;
 }
 
 h3 {
@@ -315,6 +321,90 @@ h3 {
   gap: 8px !important;
 }
 
+.watchdogPanel {
+  border: 1px solid #d9c8aa;
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 18px;
+}
+
+.watchdogSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.watchdogList {
+  display: grid;
+  gap: 10px;
+}
+
+.watchdogEvent {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.watchdogEvent > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.watchdogEvent span,
+.watchdogEvent p {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.watchdogEvent p {
+  margin: 0;
+}
+
+.watchdogMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.watchdogMeta span,
+.eventPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.eventPill.bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.eventPill.neutral {
+  background: #ede7d7;
+  color: #5f4c24;
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  border: 1px dashed #d9c8aa;
+  border-radius: 8px;
+  color: #64748b;
+  background: #fffaf0;
+}
+
 @media (max-width: 1180px) {
   .appShell {
     grid-template-columns: 220px 1fr;
@@ -326,6 +416,10 @@ h3 {
 
   .agentGrid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .watchdogSummary {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -346,5 +440,10 @@ h3 {
 
   .agentGrid {
     grid-template-columns: 1fr;
+  }
+
+  .sectionActions {
+    width: 100%;
+    flex-direction: column;
   }
 }

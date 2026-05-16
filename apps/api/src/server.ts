@@ -204,6 +204,12 @@ export async function buildServer() {
     };
   });
 
+  app.get("/api/watchdog/events", async (request) => {
+    const query = request.query as { limit?: string };
+    const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "30", 10) || 30, 1), 100);
+    return repo.listWatchdogEvents(limit);
+  });
+
   app.post("/api/tasks", async (request, reply) => {
     const parsed = createTaskSchema.safeParse(request.body);
     if (!parsed.success) {

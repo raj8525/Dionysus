@@ -188,6 +188,15 @@ Then worker 必须投递 `dionysus.watchdog` 消息
 And 消费该消息后必须扫描停滞任务  
 And 巡检摘要必须写入 `system_events`
 
+## 场景 12.2：Dashboard 必须展示 Watchdog 异常与巡检结果
+
+Given Dionysus Web UI 已启动  
+When Codex 打开 Dashboard  
+Then 页面必须展示 Watchdog 面板  
+And 可以手动触发巡检  
+And 可以查看最近的 `watchdog.run`、`watchdog.retry_queued`、`watchdog.blocked` 记录  
+And 面板必须展示 checked、retry、blocked 摘要
+
 ## 运行命令
 
 ```bash
