@@ -14,8 +14,10 @@ import {
   checkSpecTestGate,
   createIsolatedWorkspace,
   createPatch as createWorkspacePatch,
+  decidePostRunDispatch,
   decideMasterStep,
   evaluateWatchdogTask,
+  shouldDispatchAfterIntegration,
   queueForRole
 } from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
@@ -101,6 +103,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       await repo.appendRunLog(runId, "stderr", result.stderr, 2);
     }
 
+    let queuedPatchId: string | null = null;
     if (result.exitCode === 0 && message.goal_id) {
       const patch = await createWorkspacePatch({ workspacePath: workspace.workspacePath });
       if (patch.patchText.trim().length > 0) {
@@ -110,6 +113,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
           patchText: patch.patchText,
           changedFiles: patch.changedFiles
         });
+        queuedPatchId = queuedPatch.id;
         await repo.appendRunLog(
           runId,
           "stdout",
@@ -124,8 +128,14 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     }
 
     await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
-    if (result.exitCode === 0) {
+    const dispatchDecision = decidePostRunDispatch({ exitCode: result.exitCode, queuedPatchId });
+    if (dispatchDecision.action === "dispatch_next") {
       await dispatchNextTask(message.task_id);
+    } else if (dispatchDecision.action === "wait_for_integration") {
+      await repo.recordTaskEvent(message.task_id, "dispatch.waiting_for_integration", {
+        patchId: dispatchDecision.patchId,
+        reason: dispatchDecision.reason
+      });
     }
 
     await publishJson(integrationQueue, {
@@ -225,6 +235,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     cliModel: roleConfig.cliModel,
     next: roleName === "master" ? "review task tree or dispatch next role" : "return to master"
   });
+  let queuedPatchId: string | null = null;
   if (result.exitCode === 0 && role !== "master" && workspacePath && message.goal_id) {
     const patch = await createWorkspacePatch({ workspacePath });
     if (patch.patchText.trim().length > 0) {
@@ -234,6 +245,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
         patchText: patch.patchText,
         changedFiles: patch.changedFiles
       });
+      queuedPatchId = queuedPatch.id;
       await repo.appendRunLog(
         runId,
         "stdout",
@@ -248,8 +260,14 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     }
   }
   await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
-  if (result.exitCode === 0) {
+  const dispatchDecision = decidePostRunDispatch({ exitCode: result.exitCode, queuedPatchId });
+  if (dispatchDecision.action === "dispatch_next") {
     await dispatchNextTask(message.task_id);
+  } else if (dispatchDecision.action === "wait_for_integration") {
+    await repo.recordTaskEvent(message.task_id, "dispatch.waiting_for_integration", {
+      patchId: dispatchDecision.patchId,
+      reason: dispatchDecision.reason
+    });
   }
 }
 
@@ -285,6 +303,23 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
       verificationCommands: integrationVerificationCommands
     }
   });
+  if (shouldDispatchAfterIntegration({ applyStatus: result.status })) {
+    await dispatchNextTask(integration.taskId);
+  } else {
+    await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+      goalId: integration.goalId,
+      eventType: "blocker",
+      reason: `integration failed for task ${integration.taskId}: ${result.reason ?? result.status}`,
+      source: "integration.worker",
+      payload: {
+        taskId: integration.taskId,
+        integrationId: integration.id,
+        patchId: integration.patchId,
+        applyStatus: result.status,
+        reason: result.reason
+      }
+    }));
+  }
 }
 
 async function handleWatchdogTask(message: QueueMessage): Promise<void> {

@@ -397,6 +397,16 @@ Then task 状态必须变为 `cancelled`
 And 系统必须记录 `task.cancelled` 事件
 And 该 task 下仍处于 `running` 的 run 必须被收口，不能继续显示 running
 
+## 场景 18：有 patch 的任务必须等 integration 成功后再放行下一任务
+
+Given RuleWriter、TestWriter 或 Worker run 成功并产生 patch
+When Dionysus 将 patch 写入 integration queue
+Then 当前任务不得立即 dispatch 下一优先级任务
+And 当前任务必须记录 `dispatch.waiting_for_integration`
+When integration worker 成功应用 patch 并通过验证命令
+Then Dionysus 才能 dispatch 下一优先级 created task
+And 如果 integration blocked 或 failed，必须创建 `codex_outbox` blocker，而不是继续放行 Worker
+
 ## 运行命令
 
 ```bash
