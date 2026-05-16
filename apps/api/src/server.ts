@@ -10,6 +10,8 @@ import {
   buildMilestoneNotificationDraft,
   buildNotificationPayload,
   buildTelegramRequest,
+  buildTargetPreflight,
+  checkGitPreflight,
   checkSpecTestGate,
   compileTargetProject,
   evaluateWatchdogTask,
@@ -443,6 +445,23 @@ export async function buildServer() {
     const checks = await checkSpecTestGate(goal.targetRoot);
     await repo.saveGateChecks({ goalId: id, checks });
     return { goalId: id, checks };
+  });
+
+  app.post("/api/goals/:id/preflight", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const [git, gates] = await Promise.all([
+      checkGitPreflight(goal.targetRoot),
+      checkSpecTestGate(goal.targetRoot)
+    ]);
+    await repo.saveGateChecks({ goalId: id, checks: gates });
+    return {
+      goalId: id,
+      ...buildTargetPreflight({ git, gates })
+    };
   });
 
   app.post("/api/patches", async (request, reply) => {

@@ -11,3 +11,4 @@ export * from "./agent-config.js";
 export * from "./role-prompt.js";
 export * from "./watchdog.js";
 export * from "./notification-delivery.js";
+export * from "./target-preflight.js";

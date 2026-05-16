@@ -112,6 +112,15 @@ Then Dionysus 必须检查 `docs/PLAN.md`、`docs/specs/`、`features_test/`
 And 将检查结果写入 `gate_checks`  
 And 如果缺少任一门禁，则返回 `blocked`
 
+## 场景 7.1：Target Preflight 必须阻止脏工作区试运行
+
+Given 一个指向目标项目的 goal  
+When Codex 调用 `/api/goals/:id/preflight`  
+Then Dionysus 必须检查目标 Git 工作区是否干净  
+And 必须同时运行 PLAN / specs / features_test gate  
+And 如果 Git 脏或任一 gate blocked，则 preflight 返回 `blocked`  
+And response 必须包含 blockers 汇总
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现  
