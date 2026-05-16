@@ -125,6 +125,15 @@ And 如果模型可用，必须保存 resolved model 到 `agent_cli_configs`
 And 如果模型不可用，必须拒绝保存并返回失败原因
 And Codex 不需要打开前端就能配置 Master、RuleWriter、TestWriter、Worker
 
+## 场景 6.5.2：Codex CLI 必须能监督具体 Agent 实例
+
+Given Dionysus API 已启动
+When Codex 运行 `pnpm dionysus agent status --goal-id "<goal-id>"`
+Then CLI 必须读取 `/health`、`/api/agent-cli-configs`、`/api/agents`、`/api/tasks`、`/api/runs` 和 `/api/usage/agent-cli`
+And 输出必须包含 Agent 实例总数、idle 数、working 数、blocked 数、disabled 数
+And 输出必须包含最近 run 中已绑定与未绑定具体 Agent 的数量
+And 如果 running run 没有 `agent_id`，必须把 runtime 标记为 `blocked`
+
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
 
 Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode

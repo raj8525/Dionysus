@@ -261,7 +261,7 @@ pnpm dionysus agent status --goal-id "<goal-id>"
 
 `agent config set` 必须先调用模型验证；验证通过后保存 resolved model，验证失败时不得写入 `agent_cli_configs`。
 
-`agent status` 必须聚合 `/health`、`/api/agent-cli-configs`、`/api/tasks` 和 `/api/runs`，返回 Runtime 是否可推进、已配置/禁用 Agent 数、queued/running/blocked 任务数和下一步动作建议。
+`agent status` 必须聚合 `/health`、`/api/agent-cli-configs`、`/api/agents`、`/api/tasks`、`/api/runs` 和 `/api/usage/agent-cli`，返回 Runtime 是否可推进、已配置/禁用 Agent 数、Agent 实例 working/idle/blocked/disabled 数、queued/running/blocked 任务数、最近 run 是否绑定具体 Agent，以及下一步动作建议。
 
 `/api/agents` 必须返回系统内置 Agent 实例 `Master`、`RuleWriter`、`TestWriter`、`WorkerA`、`WorkerB`、`WorkerC`、`WorkerD` 的 `id`、`name`、`role`、`status`、`cliType`、`cliModel`、`createdAt`、`updatedAt`。这些实例是 `task_runs.agent_id` 的唯一可信来源，也是 Dashboard 展示“谁正在工作”的基础。
 

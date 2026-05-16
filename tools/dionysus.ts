@@ -110,19 +110,23 @@ async function main(): Promise<void> {
 
   if (domain === "agent" && action === "status") {
     const goalId = readFlag(args, "--goal-id");
-    const [health, configs, tasks, runs] = await Promise.all([
+    const [health, configs, agents, tasks, runs, usage] = await Promise.all([
       request("/health") as Promise<Record<string, unknown>>,
       request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
+      request("/api/agents") as Promise<Array<Record<string, unknown>>>,
       goalId ? request(`/api/tasks?goalId=${goalId}`) as Promise<Array<Record<string, unknown>>> : Promise.resolve([]),
-      goalId ? request(`/api/runs?goalId=${goalId}&limit=20`) as Promise<Array<Record<string, unknown>>> : Promise.resolve([])
+      goalId ? request(`/api/runs?goalId=${goalId}&limit=20`) as Promise<Array<Record<string, unknown>>> : Promise.resolve([]),
+      request(`/api/usage/agent-cli${goalId ? `?goalId=${encodeURIComponent(goalId)}` : ""}`) as Promise<Record<string, unknown>>
     ]);
     return print({
       goalId,
-      summary: summarizeAgentControlStatus({ health, configs, tasks, runs }),
+      summary: summarizeAgentControlStatus({ health, configs, agents, tasks, runs }),
       health,
       configs,
+      agents,
       tasks,
-      runs
+      runs,
+      usage
     });
   }
 
