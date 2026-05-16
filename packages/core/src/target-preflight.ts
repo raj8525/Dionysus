@@ -29,6 +29,20 @@ export function parseGitStatusPorcelain(output: string): GitPreflightResult {
   };
 }
 
+export function parseGitStatusPath(change: string): string {
+  const path = change.length > 3 ? change.slice(3).trim() : change.trim();
+  const renameTarget = path.split(" -> ").at(-1);
+  return renameTarget?.trim() ?? path;
+}
+
+export function findUnmanagedGitChanges(input: {
+  changes: string[];
+  managedPaths: string[];
+}): string[] {
+  const managed = new Set(input.managedPaths);
+  return input.changes.filter((change) => !managed.has(parseGitStatusPath(change)));
+}
+
 export function buildTargetPreflight(input: {
   git: GitPreflightResult;
   gates: GateCheckResult[];

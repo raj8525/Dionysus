@@ -19,6 +19,7 @@ import {
   compileTargetProject,
   decideMasterStep,
   evaluateWatchdogTask,
+  findUnmanagedGitChanges,
   resolveNotificationChannels,
   queueForRole,
   deriveWorkerHealth
@@ -876,11 +877,46 @@ export async function buildServer() {
     }
     const git = await checkGitPreflight(goal.targetRoot);
     const queued = await repo.listQueuedIntegrations(id);
+    const integrations = await repo.listIntegrations(id);
+    const appliedIntegrations = integrations.filter((integration) =>
+      integration.status === "passed" && integration.patchStatus === "applied"
+    );
+    const managedChangedFiles = Array.from(new Set(
+      appliedIntegrations.flatMap((integration) =>
+        Array.isArray(integration.changedFiles) ? integration.changedFiles.map(String) : []
+      )
+    ));
+    const unmanagedChanges = findUnmanagedGitChanges({
+      changes: git.changes,
+      managedPaths: managedChangedFiles
+    });
+    if (!git.clean && queued.length === 0 && unmanagedChanges.length === 0) {
+      const event = await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+        goalId: id,
+        eventType: "release_ready",
+        reason: `managed target changes are ready for Codex commit: ${managedChangedFiles.length} files`,
+        source: "release-ready",
+        payload: {
+          changedFiles: managedChangedFiles,
+          integrationIds: appliedIntegrations.map((integration) => String(integration.id))
+        }
+      }));
+      return {
+        goalId: id,
+        status: "ready_for_codex_commit",
+        blockers: [],
+        changedFiles: managedChangedFiles,
+        integrations: appliedIntegrations,
+        codexOutboxEvent: event
+      };
+    }
     if (!git.clean) {
       return {
         goalId: id,
         status: "blocked",
-        blockers: [`git worktree dirty: ${git.changes.length} changes`],
+        blockers: unmanagedChanges.length
+          ? [`unmanaged git changes: ${unmanagedChanges.join(", ")}`]
+          : [`git worktree dirty: ${git.changes.length} changes`],
         queued
       };
     }

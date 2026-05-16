@@ -1,3 +1,6 @@
+import { spawn } from "node:child_process";
+import { mkdirSync, openSync } from "node:fs";
+import { join } from "node:path";
 import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
@@ -53,6 +56,27 @@ async function main(): Promise<void> {
       goalStatus
     };
     return print(hasFlag(args, "--brief") ? compactDoctorResult(result) : result);
+  }
+
+  if (domain === "system" && action === "worker" && args[0] === "start") {
+    const logDir = readFlag(args, "--log-dir") ?? ".dionysus/logs";
+    mkdirSync(logDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+    const logFile = join(logDir, `worker-${stamp}.log`);
+    const logFd = openSync(logFile, "a");
+    const child = spawn("pnpm", ["--filter", "@dionysus/worker", "exec", "tsx", "src/worker.ts"], {
+      cwd: process.cwd(),
+      detached: true,
+      env: process.env,
+      stdio: ["ignore", logFd, logFd]
+    });
+    child.unref();
+    return print({
+      status: "started",
+      pid: child.pid,
+      logFile,
+      command: "pnpm --filter @dionysus/worker exec tsx src/worker.ts"
+    });
   }
 
   if (domain === "agent" && action === "probe") {
@@ -619,6 +643,7 @@ function usage(): void {
   pnpm goal:create -- --title "..." --description "..." --target-root "/path/to/project"
   tsx tools/dionysus.ts system doctor
   tsx tools/dionysus.ts system doctor --brief
+  tsx tools/dionysus.ts system worker start
   tsx tools/dionysus.ts agent probe
   tsx tools/dionysus.ts agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
   tsx tools/dionysus.ts agent config list

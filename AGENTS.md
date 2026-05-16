@@ -42,6 +42,7 @@ Codex 日常操作 Dionysus 优先使用统一 CLI，避免手写 `curl`：
 ```bash
 pnpm dionysus system doctor
 pnpm dionysus system doctor --brief
+pnpm dionysus system worker start
 pnpm dionysus agent probe
 pnpm dionysus agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
 pnpm dionysus agent config list

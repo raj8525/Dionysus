@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildTargetPreflight, parseGitStatusPorcelain } from "./target-preflight.js";
+import {
+  buildTargetPreflight,
+  findUnmanagedGitChanges,
+  parseGitStatusPath,
+  parseGitStatusPorcelain
+} from "./target-preflight.js";
 
 describe("target preflight", () => {
   it("parses clean and dirty git status", () => {
@@ -42,5 +47,23 @@ describe("target preflight", () => {
       "git worktree dirty: 1 changes",
       "plan gate blocked: missing docs/PLAN.md"
     ]);
+  });
+
+  it("extracts file paths from porcelain changes", () => {
+    expect(parseGitStatusPath("?? apps/admin-api/internal/handler/real_db_smoke_test.go")).toBe(
+      "apps/admin-api/internal/handler/real_db_smoke_test.go"
+    );
+    expect(parseGitStatusPath(" M apps/web/src/App.tsx")).toBe("apps/web/src/App.tsx");
+    expect(parseGitStatusPath("R  old/path.ts -> new/path.ts")).toBe("new/path.ts");
+  });
+
+  it("separates managed integration changes from unknown dirty files", () => {
+    expect(findUnmanagedGitChanges({
+      changes: [
+        "?? apps/admin-api/internal/handler/real_db_smoke_test.go",
+        " M apps/web/src/App.tsx"
+      ],
+      managedPaths: ["apps/admin-api/internal/handler/real_db_smoke_test.go"]
+    })).toEqual([" M apps/web/src/App.tsx"]);
   });
 });

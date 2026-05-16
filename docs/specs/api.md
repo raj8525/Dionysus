@@ -54,6 +54,14 @@ POST /api/goals/:id/master-step
 POST /api/goals/:id/integrations/release-ready
 ```
 
+`integrations/release-ready` 不能把所有 dirty worktree 都视为同一种阻塞。规则：
+
+- 如果存在 queued integration，目标 worktree 必须 clean，才能发布 integration。
+- 如果没有 queued integration，但 worktree 的变更文件全部来自已经 `passed/applied` 的 integration changedFiles，则返回 `ready_for_codex_commit`，并创建 `release_ready` Codex Outbox 事件，交给 Codex 做最终验证、提交和推送。
+- 如果 dirty 文件中存在不属于已通过 integration 的路径，则返回 `blocked`，blocker 必须列出 unmanaged changes。
+
+这个规则保证 Dionysus 能把“已集成、待 Codex 提交”的真实产物继续向前推进，同时阻止未归属改动混入发布。
+
 创建 goal 请求：
 
 ```json
@@ -296,6 +304,7 @@ POST /api/goals/:id/gate-check
 Codex CLI 必须覆盖完整 goal 生命周期入口，不能要求 Codex 手写 `curl`。最低命令集：
 
 ```text
+pnpm dionysus system worker start
 pnpm dionysus goal intake --goal-id "<goal-id>"
 pnpm dionysus goal bootstrap --goal-id "<goal-id>"
 pnpm dionysus goal preflight --goal-id "<goal-id>"
@@ -310,6 +319,8 @@ pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no
 pnpm dionysus task enqueue --task-id "<task-id>"
 pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged sequence"
 ```
+
+`system worker start` 必须用 detached 进程启动 Worker Runtime，并把 stdout/stderr 写入 `.dionysus/logs/worker-*.log`。Codex 不应该依赖前台 shell 会话维持 Worker 心跳。
 
 `POST /api/tasks` 默认创建并立即入队；当请求体包含 `"queue": false`，或 CLI 使用 `--no-queue` 时，只创建 `created` 任务，不投递 RabbitMQ。该能力用于先建立任务树，再由 Master/上一阶段成功后的 `dispatchNextTask` 按优先级放行，避免 Worker 早于 TestWriter 运行。
 
