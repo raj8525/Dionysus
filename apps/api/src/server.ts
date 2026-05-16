@@ -22,6 +22,13 @@ const createTaskSchema = z.object({
   priority: z.number().int().optional()
 });
 
+const agentCliConfigSchema = z.object({
+  role: z.enum(["master", "rule_writer", "test_writer", "worker"]),
+  cliType: z.enum(["mock", "claude_code", "gemini_cli", "opencode"]),
+  cliModel: z.string().optional(),
+  enabled: z.boolean().optional()
+});
+
 const createMilestoneSchema = z.object({
   goalId: z.string().uuid(),
   name: z.string().min(1),
@@ -118,6 +125,17 @@ export async function buildServer() {
   app.get("/api/tasks", async (request) => {
     const query = request.query as { goalId?: string };
     return repo.listTasks(query.goalId);
+  });
+
+  app.get("/api/agent-cli-configs", async () => repo.listAgentCliConfigs());
+
+  app.put("/api/agent-cli-configs", async (request, reply) => {
+    const parsed = agentCliConfigSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_AGENT_CLI_CONFIG", details: parsed.error.flatten() });
+    }
+    const config = await repo.upsertAgentCliConfig(parsed.data);
+    return reply.code(200).send(config);
   });
 
   app.post("/api/tasks", async (request, reply) => {

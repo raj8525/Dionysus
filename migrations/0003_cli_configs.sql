@@ -8,6 +8,9 @@ create table if not exists __SCHEMA__.agent_cli_configs (
   updated_at timestamptz not null default now()
 );
 
+create unique index if not exists agent_cli_configs_role_unique
+  on __SCHEMA__.agent_cli_configs(agent_role);
+
 create table if not exists __SCHEMA__.cli_models (
   id uuid primary key,
   cli_type text not null check (cli_type in ('mock', 'claude_code', 'gemini_cli', 'opencode')),

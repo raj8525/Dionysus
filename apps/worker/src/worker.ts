@@ -1,8 +1,14 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import type { CliType } from "@dionysus/core";
-import { applyPatchToTarget, createIsolatedWorkspace, createPatch as createWorkspacePatch, queueForRole } from "@dionysus/core";
+import type { AgentRole, CliType, Goal, RolePromptTask } from "@dionysus/core";
+import {
+  applyPatchToTarget,
+  buildRolePrompt,
+  createIsolatedWorkspace,
+  createPatch as createWorkspacePatch,
+  queueForRole
+} from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
@@ -29,7 +35,12 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     throw new Error("worker task requires task_id");
   }
 
-  const prompt = `Execute Dionysus task ${message.task_id}`;
+  const taskContext = await loadTaskContext(message.task_id);
+  const prompt = buildRolePrompt({
+    role: "worker",
+    task: taskContext.task,
+    goal: taskContext.goal
+  });
   const runId = await repo.createTaskRun({
     taskId: message.task_id,
     cliType: workerCliType,
@@ -118,29 +129,45 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   if (!message.task_id) {
     throw new Error(`${roleName} task requires task_id`);
   }
-  const prompt = `Execute Dionysus ${roleName} task ${message.task_id}. Do not write product implementation code unless this is the worker role.`;
+  const role = roleName as AgentRole;
+  const taskContext = await loadTaskContext(message.task_id);
+  const prompt = buildRolePrompt({
+    role,
+    task: taskContext.task,
+    goal: taskContext.goal
+  });
+  const roleConfig = await repo.getAgentCliConfig(role);
+  const roleAdapter = roleConfig.cliType === "mock"
+    ? new MockAdapter()
+    : createCliAdapter({ cliType: roleConfig.cliType, model: roleConfig.cliModel });
   const runId = await repo.createTaskRun({
     taskId: message.task_id,
-    cliType: "mock",
+    cliType: roleConfig.cliType,
+    cliModel: roleConfig.cliModel,
     command: `${roleName}.governance`,
     prompt
   });
-  await repo.appendRunLog(
-    runId,
-    "stdout",
-    [
-      `${roleName} governance task accepted.`,
-      `task_id=${message.task_id}`,
-      "This MVP records governance progress; real CLI role execution is configured in the next runtime layer."
-    ].join("\n"),
-    1
-  );
-  await repo.recordTaskEvent(message.task_id, `${roleName}.completed`, {
+  const result = await roleAdapter.run({
+    taskId: message.task_id,
+    prompt,
+    cwd: targetRoot
+  });
+  if (result.stdout) {
+    await repo.appendRunLog(runId, "stdout", result.stdout, 1);
+  }
+  if (result.stderr) {
+    await repo.appendRunLog(runId, "stderr", result.stderr, 2);
+  }
+  await repo.recordTaskEvent(message.task_id, result.exitCode === 0 ? `${roleName}.completed` : `${roleName}.failed`, {
     messageId: message.message_id,
+    cliType: roleConfig.cliType,
+    cliModel: roleConfig.cliModel,
     next: roleName === "master" ? "review task tree or dispatch next role" : "return to master"
   });
-  await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 0 });
-  await dispatchNextTask(message.task_id);
+  await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: result.exitCode });
+  if (result.exitCode === 0) {
+    await dispatchNextTask(message.task_id);
+  }
 }
 
 async function handleIntegrationTask(message: QueueMessage): Promise<void> {
@@ -200,6 +227,23 @@ async function dispatchNextTask(completedTaskId: string): Promise<void> {
     nextTaskId: nextTask.id,
     nextRole: nextTask.roleRequired
   });
+}
+
+async function loadTaskContext(taskId: string): Promise<{ task: RolePromptTask; goal: Goal | null }> {
+  const row = await repo.getTask(taskId);
+  if (!row) {
+    throw new Error(`task not found: ${taskId}`);
+  }
+  const goalId = String(row.goal_id);
+  return {
+    task: {
+      id: String(row.id),
+      title: String(row.title),
+      description: String(row.description),
+      roleRequired: row.role_required as AgentRole
+    },
+    goal: await repo.getGoal(goalId)
+  };
 }
 
 function parseWorkerCliType(value: string | undefined): CliType {

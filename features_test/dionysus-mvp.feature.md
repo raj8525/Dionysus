@@ -76,6 +76,25 @@ And RuleWriter 完成后必须投递 TestWriter
 And TestWriter 完成后必须投递 Worker  
 And Worker 完成后必须投递 Review Master
 
+## 场景 6.3：每个角色必须读取独立 CLI 配置
+
+Given Codex 为 Master、RuleWriter、TestWriter 或 Worker 配置了 CLI 类型和模型  
+When 对应角色任务被 Runtime 消费  
+Then Dionysus 必须读取数据库中的 `agent_cli_configs`  
+And 使用该角色配置的 CLI Adapter 执行  
+And run 记录必须保存实际使用的 cli_type 和 cli_model  
+And 未配置角色必须默认使用 `mock`
+
+## 场景 6.4：真实 Agent 执行前必须收到强约束角色 Prompt
+
+Given 一个角色任务即将执行  
+When Runtime 调用 Agent CLI  
+Then prompt 必须包含目标目录、目标描述、任务标题、任务描述、角色边界、SDD/TDD 门禁和输出格式  
+And Master prompt 必须禁止直接写业务实现代码  
+And RuleWriter prompt 必须限制为 specs 产出  
+And TestWriter prompt 必须限制为 features_test 和测试产出  
+And Worker prompt 必须要求 gate-check 通过、隔离 workspace 和 patch 证据
+
 ## 场景 7：Spec/Test Gatekeeper 阻止无规格实现
 
 Given 一个指向目标项目的 goal  

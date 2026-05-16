@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { AgentRole, CliType, FlowEdge, FlowNode, Goal } from "@dionysus/core";
+import { normalizeAgentCliConfig } from "@dionysus/core";
+import type { AgentCliConfig, AgentRole, CliType, FlowEdge, FlowNode, Goal } from "@dionysus/core";
 import type pg from "pg";
 import { quoteIdent } from "./connection.js";
 import type {
@@ -97,6 +98,75 @@ export class DionysusRepository {
     } finally {
       client.release();
     }
+  }
+
+  async upsertAgentCliConfig(input: {
+    role: AgentRole;
+    cliType: CliType;
+    cliModel?: string;
+    enabled?: boolean;
+  }): Promise<AgentCliConfig & { enabled: boolean }> {
+    const id = randomUUID();
+    const result = await this.pool.query(
+      `insert into ${this.table("agent_cli_configs")}
+        (id, agent_role, cli_type, cli_model, enabled)
+       values ($1, $2, $3, $4, $5)
+       on conflict (agent_role)
+       do update set cli_type = excluded.cli_type,
+                     cli_model = excluded.cli_model,
+                     enabled = excluded.enabled,
+                     updated_at = now()
+       returning agent_role, cli_type, cli_model, enabled`,
+      [id, input.role, input.cliType, input.cliModel ?? null, input.enabled ?? true]
+    );
+    const row = result.rows[0];
+    return {
+      ...normalizeAgentCliConfig({
+        role: row.agent_role,
+        cliType: row.cli_type,
+        cliModel: row.cli_model
+      }),
+      enabled: Boolean(row.enabled)
+    };
+  }
+
+  async getAgentCliConfig(role: AgentRole): Promise<(AgentCliConfig & { enabled: boolean })> {
+    const result = await this.pool.query(
+      `select agent_role, cli_type, cli_model, enabled
+       from ${this.table("agent_cli_configs")}
+       where agent_role = $1 and enabled = true
+       order by updated_at desc
+       limit 1`,
+      [role]
+    );
+    if (!result.rowCount) {
+      return { role, cliType: "mock", cliModel: undefined, enabled: true };
+    }
+    const row = result.rows[0];
+    return {
+      ...normalizeAgentCliConfig({
+        role: row.agent_role,
+        cliType: row.cli_type,
+        cliModel: row.cli_model
+      }),
+      enabled: Boolean(row.enabled)
+    };
+  }
+
+  async listAgentCliConfigs(): Promise<Array<AgentCliConfig & { enabled: boolean }>> {
+    const result = await this.pool.query(
+      `select agent_role, cli_type, cli_model, enabled
+       from ${this.table("agent_cli_configs")}
+       order by agent_role asc`
+    );
+    return result.rows.map((row) => ({
+      ...normalizeAgentCliConfig({
+        role: row.agent_role,
+        cliType: row.cli_type,
+        cliModel: row.cli_model
+      }),
+      enabled: Boolean(row.enabled)
+    }));
   }
 
   async listTasks(goalId?: string): Promise<Array<Record<string, unknown>>> {

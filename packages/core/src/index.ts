@@ -7,3 +7,5 @@ export * from "./milestone-orchestration.js";
 export * from "./integration-applier.js";
 export * from "./master-planner.js";
 export * from "./role-queues.js";
+export * from "./agent-config.js";
+export * from "./role-prompt.js";
