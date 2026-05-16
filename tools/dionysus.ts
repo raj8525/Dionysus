@@ -166,6 +166,12 @@ async function main(): Promise<void> {
     }));
   }
 
+  if (domain === "task" && action === "cancel") {
+    return print(await request(`/api/tasks/${requiredFlag(args, "--task-id")}/cancel`, "POST", {
+      reason: readFlag(args, "--reason") ?? "cancelled by Codex"
+    }));
+  }
+
   if (domain === "milestone" && action === "request-e2e") {
     return print(await request(`/api/milestones/${requiredFlag(args, "--milestone-id")}/request-e2e`, "POST"));
   }
@@ -617,6 +623,7 @@ function usage(): void {
   tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30
   tsx tools/dionysus.ts integration list --goal-id "..."
   tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker [--no-queue]
+  tsx tools/dionysus.ts task cancel --task-id "..." --reason "..."
   tsx tools/dionysus.ts milestone request-e2e --milestone-id "..."
   tsx tools/dionysus.ts milestone create-campaign --milestone-id "..." --target-url "..." --acceptance "..."
   tsx tools/dionysus.ts milestone verdict --milestone-id "..." --verdict passed --reason "..."

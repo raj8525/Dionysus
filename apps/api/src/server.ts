@@ -97,6 +97,10 @@ const createPatchSchema = z.object({
   changedFiles: z.array(z.string())
 });
 
+const cancelTaskSchema = z.object({
+  reason: z.string().min(1).default("cancelled by Codex")
+});
+
 const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS ?? "90", 10);
 
 const watchdogRunSchema = z.object({
@@ -346,6 +350,19 @@ export async function buildServer() {
       return reply.code(201).send({ ...task, status: "queued" });
     }
     return reply.code(201).send(task);
+  });
+
+  app.post("/api/tasks/:id/cancel", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = cancelTaskSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_TASK_CANCEL_INPUT", details: parsed.error.flatten() });
+    }
+    const task = await repo.cancelTask({ taskId: id, reason: parsed.data.reason });
+    if (!task) {
+      return reply.code(404).send({ error: "TASK_NOT_FOUND" });
+    }
+    return reply.code(202).send(task);
   });
 
   app.post("/api/goals/:id/intake", async (request, reply) => {

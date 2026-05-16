@@ -272,9 +272,12 @@ pnpm dionysus goal master-step --goal-id "<goal-id>"
 pnpm dionysus goal release-ready --goal-id "<goal-id>"
 pnpm dionysus integration list --goal-id "<goal-id>"
 pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no-queue
+pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged sequence"
 ```
 
 `POST /api/tasks` 默认创建并立即入队；当请求体包含 `"queue": false`，或 CLI 使用 `--no-queue` 时，只创建 `created` 任务，不投递 RabbitMQ。该能力用于先建立任务树，再由 Master/上一阶段成功后的 `dispatchNextTask` 按优先级放行，避免 Worker 早于 TestWriter 运行。
+
+`POST /api/tasks/:id/cancel` 用于 Codex 或 Master 取消错误排队、过宽、过期或被新任务替代的任务。取消时必须把 task 标记为 `cancelled`，记录 `task.cancelled` 事件，并收口该 task 下仍处于 `running` 的 run。
 
 Codex 也必须有一个高层单步循环命令：
 

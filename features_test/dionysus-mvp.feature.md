@@ -389,6 +389,14 @@ Then 任务状态必须保持 `created`
 And 系统不得向 RabbitMQ 投递该 Worker 任务
 And 后续只能由 Master 或上一阶段成功后的调度逻辑放行
 
+## 场景 17：Codex 可以取消错误排队的任务
+
+Given 一个 Worker task 被过早排队或已被更小任务替代
+When Codex 执行 `pnpm dionysus task cancel --task-id "<task-id>" --reason "..."`
+Then task 状态必须变为 `cancelled`
+And 系统必须记录 `task.cancelled` 事件
+And 该 task 下仍处于 `running` 的 run 必须被收口，不能继续显示 running
+
 ## 运行命令
 
 ```bash

@@ -542,6 +542,48 @@ export class DionysusRepository {
     }
   }
 
+  async cancelTask(input: {
+    taskId: string;
+    reason: string;
+  }): Promise<Record<string, unknown> | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `update ${this.table("tasks")}
+         set status = 'cancelled', blocked_reason = $2, updated_at = now()
+         where id = $1
+         returning id, goal_id, title, description, role_required, assigned_agent_id, status, priority,
+                   blocked_reason, current_attempt, max_attempts, created_at, updated_at`,
+        [input.taskId, input.reason]
+      );
+      if (!result.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
+      await client.query(
+        `update ${this.table("task_runs")}
+         set status = 'failed',
+             exit_code = coalesce(exit_code, 130),
+             finished_at = coalesce(finished_at, now())
+         where task_id = $1 and status = 'running'`,
+        [input.taskId]
+      );
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [randomUUID(), input.taskId, "task.cancelled", JSON.stringify({ reason: input.reason })]
+      );
+      await client.query("commit");
+      return result.rows[0];
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async createTaskRun(input: {
     taskId: string;
     cliType: CliType;
