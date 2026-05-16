@@ -26,6 +26,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@dionysus/cli-adapters':
+        specifier: workspace:*
+        version: link:../../packages/cli-adapters
       '@dionysus/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -97,6 +100,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@dionysus/cli-adapters':
+        specifier: workspace:*
+        version: link:../cli-adapters
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2

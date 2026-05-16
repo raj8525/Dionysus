@@ -8,6 +8,7 @@ import type {
   CompiledDocument,
   DocumentFinding
 } from "@dionysus/core";
+import type { CliProbeResult } from "@dionysus/cli-adapters";
 
 export class DionysusRepository {
   constructor(
@@ -413,6 +414,46 @@ export class DionysusRepository {
     } finally {
       client.release();
     }
+  }
+
+  async saveCliProbeResults(results: CliProbeResult[]): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      for (const result of results) {
+        const models = result.models?.length ? result.models : result.available ? [`${result.cliType}/default`] : [];
+        for (const model of models) {
+          await client.query(
+            `insert into ${this.table("cli_models")}
+              (id, cli_type, model, available, raw_source)
+             values ($1, $2, $3, $4, $5)
+             on conflict (cli_type, model)
+             do update set available = excluded.available, raw_source = excluded.raw_source, updated_at = now()`,
+            [randomUUID(), result.cliType, model, result.available, result.version ?? result.error ?? null]
+          );
+        }
+      }
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [randomUUID(), "cli.probed", JSON.stringify({ count: results.length })]
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listCliModels(): Promise<Array<Record<string, unknown>>> {
+    const result = await this.pool.query(
+      `select cli_type, model, available, raw_source, updated_at
+       from ${this.table("cli_models")}
+       order by cli_type asc, model asc`
+    );
+    return result.rows;
   }
 
   async buildFlow(goalId?: string): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] } | null> {

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@dionysus/core": "workspace:*",
+    "@dionysus/cli-adapters": "workspace:*",
     "@dionysus/db": "workspace:*",
     "@dionysus/mq": "workspace:*",
     "@fastify/cors": "^11.1.0",

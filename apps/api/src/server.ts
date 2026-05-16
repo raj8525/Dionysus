@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { publishJson } from "@dionysus/mq";
 import { compileTargetProject } from "@dionysus/core";
+import { probeAllClis } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
   title: z.string().min(1),
@@ -177,6 +178,14 @@ export async function buildServer() {
     const notification = await repo.createNotification(parsed.data);
     return reply.code(201).send(notification);
   });
+
+  app.post("/api/cli/probe", async () => {
+    const results = await probeAllClis();
+    await repo.saveCliProbeResults(results);
+    return results;
+  });
+
+  app.get("/api/cli/models", async () => repo.listCliModels());
 
   return app;
 }

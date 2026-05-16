@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const schema = quoteIdent(config.schema);
 
   try {
-    const migrations = ["0001_init.sql", "0002_intake_graph.sql"];
+    const migrations = ["0001_init.sql", "0002_intake_graph.sql", "0003_cli_configs.sql"];
     for (const migrationFile of migrations) {
       const migration = await readFile(resolve(migrationDir, migrationFile), "utf8");
       const sql = migration.replaceAll("__SCHEMA__", schema);

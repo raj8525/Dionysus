@@ -66,3 +66,10 @@ POST /api/milestones/:id/codex-verdict
 ```text
 POST /api/notifications
 ```
+
+## CLI
+
+```text
+POST /api/cli/probe
+GET /api/cli/models
+```
