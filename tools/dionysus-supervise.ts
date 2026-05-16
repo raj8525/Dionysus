@@ -1,3 +1,15 @@
+import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
+
+export interface SupervisionAgentStatusInput {
+  goalId: string;
+  health: Record<string, unknown>;
+  configs: Array<Record<string, unknown>>;
+  agents: Array<Record<string, unknown>>;
+  tasks: Array<Record<string, unknown>>;
+  runs: Array<Record<string, unknown>>;
+  usage: Record<string, unknown>;
+}
+
 export interface SupervisionStepInput {
   agentStatus: Record<string, unknown>;
   runCycle: Record<string, unknown>;
@@ -7,6 +19,40 @@ export interface SupervisionStepSummary {
   status: "blocked" | "e2e_required" | "working";
   shouldContinue: boolean;
   reason: string;
+}
+
+export function buildSupervisionStepRecord(input: {
+  iteration: number;
+  summary: SupervisionStepSummary;
+  agentStatus: Record<string, unknown>;
+  runCycle: Record<string, unknown>;
+}): Record<string, unknown> {
+  return {
+    iteration: input.iteration,
+    summary: input.summary,
+    agentSummary: input.agentStatus.summary,
+    agentUsage: input.agentStatus.usage,
+    runCycleSummary: input.runCycle.summary
+  };
+}
+
+export function buildSupervisionAgentStatus(input: SupervisionAgentStatusInput): Record<string, unknown> {
+  return {
+    goalId: input.goalId,
+    summary: summarizeAgentControlStatus({
+      health: input.health,
+      configs: input.configs,
+      agents: input.agents,
+      tasks: input.tasks,
+      runs: input.runs
+    }),
+    health: input.health,
+    configs: input.configs,
+    agents: input.agents,
+    tasks: input.tasks,
+    runs: input.runs,
+    usage: input.usage
+  };
 }
 
 export function summarizeSupervisionStep(input: SupervisionStepInput): SupervisionStepSummary {

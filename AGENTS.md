@@ -130,6 +130,8 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 
 `pnpm dionysus agent status --goal-id "<goal-id>"` 是 Codex 监督 Agent Team 的首选入口。它必须同时查看 Runtime health、角色 CLI 配置、具体 Agent 实例、任务、run 和 CLI usage；如果发现 running run 没有绑定 `agent_id`，或有 running run 但没有 working Agent，必须先修复 Runtime/数据库状态，不能继续假装系统正在正常推进。
 
+`pnpm dionysus goal supervise --goal-id "<goal-id>"` 是连续推进入口。每轮必须复用同一套 Agent 实例和 CLI usage 统计口径；如果它返回 blocker 或 e2e_required，先处理 `codex_outbox`，不要只看前端或任务列表猜测状态。
+
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
 
 ## 目标项目配置

@@ -395,6 +395,7 @@ When Codex 执行 `pnpm dionysus goal supervise --goal-id "<goal-id>"`
 Then Dionysus 必须创建 `codex_outbox` 事件
 And 事件类型必须是 `blocker`
 And `pnpm dionysus codex heartbeat --limit 5` 必须能读到该事件
+And 每轮监督必须读取具体 Agent 实例与 `GET /api/usage/agent-cli`，不能只依赖旧的 role config / task run 列表
 
 ## 场景 14.1：Codex 处理事件后 ack
 

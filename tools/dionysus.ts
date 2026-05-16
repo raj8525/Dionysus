@@ -8,7 +8,7 @@ import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
-import { summarizeSupervisionStep } from "./dionysus-supervise.js";
+import { buildSupervisionAgentStatus, buildSupervisionStepRecord, summarizeSupervisionStep } from "./dionysus-supervise.js";
 import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus/core";
 import type { AgentRole, CliType, CodexOutboxEvent } from "@dionysus/core";
 
@@ -474,28 +474,18 @@ async function superviseGoal(input: {
   const steps: Array<Record<string, unknown>> = [];
   const maxIterations = Math.max(1, Math.min(input.iterations, 50));
   for (let index = 0; index < maxIterations; index += 1) {
-    const [health, configs, tasks, runs] = await Promise.all([
+    const [health, configs, agents, tasks, runs, usage] = await Promise.all([
       request("/health") as Promise<Record<string, unknown>>,
       request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
+      request("/api/agents") as Promise<Array<Record<string, unknown>>>,
       request(`/api/tasks?goalId=${input.goalId}`) as Promise<Array<Record<string, unknown>>>,
-      request(`/api/runs?goalId=${input.goalId}&limit=20`) as Promise<Array<Record<string, unknown>>>
+      request(`/api/runs?goalId=${input.goalId}&limit=20`) as Promise<Array<Record<string, unknown>>>,
+      request(`/api/usage/agent-cli?goalId=${input.goalId}`) as Promise<Record<string, unknown>>
     ]);
-    const agentStatus = {
-      goalId: input.goalId,
-      summary: summarizeAgentControlStatus({ health, configs, tasks, runs }),
-      health,
-      configs,
-      tasks,
-      runs
-    };
+    const agentStatus = buildSupervisionAgentStatus({ goalId: input.goalId, health, configs, agents, tasks, runs, usage });
     const runCycle = await runGoalCycle(input);
     const summary = summarizeSupervisionStep({ agentStatus, runCycle });
-    steps.push({
-      iteration: index + 1,
-      summary,
-      agentSummary: agentStatus.summary,
-      runCycleSummary: runCycle.summary
-    });
+    steps.push(buildSupervisionStepRecord({ iteration: index + 1, summary, agentStatus, runCycle }));
     if (!summary.shouldContinue) {
       await request("/api/codex/outbox", "POST", {
         goalId: input.goalId,
