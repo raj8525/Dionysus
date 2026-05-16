@@ -138,6 +138,14 @@ And 必须创建 patch 与 integration queue 记录
 And 如果目标 Git 工作区不干净，不得发布 integration 消息  
 And 如果目标 Git 工作区干净，才允许发布 integration 消息
 
+## 场景 7.4：清理工作区后必须能恢复 queued integration
+
+Given integration queue 中存在 queued patch  
+When Codex 调用 `/api/goals/:id/integrations/release-ready`  
+Then Dionysus 必须先检查目标 Git 工作区  
+And 如果工作区仍然不干净，返回 `409 blocked` 和 queued integrations  
+And 如果工作区干净，必须发布 integration 消息
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现  

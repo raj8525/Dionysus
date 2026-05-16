@@ -149,6 +149,14 @@ curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/preflight-remediation/pa
 - 如果目标 Git 工作区干净，Dionysus 会发布 integration 消息，由 Integration Worker 应用 patch。
 - 如果目标 Git 工作区不干净，只创建 patch / integration 记录，不发布集成消息，避免污染当前未归属改动。
 
+当目标工作区清理干净后，发布已经 queued 的 integration：
+
+```bash
+curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/integrations/release-ready
+```
+
+如果工作区仍然不干净，该接口返回 `409 blocked`，并列出仍在等待发布的 integration。
+
 ## Milestone / E2E / Notification
 
 ```bash

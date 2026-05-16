@@ -530,6 +530,41 @@ export async function buildServer() {
     });
   });
 
+  app.post("/api/goals/:id/integrations/release-ready", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const git = await checkGitPreflight(goal.targetRoot);
+    const queued = await repo.listQueuedIntegrations(id);
+    if (!git.clean) {
+      return reply.code(409).send({
+        goalId: id,
+        status: "blocked",
+        blockers: [`git worktree dirty: ${git.changes.length} changes`],
+        queued
+      });
+    }
+    for (const integration of queued) {
+      await publishJson("dionysus.integration", {
+        message_id: randomUUID(),
+        goal_id: id,
+        task_id: integration.taskId,
+        type: "release_ready_integration",
+        attempt: 1,
+        idempotency_key: `${integration.taskId}:release-ready:${integration.id}`,
+        created_at: new Date().toISOString()
+      });
+    }
+    return {
+      goalId: id,
+      status: "published",
+      published: queued.length,
+      integrations: queued
+    };
+  });
+
   app.post("/api/patches", async (request, reply) => {
     const parsed = createPatchSchema.safeParse(request.body);
     if (!parsed.success) {

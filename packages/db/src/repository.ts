@@ -1028,6 +1028,32 @@ export class DionysusRepository {
     };
   }
 
+  async listQueuedIntegrations(goalId: string): Promise<Array<{
+    id: string;
+    patchId: string;
+    taskId: string;
+    goalId: string;
+    changedFiles: string[];
+  }>> {
+    const result = await this.pool.query(
+      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.changed_files_json
+       from ${this.table("integration_queue")} iq
+       join ${this.table("patches")} p on p.id = iq.patch_id
+       where iq.goal_id = $1
+         and iq.status = 'queued'
+         and p.status = 'queued'
+       order by iq.created_at asc`,
+      [goalId]
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      patchId: String(row.patch_id),
+      goalId: String(row.goal_id),
+      taskId: String(row.task_id),
+      changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : []
+    }));
+  }
+
   async markIntegrationRunning(integrationId: string): Promise<void> {
     await this.pool.query(
       `update ${this.table("integration_queue")}
