@@ -78,9 +78,12 @@ POST /api/goals/:id/integrations/release-ready
 GET /api/goals?limit=<n>
 POST /api/goals
 GET /api/goals/:id
+GET /api/goals/:id/status
 ```
 
 `GET /api/goals` 必须按 `created_at desc` 返回最近目标，默认 20 条，`limit` 必须限制在 1-100。Codex CLI 必须支持 `pnpm dionysus goal list --limit 10`，Dashboard 必须能列出已有目标并切换当前目标，避免 Codex 只能通过数据库手工查 goal id。
+
+`GET /api/goals/:id/status` 是 Codex 判断单个目标当前进度的聚合入口，必须返回 goal、summary、tasks、runs、integrations、milestones、releases、usage 和 pendingCodexOutbox。summary 必须按 status 聚合各类对象，并给出 `pendingCodexOutbox`、`cliCalls`、`modelCalls`、`nextOwner`。Codex CLI 必须支持 `pnpm dionysus goal status --goal-id "<goal-id>"`。
 
 ## Flow
 

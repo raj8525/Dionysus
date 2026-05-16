@@ -43,6 +43,13 @@ describe("dionysus CLI API command resolver", () => {
     });
   });
 
+  it("maps goal status to the aggregated goal status API", () => {
+    expect(resolveApiCommand(["goal", "status", "--goal-id", "goal-123"])).toEqual({
+      path: "/api/goals/goal-123/status",
+      method: "GET"
+    });
+  });
+
   it("maps integration list to the integration API", () => {
     expect(resolveApiCommand(["integration", "list", "--goal-id", "goal-123"])).toEqual({
       path: "/api/integrations?goalId=goal-123",

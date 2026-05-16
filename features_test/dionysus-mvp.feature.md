@@ -66,6 +66,14 @@ Then Dionysus 必须返回最近目标列表
 And Dashboard 必须提供已有目标选择器
 And 选择目标后必须加载该目标详情、流程图、任务、运行证据和 Agent CLI usage
 
+## 场景 4.2：Codex 可以读取单个目标聚合状态
+
+Given 一个 Coupon goal 已经存在
+When Codex 执行 `pnpm dionysus goal status --goal-id "<goal-id>"`
+Then Dionysus 必须返回 goal、summary、tasks、runs、integrations、milestones、releases、usage 和 pendingCodexOutbox
+And summary 必须包含任务、运行、集成、里程碑、发布记录的状态聚合
+And summary 必须包含 `cliCalls`、`modelCalls`、`pendingCodexOutbox` 和 `nextOwner`
+
 ## 场景 5：里程碑通过后生成通知
 
 Given 一个 milestone 已通过 Codex E2E

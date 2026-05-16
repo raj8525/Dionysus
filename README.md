@@ -107,6 +107,7 @@ pnpm goal:create -- \
 
 ```bash
 pnpm dionysus goal list --limit 10
+pnpm dionysus goal status --goal-id "<goal-id>"
 ```
 
 Dashboard 顶部也提供已有目标选择器，用于在历史 Coupon 目标、沙箱目标和当前试运行目标之间切换。

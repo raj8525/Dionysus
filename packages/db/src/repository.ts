@@ -1768,12 +1768,17 @@ export class DionysusRepository {
   }
 
   async listCodexOutboxEvents(input: {
+    goalId?: string;
     status?: CodexOutboxStatus;
     eventType?: CodexOutboxEventType;
     limit?: number;
   } = {}): Promise<CodexOutboxEvent[]> {
     const params: Array<string | number> = [input.limit ?? 20];
     const filters: string[] = [];
+    if (input.goalId) {
+      params.push(input.goalId);
+      filters.push(`goal_id = $${params.length}`);
+    }
     if (input.status) {
       params.push(input.status);
       filters.push(`status = $${params.length}`);

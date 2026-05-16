@@ -22,6 +22,14 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "goal" && action === "status") {
+    const goalId = requiredFlag(args, "--goal-id");
+    return {
+      path: `/api/goals/${encodeURIComponent(goalId)}/status`,
+      method: "GET"
+    };
+  }
+
   if (domain === "goal" && action && goalPostActions[action]) {
     const goalId = requiredFlag(args, "--goal-id");
     return {

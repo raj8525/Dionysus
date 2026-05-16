@@ -214,6 +214,44 @@ export async function buildServer() {
     return flow;
   });
 
+  app.get("/api/goals/:id/status", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const goal = await repo.getGoal(id);
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const [tasks, runs, integrations, milestones, releases, usage, pendingCodexOutbox] = await Promise.all([
+      repo.listTasks(id),
+      repo.listTaskRuns({ goalId: id, limit: 20 }),
+      repo.listIntegrations(id),
+      repo.listMilestones(id),
+      repo.listReleaseRecords(id),
+      repo.getAgentCliUsage({ goalId: id }),
+      repo.listCodexOutboxEvents({ goalId: id, status: "pending", limit: 20 })
+    ]);
+    return {
+      goal,
+      summary: {
+        tasks: summarizeStatuses(tasks),
+        runs: summarizeStatuses(runs),
+        integrations: summarizeStatuses(integrations),
+        milestones: summarizeStatuses(milestones),
+        releases: summarizeStatuses(releases),
+        pendingCodexOutbox: pendingCodexOutbox.length,
+        cliCalls: usage.totals.cliCalls,
+        modelCalls: usage.totals.modelCalls,
+        nextOwner: pendingCodexOutbox.length > 0 ? "Codex" : "Dionysus"
+      },
+      tasks,
+      runs,
+      integrations,
+      milestones,
+      releases,
+      usage,
+      pendingCodexOutbox
+    };
+  });
+
   app.get("/api/flow/current", async () => repo.buildFlow());
 
   app.get("/api/flow/goal/:id", async (request, reply) => {
@@ -1111,6 +1149,21 @@ function countBootstrapTasks(tasks: Array<Record<string, unknown>>): number {
       task.title.startsWith("[TestWriter]") ||
       task.title.startsWith("[Worker]"))
   ).length;
+}
+
+function summarizeStatuses(records: Array<{ status?: unknown }>): {
+  total: number;
+  byStatus: Record<string, number>;
+} {
+  const byStatus: Record<string, number> = {};
+  for (const record of records) {
+    const status = String(record.status ?? "unknown");
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
+  }
+  return {
+    total: records.length,
+    byStatus
+  };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

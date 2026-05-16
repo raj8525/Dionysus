@@ -167,15 +167,7 @@ async function main(): Promise<void> {
 
   if (domain === "goal" && action === "status") {
     const goalId = requiredFlag(args, "--goal-id");
-    const [flow, tasks, runs, integrations, milestones, releases] = await Promise.all([
-      request(`/api/flow/goal/${goalId}`),
-      request(`/api/tasks?goalId=${goalId}`),
-      request(`/api/runs?goalId=${goalId}&limit=20`),
-      request(`/api/integrations?goalId=${goalId}`),
-      request(`/api/milestones?goalId=${goalId}`),
-      request(`/api/releases?goalId=${goalId}`)
-    ]);
-    return print({ goalId, flow, tasks, runs, integrations, milestones, releases });
+    return print(await request(`/api/goals/${encodeURIComponent(goalId)}/status`));
   }
 
   if (domain === "goal" && action === "preflight") {
