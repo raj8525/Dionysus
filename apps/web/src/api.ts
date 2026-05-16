@@ -53,6 +53,17 @@ export interface AgentCliConfig {
   enabled: boolean;
 }
 
+export interface AgentRecord {
+  id: string;
+  name: string;
+  role: AgentRole;
+  status: "idle" | "working" | "blocked" | "disabled";
+  cliType: CliType;
+  cliModel?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CliProbeResult {
   cliType: CliType;
   available: boolean;
@@ -128,6 +139,8 @@ export interface TaskRunRecord {
   goalId: string;
   taskTitle: string;
   roleRequired: string;
+  agentId?: string;
+  agentName?: string;
   cliType: string;
   cliModel?: string;
   command: string;
@@ -372,6 +385,14 @@ export async function fetchAgentCliConfigs(): Promise<AgentCliConfig[]> {
     throw new Error(`Failed to load agent CLI configs: ${response.status}`);
   }
   return (await response.json()) as AgentCliConfig[];
+}
+
+export async function fetchAgents(): Promise<AgentRecord[]> {
+  const response = await fetch(`${apiBase}/api/agents`);
+  if (!response.ok) {
+    throw new Error(`Failed to load agents: ${response.status}`);
+  }
+  return (await response.json()) as AgentRecord[];
 }
 
 export async function saveAgentCliConfig(input: AgentCliConfig): Promise<AgentCliConfig> {

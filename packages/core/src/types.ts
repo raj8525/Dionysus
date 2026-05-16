@@ -4,6 +4,17 @@ export type AgentStatus = "idle" | "working" | "blocked" | "disabled";
 
 export type CliType = "mock" | "claude_code" | "gemini_cli" | "opencode";
 
+export interface AgentRecord {
+  id: string;
+  name: string;
+  role: AgentRole;
+  status: AgentStatus;
+  cliType: CliType;
+  cliModel?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AgentCliModelUsage {
   cliType: CliType;
   cliModel: string;

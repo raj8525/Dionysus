@@ -44,6 +44,7 @@ pnpm dionysus system doctor
 pnpm dionysus system doctor --brief
 pnpm dionysus system worker start
 pnpm dionysus agent probe
+pnpm dionysus agent list
 pnpm dionysus agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
 pnpm dionysus agent config list
 pnpm dionysus agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true

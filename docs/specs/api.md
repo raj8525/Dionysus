@@ -219,6 +219,7 @@ pnpm dionysus release list --goal-id "<goal-id>"
 POST /api/cli/probe
 GET /api/cli/models
 POST /api/cli/validate-model
+GET /api/agents
 GET /api/agent-cli-configs
 PUT /api/agent-cli-configs
 GET /api/usage/agent-cli
@@ -251,6 +252,7 @@ Codex 必须能通过 CLI 配置 Agent，不依赖前端：
 
 ```text
 pnpm dionysus agent probe
+pnpm dionysus agent list
 pnpm dionysus agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
 pnpm dionysus agent config list
 pnpm dionysus agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
@@ -260,6 +262,8 @@ pnpm dionysus agent status --goal-id "<goal-id>"
 `agent config set` 必须先调用模型验证；验证通过后保存 resolved model，验证失败时不得写入 `agent_cli_configs`。
 
 `agent status` 必须聚合 `/health`、`/api/agent-cli-configs`、`/api/tasks` 和 `/api/runs`，返回 Runtime 是否可推进、已配置/禁用 Agent 数、queued/running/blocked 任务数和下一步动作建议。
+
+`/api/agents` 必须返回系统内置 Agent 实例 `Master`、`RuleWriter`、`TestWriter`、`WorkerA`、`WorkerB`、`WorkerC`、`WorkerD` 的 `id`、`name`、`role`、`status`、`cliType`、`cliModel`、`createdAt`、`updatedAt`。这些实例是 `task_runs.agent_id` 的唯一可信来源，也是 Dashboard 展示“谁正在工作”的基础。
 
 `/api/usage/agent-cli` 用于前端和 Codex 实时查看 Agent 调用消耗。它必须基于 PostgreSQL `task_runs` 做全量聚合，不能只统计前端当前分页。支持可选 `goalId` 过滤：
 
@@ -333,6 +337,8 @@ GET /api/usage/agent-cli?goalId=<goal-id>
 ```
 
 `byAgentInstance` 优先使用 `task_runs.agent_id` 和 `agents.name`；当历史 run 没有关联真实 agent id 时，必须回退到 `role:<role>`，让 Dashboard 仍能展示 Master / RuleWriter / TestWriter / Worker 的调用统计。
+
+新 run 创建时必须在同一数据库事务中 claim 一个对应角色的 enabled Agent 实例：优先选择 `idle` 且最久未更新的 Agent；没有 idle Agent 时才使用非 disabled 的 fallback。claim 成功后必须写入 `task_runs.agent_id`，并把 Agent 状态置为 `working`。run 完成、取消、Watchdog 重试或阻断后，如果该 Agent 没有其他 running run，必须释放回 `idle`。
 
 当前 `modelCalls` 的口径是 Dionysus 发起的非 mock CLI run 次数。CLI 进程内部的真实模型 API 调用次数只有在对应 CLI 输出 usage 回执后才能进一步精确解析。
 

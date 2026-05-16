@@ -240,6 +240,15 @@ export async function buildServer() {
     return repo.getAgentCliUsage({ goalId: query.goalId });
   });
 
+  app.get("/api/agents", async (request) => {
+    const query = request.query as { role?: string };
+    const role = query.role === "master" || query.role === "rule_writer" ||
+      query.role === "test_writer" || query.role === "worker"
+      ? query.role
+      : undefined;
+    return repo.listAgents(role);
+  });
+
   app.get("/api/releases", async (request) => {
     const query = request.query as { goalId?: string };
     return repo.listReleaseRecords(query.goalId);

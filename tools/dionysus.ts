@@ -132,6 +132,12 @@ async function main(): Promise<void> {
     return print(await request(`/api/usage/agent-cli${query}`));
   }
 
+  if (domain === "agent" && action === "list") {
+    const role = readFlag(args, "--role");
+    const query = role ? `?role=${encodeURIComponent(role)}` : "";
+    return print(await request(`/api/agents${query}`));
+  }
+
   if (domain === "release" && action === "record") {
     return print(await request("/api/releases", "POST", buildReleaseRecordRequest(args)));
   }

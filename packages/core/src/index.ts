@@ -21,3 +21,4 @@ export * from "./dispatch-policy.js";
 export * from "./integration-verification.js";
 export * from "./agent-run-config.js";
 export * from "./agent-cli-usage.js";
+export * from "./agent-assignment.js";

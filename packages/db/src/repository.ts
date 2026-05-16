@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { buildAgentCliUsageSummary, normalizeAgentCliConfig } from "@dionysus/core";
+import { buildAgentCliUsageSummary, normalizeAgentCliConfig, selectAgentForRun } from "@dionysus/core";
 import type {
   AgentCliConfig,
   AgentCliUsageSummary,
+  AgentRecord,
   AgentRole,
   CodexOutboxDraft,
   CodexOutboxEvent,
@@ -152,27 +153,45 @@ export class DionysusRepository {
     enabled?: boolean;
   }): Promise<AgentCliConfig & { enabled: boolean }> {
     const id = randomUUID();
-    const result = await this.pool.query(
-      `insert into ${this.table("agent_cli_configs")}
-        (id, agent_role, cli_type, cli_model, enabled)
-       values ($1, $2, $3, $4, $5)
-       on conflict (agent_role)
-       do update set cli_type = excluded.cli_type,
-                     cli_model = excluded.cli_model,
-                     enabled = excluded.enabled,
-                     updated_at = now()
-       returning agent_role, cli_type, cli_model, enabled`,
-      [id, input.role, input.cliType, input.cliModel ?? null, input.enabled ?? true]
-    );
-    const row = result.rows[0];
-    return {
-      ...normalizeAgentCliConfig({
-        role: row.agent_role,
-        cliType: row.cli_type,
-        cliModel: row.cli_model
-      }),
-      enabled: Boolean(row.enabled)
-    };
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `insert into ${this.table("agent_cli_configs")}
+          (id, agent_role, cli_type, cli_model, enabled)
+         values ($1, $2, $3, $4, $5)
+         on conflict (agent_role)
+         do update set cli_type = excluded.cli_type,
+                       cli_model = excluded.cli_model,
+                       enabled = excluded.enabled,
+                       updated_at = now()
+         returning agent_role, cli_type, cli_model, enabled`,
+        [id, input.role, input.cliType, input.cliModel ?? null, input.enabled ?? true]
+      );
+      await client.query(
+        `update ${this.table("agents")}
+         set cli_type = $2,
+             cli_model = $3,
+             updated_at = now()
+         where role = $1 and status <> 'disabled'`,
+        [input.role, input.cliType, input.cliModel ?? null]
+      );
+      await client.query("commit");
+      const row = result.rows[0];
+      return {
+        ...normalizeAgentCliConfig({
+          role: row.agent_role,
+          cliType: row.cli_type,
+          cliModel: row.cli_model
+        }),
+        enabled: Boolean(row.enabled)
+      };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getAgentCliConfig(role: AgentRole): Promise<(AgentCliConfig & { enabled: boolean })> {
@@ -214,6 +233,20 @@ export class DionysusRepository {
     }));
   }
 
+  async listAgents(role?: AgentRole): Promise<AgentRecord[]> {
+    const params: string[] = [];
+    const where = role ? "where role = $1" : "";
+    if (role) params.push(role);
+    const result = await this.pool.query(
+      `select id, name, role, status, cli_type, cli_model, created_at, updated_at
+       from ${this.table("agents")}
+       ${where}
+       order by role asc, name asc`,
+      params
+    );
+    return result.rows.map(mapAgent);
+  }
+
   async listTasks(goalId?: string): Promise<Array<Record<string, unknown>>> {
     const params: string[] = [];
     const where = goalId ? "where goal_id = $1" : "";
@@ -242,6 +275,8 @@ export class DionysusRepository {
               t.goal_id,
               t.title as task_title,
               t.role_required,
+              tr.agent_id,
+              a.name as agent_name,
               tr.cli_type,
               tr.cli_model,
               tr.command,
@@ -253,6 +288,7 @@ export class DionysusRepository {
               coalesce(logs.preview, '') as log_preview
        from ${this.table("task_runs")} tr
        join ${this.table("tasks")} t on t.id = tr.task_id
+       left join ${this.table("agents")} a on a.id = tr.agent_id
        left join lateral (
          select string_agg(l.stream || ': ' || left(l.chunk_text, 240), E'\n' order by l.sequence asc) as preview
          from ${this.table("task_run_logs")} l
@@ -269,6 +305,8 @@ export class DionysusRepository {
       goalId: String(row.goal_id),
       taskTitle: String(row.task_title),
       roleRequired: row.role_required as AgentRole,
+      agentId: row.agent_id ? String(row.agent_id) : undefined,
+      agentName: row.agent_name ? String(row.agent_name) : undefined,
       cliType: String(row.cli_type),
       cliModel: row.cli_model ? String(row.cli_model) : undefined,
       command: String(row.command),
@@ -518,9 +556,10 @@ export class DionysusRepository {
          set status = 'failed',
              exit_code = coalesce(exit_code, 124),
              finished_at = coalesce(finished_at, now())
-         where task_id = $1 and status = 'running'`,
+         where task_id = $1 and status = 'running'
+         returning agent_id`,
         [input.taskId]
-      );
+      ).then((result) => this.releaseAgentsIfIdle(client, collectAgentIds(result.rows)));
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
@@ -558,9 +597,10 @@ export class DionysusRepository {
          set status = 'failed',
              exit_code = coalesce(exit_code, 124),
              finished_at = coalesce(finished_at, now())
-         where task_id = $1 and status = 'running'`,
+         where task_id = $1 and status = 'running'
+         returning agent_id`,
         [input.taskId]
-      );
+      ).then((result) => this.releaseAgentsIfIdle(client, collectAgentIds(result.rows)));
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
@@ -599,9 +639,10 @@ export class DionysusRepository {
          set status = 'failed',
              exit_code = coalesce(exit_code, 130),
              finished_at = coalesce(finished_at, now())
-         where task_id = $1 and status = 'running'`,
+         where task_id = $1 and status = 'running'
+         returning agent_id`,
         [input.taskId]
-      );
+      ).then((runUpdate) => this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows)));
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
@@ -632,23 +673,38 @@ export class DionysusRepository {
         `update ${this.table("tasks")}
          set status = 'running', current_attempt = current_attempt + 1, updated_at = now()
          where id = $1 and status in ('created', 'queued', 'failed')
-         returning id`,
+         returning id, role_required`,
         [input.taskId]
       );
       if (!taskUpdate.rowCount) {
         await client.query("rollback");
         return null;
       }
+      const roleRequired = taskUpdate.rows[0].role_required as AgentRole;
+      const agent = await this.claimAgentForRole(client, roleRequired);
+      if (agent) {
+        await client.query(
+          `update ${this.table("tasks")}
+           set assigned_agent_id = $2, updated_at = now()
+           where id = $1`,
+          [input.taskId, agent.id]
+        );
+      }
       await client.query(
         `insert into ${this.table("task_runs")}
-          (id, task_id, cli_type, cli_model, command, prompt, status, started_at)
-         values ($1, $2, $3, $4, $5, $6, 'running', now())`,
-        [id, input.taskId, input.cliType, input.cliModel ?? null, input.command, input.prompt]
+          (id, task_id, agent_id, cli_type, cli_model, command, prompt, status, started_at)
+         values ($1, $2, $3, $4, $5, $6, $7, 'running', now())`,
+        [id, input.taskId, agent?.id ?? null, input.cliType, input.cliModel ?? null, input.command, input.prompt]
       );
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
-        [randomUUID(), input.taskId, "task.running", JSON.stringify({ runId: id })]
+        [
+          randomUUID(),
+          input.taskId,
+          "task.running",
+          JSON.stringify({ runId: id, agentId: agent?.id, agentName: agent?.name, roleRequired })
+        ]
       );
       await client.query("commit");
       return id;
@@ -674,12 +730,14 @@ export class DionysusRepository {
     const client = await this.pool.connect();
     try {
       await client.query("begin");
-      await client.query(
+      const runUpdate = await client.query(
         `update ${this.table("task_runs")}
          set status = $1, exit_code = $2, finished_at = now()
-         where id = $3`,
+         where id = $3
+         returning agent_id`,
         [runStatus, input.exitCode, input.runId]
       );
+      await this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows));
       await client.query(
         `update ${this.table("tasks")}
          set status = $1, updated_at = now()
@@ -1885,6 +1943,42 @@ export class DionysusRepository {
     ]);
     return { nodes: nodes.rows, edges: edges.rows };
   }
+
+  private async claimAgentForRole(client: pg.PoolClient, role: AgentRole): Promise<AgentRecord | null> {
+    const result = await client.query(
+      `select id, name, role, status, cli_type, cli_model, created_at, updated_at
+       from ${this.table("agents")}
+       where role = $1 and status <> 'disabled'
+       for update`,
+      [role]
+    );
+    const agent = selectAgentForRun({ role, agents: result.rows.map(mapAgent) });
+    if (!agent) return null;
+    await client.query(
+      `update ${this.table("agents")}
+       set status = 'working', updated_at = now()
+       where id = $1`,
+      [agent.id]
+    );
+    return agent;
+  }
+
+  private async releaseAgentsIfIdle(client: pg.PoolClient, agentIds: string[]): Promise<void> {
+    for (const agentId of agentIds) {
+      await client.query(
+        `update ${this.table("agents")} a
+         set status = 'idle', updated_at = now()
+         where a.id = $1
+           and a.status = 'working'
+           and not exists (
+             select 1
+             from ${this.table("task_runs")} tr
+             where tr.agent_id = a.id and tr.status = 'running'
+           )`,
+        [agentId]
+      );
+    }
+  }
 }
 
 function redactChannelConfig(config: Record<string, unknown>): Record<string, unknown> {
@@ -1905,6 +1999,23 @@ function mapGoal(row: Record<string, unknown>): Goal {
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString()
   };
+}
+
+function mapAgent(row: Record<string, unknown>): AgentRecord {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    role: row.role as AgentRole,
+    status: row.status as AgentRecord["status"],
+    cliType: row.cli_type as CliType,
+    cliModel: row.cli_model ? String(row.cli_model) : undefined,
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString()
+  };
+}
+
+function collectAgentIds(rows: Array<Record<string, unknown>>): string[] {
+  return Array.from(new Set(rows.flatMap((row) => row.agent_id ? [String(row.agent_id)] : [])));
 }
 
 function mapCodexOutboxEvent(row: Record<string, unknown>): CodexOutboxEvent {

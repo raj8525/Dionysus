@@ -391,6 +391,17 @@ And 返回每个 Agent 使用的 CLI 与模型维度调用次数
 And Dashboard 每 5 秒自动刷新该统计
 And 统计口径必须来自 PostgreSQL `task_runs` 全量聚合，而不是只看最近列表分页
 
+## 场景 15.0：Runtime 必须记录具体 Agent 实例
+
+Given Dionysus 已经初始化默认 Agent 实例 `Master`、`RuleWriter`、`TestWriter`、`WorkerA`、`WorkerB`、`WorkerC`、`WorkerD`
+When Agent Runtime 开始执行 queued task
+Then Runtime 必须为该 task role claim 一个 enabled Agent
+And `task_runs.agent_id` 必须写入该 Agent id
+And Agent 状态必须变为 `working`
+When run 完成、取消、被 Watchdog 重试或阻断
+Then 如果该 Agent 没有其他 running run，状态必须回到 `idle`
+And Dashboard 必须能同时展示 Agent 实例状态和每个实例的 CLI / 模型调用次数
+
 ## 场景 15.1：Codex 和 Dashboard 可以查看单次 run 的完整日志
 
 Given 一个 Agent run 已经写入 `task_run_logs`

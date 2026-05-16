@@ -255,6 +255,52 @@ button:disabled {
   gap: 12px;
 }
 
+.agentInstanceStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.agentInstance {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.agentInstance strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.agentInstance span,
+.agentInstance em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.agentInstance.idle {
+  border-color: #bbd7be;
+  background: #f6fff7;
+}
+
+.agentInstance.working {
+  border-color: #d4af37;
+  background: #fffaf0;
+}
+
+.agentInstance.blocked,
+.agentInstance.disabled {
+  border-color: #f3b4b4;
+  background: #fff7f7;
+}
+
 .usageSummary {
   display: grid;
   grid-template-columns: repeat(4, minmax(140px, 1fr));
@@ -923,7 +969,8 @@ h3 {
 
   .usageSummary,
   .usageGrid,
-  .cliUsageGrid {
+  .cliUsageGrid,
+  .agentInstanceStrip {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 

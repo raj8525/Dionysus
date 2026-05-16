@@ -3,6 +3,7 @@ import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node
 import { Activity, AlertTriangle, BarChart3, CheckCircle2, GitCommit, Network, Settings2 } from "lucide-react";
 import {
   createGoal,
+  fetchAgents,
   fetchAgentCliConfigs,
   fetchAgentCliUsage,
   fetchCurrentFlow,
@@ -27,6 +28,7 @@ import {
   validateCliModel,
   type AgentCliConfig,
   type AgentCliUsageSummary,
+  type AgentRecord,
   type AgentRole,
   type CliModelValidationResult,
   type CliProbeResult,
@@ -94,9 +96,10 @@ export function App() {
   const [e2eCases, setE2ECases] = useState<E2ECaseRecord[]>([]);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [agentCliUsage, setAgentCliUsage] = useState<AgentCliUsageSummary | null>(null);
+  const [agents, setAgents] = useState<AgentRecord[]>([]);
 
   useEffect(() => {
-    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshWatchdogEvents(), refreshSystemHealth(), refreshAgentCliUsage()])
+    Promise.all([refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshAgentCliUsage()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -113,6 +116,7 @@ export function App() {
     const interval = window.setInterval(() => {
       Promise.all([
         refreshSystemHealth(),
+        refreshAgents(),
         refreshAgentCliUsage(activeGoalId),
         activeGoalId ? refreshGoalEvidence(activeGoalId) : Promise.resolve()
       ]).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
@@ -167,6 +171,10 @@ export function App() {
       }
       return next;
     });
+  }
+
+  async function refreshAgents() {
+    setAgents(await fetchAgents());
   }
 
   async function saveRoleConfig(role: AgentRole) {
@@ -456,6 +464,19 @@ export function App() {
           ) : (
             <div className="emptyState">尚未加载系统健康状态</div>
           )}
+          <div className="agentInstanceStrip">
+            {agents.length ? (
+              agents.map((agent) => (
+                <article key={agent.id} className={`agentInstance ${agent.status}`}>
+                  <strong>{agent.name}</strong>
+                  <span>{roleLabels[agent.role]} · {agent.status}</span>
+                  <em>{agent.cliType}{agent.cliModel ? ` / ${agent.cliModel}` : ""}</em>
+                </article>
+              ))
+            ) : (
+              <div className="emptyState">尚未加载 Agent 实例</div>
+            )}
+          </div>
         </section>
         <section className="usagePanel">
           <div className="sectionHeader">
