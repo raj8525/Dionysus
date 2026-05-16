@@ -297,7 +297,10 @@ DIONYSUS_GEMINI_CLI_APPROVAL_MODE=auto_edit
 DIONYSUS_OPENCODE_COMMAND=opencode
 DIONYSUS_OPENCODE_FORMAT=default
 DIONYSUS_OPENCODE_SKIP_PERMISSIONS=true
+DIONYSUS_OPENCODE_MODEL_ALIASES=minimax=minimax-cn-coding-plan
 ```
+
+`DIONYSUS_OPENCODE_MODEL_ALIASES` 用于兼容本地 OpenCode 配置中的 provider 别名。例如本地配置写 `minimax/MiniMax-M2.7`，但 `opencode models` 暴露的实际 provider 是 `minimax-cn-coding-plan`，Dionysus 会在调用 OpenCode 前解析为 `minimax-cn-coding-plan/MiniMax-M2.7`。
 
 如确实需要完全自定义命令参数，仍可使用模板变量：
 

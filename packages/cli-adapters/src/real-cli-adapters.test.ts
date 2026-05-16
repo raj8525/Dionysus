@@ -88,6 +88,22 @@ describe("real CLI adapters", () => {
     ]);
   });
 
+  it("maps the local OpenCode minimax alias to the configured MiniMax coding provider", async () => {
+    const command = await fakeCliCommand();
+    setEnv("DIONYSUS_OPENCODE_COMMAND", command);
+    setEnv("DIONYSUS_OPENCODE_SKIP_PERMISSIONS", "true");
+
+    const result = await createCliAdapter({ cliType: "opencode", model: "minimax/MiniMax-M2.7" }).run({
+      taskId: "task-minimax",
+      cwd: process.cwd(),
+      prompt: "使用 MiniMax"
+    });
+
+    const args = JSON.parse(result.stdout) as string[];
+    expect(args).toContain("minimax-cn-coding-plan/MiniMax-M2.7");
+    expect(result.structuredResult?.cliModel).toBe("minimax-cn-coding-plan/MiniMax-M2.7");
+  });
+
   it("returns a structured timeout instead of hanging forever", async () => {
     const command = await hangingCliCommand();
     setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);

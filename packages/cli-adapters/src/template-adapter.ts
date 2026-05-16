@@ -25,12 +25,13 @@ export class TemplateCliAdapter implements CliAdapter {
   async run(input: AgentRunInput): Promise<AgentRunResult> {
     const command = this.commandName();
     const args = this.commandArgs(input);
+    const cliModel = this.resolvedModel();
     const result = await run(command, args, input.cwd, this.options.timeoutMs ?? 20 * 60_000);
     return {
       ...result,
       structuredResult: {
         cliType: this.options.cliType,
-        cliModel: this.options.model ?? null,
+        cliModel: cliModel ?? null,
         command,
         argsPreview: args.map((arg) => (arg === input.prompt ? "<prompt>" : arg))
       }
@@ -86,12 +87,19 @@ export class TemplateCliAdapter implements CliAdapter {
         input.cwd,
         "--format",
         process.env.DIONYSUS_OPENCODE_FORMAT ?? "default",
-        ...optionalPair("--model", this.options.model),
+        ...optionalPair("--model", this.resolvedModel()),
         ...booleanFlag("--dangerously-skip-permissions", process.env.DIONYSUS_OPENCODE_SKIP_PERMISSIONS ?? "true"),
         input.prompt
       ];
     }
     return [input.prompt];
+  }
+
+  private resolvedModel(): string | undefined {
+    if (this.options.cliType !== "opencode" || !this.options.model) {
+      return this.options.model;
+    }
+    return resolveOpenCodeModel(this.options.model);
   }
 }
 
@@ -130,6 +138,25 @@ function optionalPair(flag: string, value: string | undefined): string[] {
 
 function booleanFlag(flag: string, value: string | undefined): string[] {
   return value === "1" || value === "true" || value === "yes" ? [flag] : [];
+}
+
+function resolveOpenCodeModel(model: string): string {
+  const aliases = parseProviderAliases(process.env.DIONYSUS_OPENCODE_MODEL_ALIASES ?? "minimax=minimax-cn-coding-plan");
+  const [provider, ...rest] = model.split("/");
+  const modelName = rest.join("/");
+  if (!provider || !modelName) return model;
+  return aliases[provider] ? `${aliases[provider]}/${modelName}` : model;
+}
+
+function parseProviderAliases(value: string): Record<string, string> {
+  return Object.fromEntries(
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => entry.split("=").map((part) => part.trim()))
+      .filter((parts): parts is [string, string] => Boolean(parts[0]) && Boolean(parts[1]))
+  );
 }
 
 async function run(command: string, args: string[], cwd: string, timeoutMs: number): Promise<{
