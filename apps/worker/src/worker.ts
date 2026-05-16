@@ -7,6 +7,7 @@ import {
   buildRolePrompt,
   createIsolatedWorkspace,
   createPatch as createWorkspacePatch,
+  evaluateWatchdogTask,
   queueForRole
 } from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
@@ -18,6 +19,7 @@ const masterQueue = "dionysus.master";
 const ruleWriterQueue = "dionysus.rule_writer";
 const testWriterQueue = "dionysus.test_writer";
 const integrationQueue = "dionysus.integration";
+const watchdogQueue = "dionysus.watchdog";
 const workerCliType = parseWorkerCliType(process.env.DIONYSUS_WORKER_CLI_TYPE);
 const workerCliModel = process.env.DIONYSUS_WORKER_CLI_MODEL || undefined;
 const adapter = workerCliType === "mock"
@@ -26,6 +28,8 @@ const adapter = workerCliType === "mock"
 const targetRoot = process.env.TARGET_COUPON_ROOT ?? process.cwd();
 const workspaceRoot = process.env.DIONYSUS_WORKSPACE_ROOT ?? resolve(process.cwd(), "../../.dionysus/workspaces");
 const integrationVerificationCommands = readCommandList(process.env.DIONYSUS_INTEGRATION_VERIFY_COMMANDS);
+const watchdogIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_INTERVAL_SECONDS, 60);
+const watchdogRunningTimeoutMinutes = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_RUNNING_TIMEOUT_MINUTES, 15);
 const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
@@ -203,6 +207,55 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
   });
 }
 
+async function handleWatchdogTask(message: QueueMessage): Promise<void> {
+  const now = new Date();
+  const runningTimeoutMs = watchdogRunningTimeoutMinutes * 60 * 1000;
+  const runningUpdatedBefore = new Date(now.getTime() - runningTimeoutMs).toISOString();
+  const candidates = await repo.listWatchdogCandidates({
+    runningUpdatedBefore,
+    limit: 100
+  });
+  let retried = 0;
+  let blocked = 0;
+  for (const task of candidates) {
+    const decision = evaluateWatchdogTask({
+      task,
+      now,
+      runningTimeoutMs
+    });
+    if (decision.action === "retry") {
+      await repo.markTaskRetryQueued({
+        taskId: task.id,
+        reason: decision.reason,
+        nextAttempt: decision.nextAttempt
+      });
+      await publishJson(queueForRole(task.roleRequired), {
+        message_id: randomUUID(),
+        goal_id: task.goalId,
+        task_id: task.id,
+        type: `${task.roleRequired}_task`,
+        attempt: decision.nextAttempt,
+        idempotency_key: `${task.id}:${task.roleRequired}:${decision.nextAttempt}:watchdog`,
+        created_at: now.toISOString()
+      });
+      retried += 1;
+    }
+    if (decision.action === "block") {
+      await repo.markTaskBlocked({
+        taskId: task.id,
+        reason: decision.reason
+      });
+      blocked += 1;
+    }
+  }
+  await repo.recordSystemEvent("watchdog.run", {
+    messageId: message.message_id,
+    checked: candidates.length,
+    retried,
+    blocked
+  });
+}
+
 async function dispatchNextTask(completedTaskId: string): Promise<void> {
   const completedTask = await repo.getTask(completedTaskId);
   if (!completedTask) return;
@@ -260,13 +313,34 @@ function readCommandList(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function startWatchdogScheduler(): void {
+  setInterval(() => {
+    publishJson(watchdogQueue, {
+      message_id: randomUUID(),
+      type: "watchdog_tick",
+      attempt: 1,
+      idempotency_key: `watchdog:${Date.now()}`,
+      created_at: new Date().toISOString()
+    }).catch((error: unknown) => {
+      console.error("failed to enqueue watchdog tick", error);
+    });
+  }, watchdogIntervalSeconds * 1000);
+}
+
 console.log(
-  `Dionysus worker consuming role queues and ${integrationQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}`
+  `Dionysus worker consuming role queues, ${integrationQueue}, ${watchdogQueue} with ${workerCliType}; workspaceRoot=${workspaceRoot}; watchdog=${watchdogIntervalSeconds}s`
 );
+startWatchdogScheduler();
 await Promise.all([
   consumeJson(masterQueue, (message) => handleGovernanceTask(message, "master")),
   consumeJson(ruleWriterQueue, (message) => handleGovernanceTask(message, "rule_writer")),
   consumeJson(testWriterQueue, (message) => handleGovernanceTask(message, "test_writer")),
   consumeJson(workerQueue, handleWorkerTask),
-  consumeJson(integrationQueue, handleIntegrationTask)
+  consumeJson(integrationQueue, handleIntegrationTask),
+  consumeJson(watchdogQueue, handleWatchdogTask)
 ]);

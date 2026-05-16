@@ -180,6 +180,14 @@ And 超过最大尝试次数的 task 必须标记为 `blocked`
 And `failed` task 在未超过最大尝试次数时也必须重新入队  
 And 每个处理动作必须写入 `task_events`
 
+## 场景 12.1：Worker Runtime 必须自动运行 Watchdog
+
+Given Dionysus worker 已启动  
+When 达到 `DIONYSUS_WATCHDOG_INTERVAL_SECONDS`  
+Then worker 必须投递 `dionysus.watchdog` 消息  
+And 消费该消息后必须扫描停滞任务  
+And 巡检摘要必须写入 `system_events`
+
 ## 运行命令
 
 ```bash
