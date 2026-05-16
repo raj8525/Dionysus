@@ -161,7 +161,8 @@ async function main(): Promise<void> {
       title: requiredFlag(args, "--title"),
       description: readFlag(args, "--description") ?? requiredFlag(args, "--title"),
       roleRequired: readFlag(args, "--role") ?? "worker",
-      priority: optionalNumberFlag(args, "--priority")
+      priority: optionalNumberFlag(args, "--priority"),
+      queue: !hasFlag(args, "--no-queue")
     }));
   }
 
@@ -615,7 +616,7 @@ function usage(): void {
   tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict
   tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30
   tsx tools/dionysus.ts integration list --goal-id "..."
-  tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker
+  tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker [--no-queue]
   tsx tools/dionysus.ts milestone request-e2e --milestone-id "..."
   tsx tools/dionysus.ts milestone create-campaign --milestone-id "..." --target-url "..." --acceptance "..."
   tsx tools/dionysus.ts milestone verdict --milestone-id "..." --verdict passed --reason "..."

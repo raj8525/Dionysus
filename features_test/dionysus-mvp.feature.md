@@ -381,6 +381,14 @@ And 返回每个 Agent 使用的 CLI 与模型维度调用次数
 And Dashboard 每 5 秒自动刷新该统计
 And 统计口径必须来自 PostgreSQL `task_runs` 全量聚合，而不是只看最近列表分页
 
+## 场景 16：任务树可以先创建但不立即执行
+
+Given Codex 需要按 SDD/TDD 顺序创建 TestWriter 与 Worker 任务
+When Codex 执行 `pnpm dionysus task create --goal-id "<goal-id>" --role worker --no-queue`
+Then 任务状态必须保持 `created`
+And 系统不得向 RabbitMQ 投递该 Worker 任务
+And 后续只能由 Master 或上一阶段成功后的调度逻辑放行
+
 ## 运行命令
 
 ```bash

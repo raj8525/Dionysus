@@ -271,7 +271,10 @@ pnpm dionysus goal remediation-patch --goal-id "<goal-id>"
 pnpm dionysus goal master-step --goal-id "<goal-id>"
 pnpm dionysus goal release-ready --goal-id "<goal-id>"
 pnpm dionysus integration list --goal-id "<goal-id>"
+pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no-queue
 ```
+
+`POST /api/tasks` 默认创建并立即入队；当请求体包含 `"queue": false`，或 CLI 使用 `--no-queue` 时，只创建 `created` 任务，不投递 RabbitMQ。该能力用于先建立任务树，再由 Master/上一阶段成功后的 `dispatchNextTask` 按优先级放行，避免 Worker 早于 TestWriter 运行。
 
 Codex 也必须有一个高层单步循环命令：
 

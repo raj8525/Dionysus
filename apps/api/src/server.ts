@@ -37,7 +37,8 @@ const createTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   roleRequired: z.enum(["master", "rule_writer", "test_writer", "worker"]),
-  priority: z.number().int().optional()
+  priority: z.number().int().optional(),
+  queue: z.boolean().default(true)
 });
 
 const agentCliConfigSchema = z.object({
@@ -331,17 +332,20 @@ export async function buildServer() {
       return reply.code(400).send({ error: "INVALID_TASK_INPUT", details: parsed.error.flatten() });
     }
     const task = await repo.createTask(parsed.data);
-    await repo.markTaskQueued(task.id);
-    await publishJson(queueForRole(parsed.data.roleRequired), {
-      message_id: randomUUID(),
-      goal_id: parsed.data.goalId,
-      task_id: task.id,
-      type: `${parsed.data.roleRequired}_task`,
-      attempt: 1,
-      idempotency_key: `${task.id}:${parsed.data.roleRequired}:1`,
-      created_at: new Date().toISOString()
-    });
-    return reply.code(201).send({ ...task, status: "queued" });
+    if (parsed.data.queue) {
+      await repo.markTaskQueued(task.id);
+      await publishJson(queueForRole(parsed.data.roleRequired), {
+        message_id: randomUUID(),
+        goal_id: parsed.data.goalId,
+        task_id: task.id,
+        type: `${parsed.data.roleRequired}_task`,
+        attempt: 1,
+        idempotency_key: `${task.id}:${parsed.data.roleRequired}:1`,
+        created_at: new Date().toISOString()
+      });
+      return reply.code(201).send({ ...task, status: "queued" });
+    }
+    return reply.code(201).send(task);
   });
 
   app.post("/api/goals/:id/intake", async (request, reply) => {
