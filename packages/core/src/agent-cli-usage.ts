@@ -14,6 +14,7 @@ export interface AgentCliUsageRow {
 
 export function buildAgentCliUsageSummary(input: {
   goalId?: string;
+  targetRoot?: string;
   generatedAt?: string;
   rows: AgentCliUsageRow[];
 }): AgentCliUsageSummary {
@@ -83,6 +84,7 @@ export function buildAgentCliUsageSummary(input: {
 
   return {
     goalId: input.goalId,
+    targetRoot: input.targetRoot,
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     totals,
     byAgent: Array.from(byAgent.values()).sort((left, right) => roleSort(left.role) - roleSort(right.role)),

@@ -151,7 +151,11 @@ async function main(): Promise<void> {
 
   if (domain === "agent" && action === "usage") {
     const goalId = readFlag(args, "--goal-id");
-    const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
+    const targetRoot = readFlag(args, "--target-root");
+    const params = new URLSearchParams();
+    if (goalId) params.set("goalId", goalId);
+    if (targetRoot) params.set("targetRoot", targetRoot);
+    const query = params.toString() ? `?${params.toString()}` : "";
     return print(await request(`/api/usage/agent-cli${query}`));
   }
 

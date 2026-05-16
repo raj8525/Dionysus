@@ -283,10 +283,11 @@ pnpm dionysus agent status --goal-id "<goal-id>"
 
 `/api/agents` 必须返回系统内置 Agent 实例 `Master`、`RuleWriter`、`TestWriter`、`WorkerA`、`WorkerB`、`WorkerC`、`WorkerD` 的 `id`、`name`、`role`、`status`、`cliType`、`cliModel`、`createdAt`、`updatedAt`。这些实例是 `task_runs.agent_id` 的唯一可信来源，也是 Dashboard 展示“谁正在工作”的基础。
 
-`/api/usage/agent-cli` 用于前端和 Codex 实时查看 Agent 调用消耗。它必须基于 PostgreSQL `task_runs` 做全量聚合，不能只统计前端当前分页。支持可选 `goalId` 过滤：
+`/api/usage/agent-cli` 用于前端和 Codex 实时查看 Agent 调用消耗。它必须基于 PostgreSQL `task_runs` 做全量聚合，不能只统计前端当前分页。支持可选 `goalId` 或 `targetRoot` 过滤；Dashboard 默认使用当前目标的 `targetRoot` 做项目级累计统计，Codex 需要单目标诊断时才使用 `goalId`：
 
 ```text
 GET /api/usage/agent-cli?goalId=<goal-id>
+GET /api/usage/agent-cli?targetRoot=/Volumes/MacMiniSSD/code/Coupon
 ```
 
 返回按 Agent 实例、Agent 角色、CLI、模型聚合的调用数：

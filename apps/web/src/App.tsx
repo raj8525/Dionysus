@@ -111,22 +111,22 @@ export function App() {
     if (activeGoalId) {
       refreshGoalEvidence(activeGoalId)
         .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-      refreshAgentCliUsage(activeGoalId)
+      refreshAgentCliUsage({ goalId: activeGoalId, targetRoot: currentGoal?.targetRoot })
         .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
     }
-  }, [activeGoalId]);
+  }, [activeGoalId, currentGoal?.targetRoot]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       Promise.all([
         refreshSystemHealth(),
         refreshAgents(),
-        refreshAgentCliUsage(activeGoalId),
+        refreshAgentCliUsage({ goalId: activeGoalId, targetRoot: currentGoal?.targetRoot }),
         activeGoalId ? refreshGoalEvidence(activeGoalId) : Promise.resolve()
       ]).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
     }, usageRefreshIntervalMs);
     return () => window.clearInterval(interval);
-  }, [activeGoalId]);
+  }, [activeGoalId, currentGoal?.targetRoot]);
 
   async function refreshFlow() {
     const nextFlow = await fetchCurrentFlow();
@@ -244,8 +244,11 @@ export function App() {
     setSystemHealth(await fetchSystemHealth());
   }
 
-  async function refreshAgentCliUsage(goalId = activeGoalId) {
-    setAgentCliUsage(await fetchAgentCliUsage(goalId ?? undefined));
+  async function refreshAgentCliUsage(scope: { goalId?: string | null; targetRoot?: string | null } = { goalId: activeGoalId, targetRoot: currentGoal?.targetRoot }) {
+    setAgentCliUsage(await fetchAgentCliUsage({
+      targetRoot: scope.targetRoot ?? undefined,
+      goalId: scope.targetRoot ? undefined : scope.goalId ?? undefined
+    }));
   }
 
   async function executeWatchdog() {

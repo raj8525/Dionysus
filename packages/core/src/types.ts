@@ -63,6 +63,7 @@ export interface CliUsage {
 
 export interface AgentCliUsageSummary {
   goalId?: string;
+  targetRoot?: string;
   generatedAt: string;
   totals: {
     cliCalls: number;

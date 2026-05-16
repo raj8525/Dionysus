@@ -8,7 +8,7 @@ describe("agent usage display helpers", () => {
       goalId: "goal-123",
       goalTitle: "Coupon 管理后台",
       targetRoot: "/Volumes/MacMiniSSD/code/Coupon"
-    })).toBe("当前项目 /Volumes/MacMiniSSD/code/Coupon · 目标 Coupon 管理后台 · goal-123");
+    })).toBe("当前项目 /Volumes/MacMiniSSD/code/Coupon 的累计统计 · 当前目标 Coupon 管理后台 · goal-123");
   });
 
   it("falls back to all goals when no active goal is selected", () => {

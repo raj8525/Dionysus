@@ -288,8 +288,8 @@ export async function buildServer() {
   });
 
   app.get("/api/usage/agent-cli", async (request) => {
-    const query = request.query as { goalId?: string };
-    return repo.getAgentCliUsage({ goalId: query.goalId });
+    const query = request.query as { goalId?: string; targetRoot?: string };
+    return repo.getAgentCliUsage({ goalId: query.goalId, targetRoot: query.targetRoot });
   });
 
   app.get("/api/agents", async (request) => {

@@ -339,10 +339,17 @@ export class DionysusRepository {
 
   async getAgentCliUsage(input: {
     goalId?: string;
+    targetRoot?: string;
   } = {}): Promise<AgentCliUsageSummary> {
     const params: string[] = [];
-    const where = input.goalId ? "where t.goal_id = $1" : "";
-    if (input.goalId) params.push(input.goalId);
+    let where = "";
+    if (input.goalId) {
+      params.push(input.goalId);
+      where = "where t.goal_id = $1";
+    } else if (input.targetRoot) {
+      params.push(input.targetRoot);
+      where = "where g.target_root = $1";
+    }
     const result = await this.pool.query(
       `select t.role_required,
               tr.agent_id,
@@ -355,6 +362,7 @@ export class DionysusRepository {
               max(coalesce(tr.finished_at, tr.started_at, tr.created_at)) as run_at
        from ${this.table("task_runs")} tr
        join ${this.table("tasks")} t on t.id = tr.task_id
+       join ${this.table("goals")} g on g.id = t.goal_id
        left join ${this.table("agents")} a on a.id = tr.agent_id
        ${where}
        group by t.role_required,
@@ -368,6 +376,7 @@ export class DionysusRepository {
     );
     return buildAgentCliUsageSummary({
       goalId: input.goalId,
+      targetRoot: input.targetRoot,
       rows: result.rows.map((row) => ({
         role: row.role_required as AgentRole,
         agentId: row.agent_id ? String(row.agent_id) : null,

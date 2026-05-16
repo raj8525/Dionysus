@@ -214,6 +214,7 @@ export interface CliUsage {
 
 export interface AgentCliUsageSummary {
   goalId?: string;
+  targetRoot?: string;
   generatedAt: string;
   totals: {
     cliCalls: number;
@@ -495,9 +496,10 @@ export async function fetchRunLogs(runId: string): Promise<TaskRunLogsResponse> 
   return (await response.json()) as TaskRunLogsResponse;
 }
 
-export async function fetchAgentCliUsage(goalId?: string): Promise<AgentCliUsageSummary> {
+export async function fetchAgentCliUsage(input: { goalId?: string; targetRoot?: string } = {}): Promise<AgentCliUsageSummary> {
   const params = new URLSearchParams();
-  if (goalId) params.set("goalId", goalId);
+  if (input.goalId) params.set("goalId", input.goalId);
+  if (input.targetRoot) params.set("targetRoot", input.targetRoot);
   const query = params.toString();
   const response = await fetch(`${apiBase}/api/usage/agent-cli${query ? `?${query}` : ""}`);
   if (!response.ok) {

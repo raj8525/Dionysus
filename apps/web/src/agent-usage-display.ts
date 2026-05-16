@@ -8,7 +8,7 @@ export function describeUsageScope(input: {
   }
   const project = input.targetRoot?.trim() || "未记录项目目录";
   const title = input.goalTitle?.trim() || "未命名目标";
-  return `当前项目 ${project} · 目标 ${title} · ${input.goalId}`;
+  return `当前项目 ${project} 的累计统计 · 当前目标 ${title} · ${input.goalId}`;
 }
 
 export function modelCallLabel(): string {

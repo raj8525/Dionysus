@@ -134,4 +134,19 @@ describe("buildAgentCliUsageSummary", () => {
       })
     ]);
   });
+
+  it("keeps the selected project target root in the usage scope", () => {
+    const summary = buildAgentCliUsageSummary({
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      rows: []
+    });
+
+    expect(summary).toMatchObject({
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      totals: {
+        cliCalls: 0,
+        modelCalls: 0
+      }
+    });
+  });
 });
