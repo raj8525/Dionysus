@@ -18,12 +18,13 @@ import {
   decideMasterStep,
   evaluateWatchdogTask,
   mergeIntegrationVerificationCommands,
+  resolveAgentRunConfig,
   shouldDispatchAfterIntegration,
   queueForRole
 } from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
-import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
+import { consumeJson, publishJson, type QueueConsumer, type QueueMessage } from "@dionysus/mq";
 import { targetRootForGoal } from "./target-root.js";
 
 const workerQueue = "dionysus.worker";
@@ -36,9 +37,6 @@ const masterControlQueue = "dionysus.master_control";
 const workerCliType = parseWorkerCliType(process.env.DIONYSUS_WORKER_CLI_TYPE);
 const workerCliModel = process.env.DIONYSUS_WORKER_CLI_MODEL || undefined;
 const agentRunTimeoutMs = parsePositiveInteger(process.env.DIONYSUS_AGENT_RUN_TIMEOUT_MS, 20 * 60 * 1000);
-const adapter = workerCliType === "mock"
-  ? new MockAdapter()
-  : createCliAdapter({ cliType: workerCliType, model: workerCliModel, timeoutMs: agentRunTimeoutMs });
 const targetRoot = process.env.TARGET_COUPON_ROOT ?? process.cwd();
 const workspaceRoot = process.env.DIONYSUS_WORKSPACE_ROOT ?? resolve(process.cwd(), "../../.dionysus/workspaces");
 const integrationVerificationCommands = readCommandList(process.env.DIONYSUS_INTEGRATION_VERIFY_COMMANDS);
@@ -58,6 +56,18 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
 
   const taskContext = await loadTaskContext(message.task_id);
   const taskTargetRoot = targetRootForGoal(taskContext.goal, targetRoot);
+  const roleConfig = await repo.getAgentCliConfig("worker");
+  const runConfig = resolveAgentRunConfig({
+    role: "worker",
+    roleConfig,
+    fallback: {
+      cliType: workerCliType,
+      cliModel: workerCliModel
+    }
+  });
+  const roleAdapter = runConfig.cliType === "mock"
+    ? new MockAdapter()
+    : createCliAdapter({ cliType: runConfig.cliType, model: runConfig.cliModel, timeoutMs: agentRunTimeoutMs });
   let runId: string | null = null;
 
   try {
@@ -78,9 +88,9 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     });
     runId = await repo.createTaskRun({
       taskId: message.task_id,
-      cliType: workerCliType,
-      cliModel: workerCliModel,
-      command: `${workerCliType}.run`,
+      cliType: runConfig.cliType,
+      cliModel: runConfig.cliModel,
+      command: `${runConfig.cliType}.run`,
       prompt
     });
     if (!runId) {
@@ -95,7 +105,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     let logSequence = 1;
     let streamedLogs = false;
     const pendingLogWrites: Array<Promise<void>> = [];
-    const result = await adapter.run({
+    const result = await roleAdapter.run({
       taskId: message.task_id,
       prompt,
       cwd: workspace.workspacePath,
@@ -210,13 +220,21 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     workspacePath
   });
   const roleConfig = await repo.getAgentCliConfig(role);
-  const roleAdapter = roleConfig.cliType === "mock"
+  const runConfig = resolveAgentRunConfig({
+    role,
+    roleConfig,
+    fallback: {
+      cliType: workerCliType,
+      cliModel: workerCliModel
+    }
+  });
+  const roleAdapter = runConfig.cliType === "mock"
     ? new MockAdapter()
-    : createCliAdapter({ cliType: roleConfig.cliType, model: roleConfig.cliModel, timeoutMs: agentRunTimeoutMs });
+    : createCliAdapter({ cliType: runConfig.cliType, model: runConfig.cliModel, timeoutMs: agentRunTimeoutMs });
   const runId = await repo.createTaskRun({
     taskId: message.task_id,
-    cliType: roleConfig.cliType,
-    cliModel: roleConfig.cliModel,
+    cliType: runConfig.cliType,
+    cliModel: runConfig.cliModel,
     command: `${roleName}.governance`,
     prompt
   });
@@ -250,8 +268,8 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   }
   await repo.recordTaskEvent(message.task_id, result.exitCode === 0 ? `${roleName}.completed` : `${roleName}.failed`, {
     messageId: message.message_id,
-    cliType: roleConfig.cliType,
-    cliModel: roleConfig.cliModel,
+    cliType: runConfig.cliType,
+    cliModel: runConfig.cliModel,
     next: roleName === "master" ? "review task tree or dispatch next role" : "return to master"
   });
   let queuedPatchId: string | null = null;
@@ -616,8 +634,8 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function startWatchdogScheduler(): void {
-  setInterval(() => {
+function startWatchdogScheduler(): NodeJS.Timeout {
+  return setInterval(() => {
     publishJson(watchdogQueue, {
       message_id: randomUUID(),
       type: "watchdog_tick",
@@ -630,8 +648,8 @@ function startWatchdogScheduler(): void {
   }, watchdogIntervalSeconds * 1000);
 }
 
-function startMasterControlScheduler(): void {
-  setInterval(() => {
+function startMasterControlScheduler(): NodeJS.Timeout {
+  return setInterval(() => {
     publishJson(masterControlQueue, {
       message_id: randomUUID(),
       type: "master_control_tick",
@@ -644,8 +662,8 @@ function startMasterControlScheduler(): void {
   }, masterControlIntervalSeconds * 1000);
 }
 
-function startWorkerHeartbeatScheduler(): void {
-  setInterval(() => {
+function startWorkerHeartbeatScheduler(): NodeJS.Timeout {
+  return setInterval(() => {
     repo.recordSystemEvent("worker.heartbeat", {
       pid: process.pid,
       workerCliType,
@@ -670,10 +688,16 @@ await repo.recordSystemEvent("worker.started", {
   masterControlIntervalSeconds,
   workerHeartbeatIntervalSeconds
 });
-startWorkerHeartbeatScheduler();
-startWatchdogScheduler();
-startMasterControlScheduler();
-await Promise.all([
+process.on("SIGHUP", () => {
+  repo.recordSystemEvent("worker.sighup_ignored", { pid: process.pid })
+    .catch((error: unknown) => console.error("failed to record ignored SIGHUP", error));
+});
+const scheduledTimers = [
+  startWorkerHeartbeatScheduler(),
+  startWatchdogScheduler(),
+  startMasterControlScheduler()
+];
+const consumers = await Promise.all([
   consumeJson(masterQueue, (message) => handleGovernanceTask(message, "master")),
   consumeJson(ruleWriterQueue, (message) => handleGovernanceTask(message, "rule_writer")),
   consumeJson(testWriterQueue, (message) => handleGovernanceTask(message, "test_writer")),
@@ -682,3 +706,20 @@ await Promise.all([
   consumeJson(watchdogQueue, handleWatchdogTask),
   consumeJson(masterControlQueue, handleMasterControlTask)
 ]);
+await waitForShutdown(consumers);
+
+async function waitForShutdown(consumers: QueueConsumer[]): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const shutdown = (signal: NodeJS.Signals) => {
+      repo.recordSystemEvent("worker.stopping", { pid: process.pid, signal })
+        .catch((error: unknown) => console.error("failed to record worker stopping", error))
+        .finally(resolve);
+    };
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
+  scheduledTimers.forEach((timer) => clearInterval(timer));
+  await Promise.all(consumers.map((consumer) => consumer.close()));
+  await repo.recordSystemEvent("worker.stopped", { pid: process.pid });
+  await pool.end();
+}

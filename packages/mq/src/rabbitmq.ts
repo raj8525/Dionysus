@@ -18,6 +18,11 @@ export interface QueueMessage {
   created_at: string;
 }
 
+export interface QueueConsumer {
+  queue: string;
+  close: () => Promise<void>;
+}
+
 export async function publishJson(queue: string, message: QueueMessage): Promise<void> {
   const connection = await amqp.connect(requiredMqUrl());
   const channel = await connection.createConfirmChannel();
@@ -41,7 +46,7 @@ export async function publishJson(queue: string, message: QueueMessage): Promise
 export async function consumeJson(
   queue: string,
   handler: (message: QueueMessage) => Promise<void>
-): Promise<void> {
+): Promise<QueueConsumer> {
   const connection = await amqp.connect(requiredMqUrl());
   const channel = await connection.createChannel();
   await channel.assertQueue(queue, { durable: true });
@@ -56,6 +61,13 @@ export async function consumeJson(
       channel.nack(raw, false, false);
     }
   });
+  return {
+    queue,
+    close: async () => {
+      await channel.close().catch(() => undefined);
+      await connection.close().catch(() => undefined);
+    }
+  };
 }
 
 export async function checkRabbitMqHealth(): Promise<{

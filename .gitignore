@@ -10,6 +10,7 @@ dist/
 .dionysus/logs/
 .dionysus/workspaces/
 .dionysus/real-worker-target/
+.dionysus/runtime-target/
 .dionysus/*.png
 coverage/
 *.log

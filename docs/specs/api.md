@@ -313,6 +313,8 @@ pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged s
 
 `POST /api/tasks/:id/cancel` 用于 Codex 或 Master 取消错误排队、过宽、过期或被新任务替代的任务。取消时必须把 task 标记为 `cancelled`，记录 `task.cancelled` 事件，并收口该 task 下仍处于 `running` 的 run。
 
+Agent Runtime 执行任务时必须优先读取 `agent_cli_configs` 中对应角色的配置。`DIONYSUS_WORKER_CLI_TYPE` 和 `DIONYSUS_WORKER_CLI_MODEL` 只能作为没有角色配置时的兼容 fallback，不得覆盖 Dashboard/CLI 已保存的 `Master`、`RuleWriter`、`TestWriter`、`Worker` 配置。否则 Dashboard 会显示 Agent 已配置为真实 CLI，但实际 run 仍可能落到 `mock`，这是不可接受的控制面漂移。
+
 Codex 也必须有一个高层单步循环命令：
 
 ```text

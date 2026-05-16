@@ -101,6 +101,10 @@ pnpm dionysus codex heartbeat --limit 5
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
+## Agent CLI 配置优先级
+
+Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 中的 `DIONYSUS_WORKER_CLI_TYPE` / `DIONYSUS_WORKER_CLI_MODEL` 只用于没有角色配置时的兼容 fallback；不要用它们覆盖 Dashboard 中保存的 `Master`、`RuleWriter`、`TestWriter`、`Worker` CLI / 模型。
+
 ## 目标项目配置
 
 Coupon 试点项目路径：
