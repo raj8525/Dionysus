@@ -8,6 +8,7 @@ dist/
 .dionysus/patches/
 .dionysus/e2e/
 .dionysus/workspaces/
+.dionysus/real-worker-target/
 coverage/
 *.log
 .playwright-cli/

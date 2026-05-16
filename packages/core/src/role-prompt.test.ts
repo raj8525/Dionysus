@@ -65,4 +65,23 @@ describe("role prompt builder", () => {
     expect(workerPrompt).toContain("gate-check 已通过");
     expect(workerPrompt).toContain("产出 patch");
   });
+
+  it("forces Worker to write only inside the isolated workspace", () => {
+    const prompt = buildRolePrompt({
+      role: "worker",
+      goal,
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-worker-task",
+      task: {
+        id: "worker-task",
+        title: "实现功能",
+        description: "提交 patch",
+        roleRequired: "worker"
+      }
+    });
+
+    expect(prompt).toContain("Workspace Root: /tmp/dionysus-workspaces/Coupon-worker-task");
+    expect(prompt).toContain("当前 CLI 的工作目录就是隔离 workspace");
+    expect(prompt).toContain("禁止直接写入 Target Root 绝对路径");
+    expect(prompt).toContain("所有文件修改必须使用相对路径");
+  });
 });

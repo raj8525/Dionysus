@@ -20,6 +20,7 @@ import {
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { consumeJson, publishJson, type QueueMessage } from "@dionysus/mq";
+import { targetRootForGoal } from "./target-root.js";
 
 const workerQueue = "dionysus.worker";
 const masterQueue = "dionysus.master";
@@ -51,28 +52,31 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
   }
 
   const taskContext = await loadTaskContext(message.task_id);
-  const prompt = buildRolePrompt({
-    role: "worker",
-    task: taskContext.task,
-    goal: taskContext.goal
-  });
-  const runId = await repo.createTaskRun({
-    taskId: message.task_id,
-    cliType: workerCliType,
-    cliModel: workerCliModel,
-    command: `${workerCliType}.run`,
-    prompt
-  });
+  const taskTargetRoot = targetRootForGoal(taskContext.goal, targetRoot);
+  let runId: string | null = null;
 
   try {
     const workspace = await createIsolatedWorkspace({
-      targetRoot,
+      targetRoot: taskTargetRoot,
       workspaceRoot,
       taskId: message.task_id
     });
     await repo.recordTaskEvent(message.task_id, "workspace.created", {
       workspacePath: workspace.workspacePath,
-      source: targetRoot
+      source: taskTargetRoot
+    });
+    const prompt = buildRolePrompt({
+      role: "worker",
+      task: taskContext.task,
+      goal: taskContext.goal,
+      workspacePath: workspace.workspacePath
+    });
+    runId = await repo.createTaskRun({
+      taskId: message.task_id,
+      cliType: workerCliType,
+      cliModel: workerCliModel,
+      command: `${workerCliType}.run`,
+      prompt
     });
 
     const result = await adapter.run({
@@ -126,8 +130,15 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     });
   } catch (error) {
     const messageText = error instanceof Error ? error.stack ?? error.message : String(error);
-    await repo.appendRunLog(runId, "stderr", messageText, 99);
-    await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 1 });
+    if (runId) {
+      await repo.appendRunLog(runId, "stderr", messageText, 99);
+      await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 1 });
+    } else {
+      await repo.recordTaskEvent(message.task_id, "worker.failed_before_run", {
+        reason: messageText,
+        targetRoot: taskTargetRoot
+      });
+    }
     await publishJson(integrationQueue, {
       message_id: randomUUID(),
       goal_id: message.goal_id,
@@ -165,7 +176,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   const result = await roleAdapter.run({
     taskId: message.task_id,
     prompt,
-    cwd: targetRoot
+    cwd: targetRootForGoal(taskContext.goal, targetRoot)
   });
   if (result.stdout) {
     await repo.appendRunLog(runId, "stdout", result.stdout, 1);
@@ -198,8 +209,9 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
   }
 
   await repo.markIntegrationRunning(integration.id);
+  const goal = await repo.getGoal(integration.goalId);
   const result = await applyPatchToTarget({
-    targetRoot,
+    targetRoot: targetRootForGoal(goal, targetRoot),
     patchText: integration.patchText,
     verificationCommands: integrationVerificationCommands
   });

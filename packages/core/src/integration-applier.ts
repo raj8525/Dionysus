@@ -43,17 +43,22 @@ export async function applyPatchToTarget(input: {
       return { status: "failed", changedFiles: [], reason: verification };
     }
 
-    const names = await runGit(input.targetRoot, ["diff", "--name-only", "--", "."]);
+    const names = await runGit(input.targetRoot, ["status", "--porcelain"]);
     return {
       status: "applied",
-      changedFiles: names.stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
+      changedFiles: changedFilesFromPorcelain(names.stdout)
     };
   } finally {
     await rm(join(patchFile, ".."), { recursive: true, force: true });
   }
+}
+
+function changedFilesFromPorcelain(stdout: string): string[] {
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.slice(3).trim())
+    .filter(Boolean)
+    .map((path) => path.replace(/^"|"$/g, ""));
 }
 
 async function runVerificationCommands(cwd: string, commands: string[]): Promise<string | null> {

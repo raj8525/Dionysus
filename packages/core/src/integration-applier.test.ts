@@ -45,6 +45,29 @@ describe("integration patch applier", () => {
     }
   });
 
+  it("reports a newly added file as changed after applying a patch", async () => {
+    const root = await initRepo();
+    try {
+      const patch = [
+        "diff --git a/new-file.md b/new-file.md",
+        "new file mode 100644",
+        "index 0000000..3e5126c",
+        "--- /dev/null",
+        "+++ b/new-file.md",
+        "@@ -0,0 +1 @@",
+        "+created by worker",
+        ""
+      ].join("\n");
+
+      const result = await applyPatchToTarget({ targetRoot: root, patchText: patch });
+
+      expect(result.status).toBe("applied");
+      expect(result.changedFiles).toEqual(["new-file.md"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects patch application when target has uncommitted changes", async () => {
     const root = await initRepo();
     try {

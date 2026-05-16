@@ -18,6 +18,7 @@ export function buildRolePrompt(input: {
   role: AgentRole;
   task: RolePromptTask;
   goal?: RolePromptGoal | null;
+  workspacePath?: string;
 }): string {
   const roleBlock = roleInstructions[input.role];
   const goal = input.goal;
@@ -28,6 +29,7 @@ export function buildRolePrompt(input: {
     `Goal ID: ${goal?.id ?? "unknown"}`,
     `Goal Title: ${goal?.title ?? "unknown"}`,
     `Target Root: ${goal?.targetRoot ?? "unknown"}`,
+    `Workspace Root: ${input.workspacePath ?? "not allocated"}`,
     `Goal Description:\n${goal?.description ?? "unknown"}`,
     "",
     "## 当前任务",
@@ -84,7 +86,9 @@ const roleInstructions: Record<AgentRole, string> = {
   worker: [
     "- 你负责具体实现，只能实现 Master 分配的任务。",
     "- 你必须先确认 gate-check 已通过；缺少 PLAN、specs 或 features_test 时不得实现。",
-    "- 你必须在隔离 workspace 中工作，并产出 patch，而不是直接修改主项目目录。",
+    "- 当前 CLI 的工作目录就是隔离 workspace，你必须只在这个目录内工作并产出 patch。",
+    "- 禁止直接写入 Target Root 绝对路径；Target Root 只用于理解来源，不是可写目录。",
+    "- 所有文件修改必须使用相对路径，不能通过绝对路径绕过 workspace。",
     "- 完成后必须报告修改文件、测试命令、测试结果、风险和下一步建议。"
   ].join("\n")
 };
