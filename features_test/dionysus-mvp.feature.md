@@ -24,6 +24,18 @@ And `/health` 不得只返回静态 ok，必须检查数据库连接
 And Worker 必须通过 `worker.started` 或 `worker.heartbeat` system event 证明 Runtime 正在运行
 And 如果 Worker 心跳超过 `DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS`，doctor 必须显示 stale 或 missing
 
+## 场景 1.2：Codex 可以用 CLI 管理 Dionysus Runtime
+
+Given Codex 在 Dionysus 仓库根目录
+When Codex 运行 `pnpm dionysus system runtime start`
+Then CLI 必须启动 API 与 Worker 后台进程
+And pid 文件必须写入 `.dionysus/pids/`
+And 日志必须写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`
+When Codex 运行 `pnpm dionysus system runtime status`
+Then CLI 必须显示 API 与 Worker 是否仍在运行
+When Codex 运行 `pnpm dionysus system runtime stop`
+Then CLI 必须停止由 Dionysus 管理的 API 与 Worker
+
 ## 场景 2：任务状态机拒绝非法迁移
 
 Given 一个状态为 `created` 的 task

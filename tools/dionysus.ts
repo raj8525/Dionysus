@@ -6,6 +6,7 @@ import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
+import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
 import { summarizeSupervisionStep } from "./dionysus-supervise.js";
 import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus/core";
@@ -78,6 +79,24 @@ async function main(): Promise<void> {
       logFile,
       command: "pnpm --filter @dionysus/worker exec tsx src/worker.ts"
     });
+  }
+
+  if (domain === "system" && action === "runtime") {
+    const runtimeAction = args[0];
+    const specs = buildRuntimeProcessSpecs({
+      repoRoot: process.cwd(),
+      logDir: readFlag(args, "--log-dir") ?? ".dionysus/logs",
+      pidDir: readFlag(args, "--pid-dir") ?? ".dionysus/pids"
+    });
+    if (runtimeAction === "start") {
+      return print(startRuntime(specs));
+    }
+    if (runtimeAction === "status") {
+      return print(getRuntimeStatus(specs));
+    }
+    if (runtimeAction === "stop") {
+      return print(stopRuntime(specs));
+    }
   }
 
   if (domain === "agent" && action === "probe") {

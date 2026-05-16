@@ -8,6 +8,7 @@ dist/
 .dionysus/patches/
 .dionysus/e2e/
 .dionysus/logs/
+.dionysus/pids/
 .dionysus/workspaces/
 .dionysus/real-worker-target/
 .dionysus/runtime-target/
