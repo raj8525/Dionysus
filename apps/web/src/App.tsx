@@ -345,6 +345,7 @@ export function App() {
 
   const healthSummary = summarizeSystemHealth(systemHealth);
   const usageByRole = new Map(agentCliUsage?.byAgent.map((usage) => [usage.role, usage]) ?? []);
+  const usageByAgentInstance = agentCliUsage?.byAgentInstance ?? [];
   const usageByCli = agentCliUsage?.byCli ?? [];
   const usageGeneratedLabel = agentCliUsage?.generatedAt
     ? new Date(agentCliUsage.generatedAt).toLocaleTimeString()
@@ -473,6 +474,51 @@ export function App() {
               <p className="usageNote">
                 Model Calls 当前表示 Dionysus 发起的非 mock CLI run 次数；只有 CLI 输出可解析 usage 回执后，才能进一步统计 provider 内部真实模型 API 调用次数。
               </p>
+              <div className="cliUsagePanel">
+                <div className="subsectionTitle">
+                  <strong>按 Agent 实例</strong>
+                  <span>总 CLI 调用 / 模型调用 / 状态</span>
+                </div>
+                <div className="usageGrid">
+                  {usageByAgentInstance.length ? (
+                    usageByAgentInstance.map((usage) => (
+                      <article key={usage.agentKey} className="usageCard">
+                        <div className="usageCardHeader">
+                          <div>
+                            <strong>{usage.agentName}</strong>
+                            <span>{roleLabels[usage.role]} · {usage.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
+                          </div>
+                          <b>{usage.cliCalls}</b>
+                        </div>
+                        <div className="usageMetrics">
+                          <span>模型调用 {usage.modelCalls}</span>
+                          <span>运行中 {usage.runningCalls}</span>
+                          <span>失败 {usage.failedCalls}</span>
+                        </div>
+                        <div className="modelUsageList">
+                          {usage.models.length ? (
+                            usage.models.map((model) => (
+                              <div key={`${usage.agentKey}-${model.cliType}-${model.cliModel}`} className="modelUsageRow">
+                                <span>{model.cliType}</span>
+                                <strong>{model.cliModel}</strong>
+                                <em>{model.modelCalls}/{model.cliCalls}</em>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="modelUsageEmpty">暂无 CLI run</div>
+                          )}
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="modelUsageEmpty">暂无 Agent 实例调用数据</div>
+                  )}
+                </div>
+              </div>
+              <div className="subsectionTitle roleUsageTitle">
+                <strong>按 Agent 角色</strong>
+                <span>用于确认 Master / RuleWriter / TestWriter / Worker 是否都在推进</span>
+              </div>
               <div className="usageGrid">
                 {roleOrder.map((role) => {
                   const usage = usageByRole.get(role);

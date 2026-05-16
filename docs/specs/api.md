@@ -223,7 +223,7 @@ pnpm dionysus agent status --goal-id "<goal-id>"
 GET /api/usage/agent-cli?goalId=<goal-id>
 ```
 
-返回按 Agent、CLI、模型聚合的调用数：
+返回按 Agent 实例、Agent 角色、CLI、模型聚合的调用数：
 
 ```json
 {
@@ -237,6 +237,31 @@ GET /api/usage/agent-cli?goalId=<goal-id>
     "failedCalls": 1,
     "distinctModels": 3
   },
+  "byAgentInstance": [
+    {
+      "agentKey": "agent:worker-a",
+      "agentId": "worker-a",
+      "agentName": "WorkerA",
+      "role": "worker",
+      "cliCalls": 3,
+      "modelCalls": 3,
+      "runningCalls": 1,
+      "succeededCalls": 1,
+      "failedCalls": 1,
+      "lastRunAt": "2026-05-16T16:09:30.000Z",
+      "models": [
+        {
+          "cliType": "opencode",
+          "cliModel": "minimax-cn-coding-plan/MiniMax-M2.7",
+          "cliCalls": 3,
+          "modelCalls": 3,
+          "runningCalls": 1,
+          "succeededCalls": 1,
+          "failedCalls": 1
+        }
+      ]
+    }
+  ],
   "byAgent": [
     {
       "role": "worker",
@@ -262,6 +287,8 @@ GET /api/usage/agent-cli?goalId=<goal-id>
   "byCli": []
 }
 ```
+
+`byAgentInstance` 优先使用 `task_runs.agent_id` 和 `agents.name`；当历史 run 没有关联真实 agent id 时，必须回退到 `role:<role>`，让 Dashboard 仍能展示 Master / RuleWriter / TestWriter / Worker 的调用统计。
 
 当前 `modelCalls` 的口径是 Dionysus 发起的非 mock CLI run 次数。CLI 进程内部的真实模型 API 调用次数只有在对应 CLI 输出 usage 回执后才能进一步精确解析。
 

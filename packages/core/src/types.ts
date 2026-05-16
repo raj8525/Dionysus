@@ -26,6 +26,20 @@ export interface AgentCliUsage {
   models: AgentCliModelUsage[];
 }
 
+export interface AgentInstanceCliUsage {
+  agentKey: string;
+  agentId?: string;
+  agentName: string;
+  role: AgentRole;
+  cliCalls: number;
+  modelCalls: number;
+  runningCalls: number;
+  succeededCalls: number;
+  failedCalls: number;
+  lastRunAt?: string;
+  models: AgentCliModelUsage[];
+}
+
 export interface CliUsage {
   cliType: CliType;
   cliCalls: number;
@@ -48,6 +62,7 @@ export interface AgentCliUsageSummary {
     distinctModels: number;
   };
   byAgent: AgentCliUsage[];
+  byAgentInstance: AgentInstanceCliUsage[];
   byCli: CliUsage[];
 }
 

@@ -409,6 +409,10 @@ button:disabled {
   font-weight: 800;
 }
 
+.roleUsageTitle {
+  margin: 16px 0 10px;
+}
+
 .cliUsageGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));

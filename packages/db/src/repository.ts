@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { normalizeAgentCliConfig } from "@dionysus/core";
+import { buildAgentCliUsageSummary, normalizeAgentCliConfig } from "@dionysus/core";
 import type {
   AgentCliConfig,
   AgentCliUsageSummary,
@@ -304,109 +304,39 @@ export class DionysusRepository {
     if (input.goalId) params.push(input.goalId);
     const result = await this.pool.query(
       `select t.role_required,
+              tr.agent_id,
+              a.name as agent_name,
               tr.cli_type,
               coalesce(nullif(tr.cli_model, ''), 'default/unknown') as cli_model,
+              tr.status,
               count(*)::int as cli_calls,
-              count(*) filter (where tr.cli_type <> 'mock')::int as model_calls,
-              count(*) filter (where tr.status = 'running')::int as running_calls,
-              count(*) filter (where tr.status = 'succeeded')::int as succeeded_calls,
-              count(*) filter (where tr.status = 'failed')::int as failed_calls,
-              max(coalesce(tr.finished_at, tr.started_at, tr.created_at)) as last_run_at
+              max(coalesce(tr.finished_at, tr.started_at, tr.created_at)) as run_at
        from ${this.table("task_runs")} tr
        join ${this.table("tasks")} t on t.id = tr.task_id
+       left join ${this.table("agents")} a on a.id = tr.agent_id
        ${where}
-       group by t.role_required, tr.cli_type, coalesce(nullif(tr.cli_model, ''), 'default/unknown')
-       order by t.role_required asc, cli_calls desc, tr.cli_type asc, cli_model asc`,
+       group by t.role_required,
+                tr.agent_id,
+                a.name,
+                tr.cli_type,
+                coalesce(nullif(tr.cli_model, ''), 'default/unknown'),
+                tr.status
+       order by run_at asc`,
       params
     );
-
-    const byAgent = new Map<AgentRole, AgentCliUsageSummary["byAgent"][number]>();
-    const byCli = new Map<CliType, AgentCliUsageSummary["byCli"][number]>();
-    const distinctModels = new Set<string>();
-    const totals = {
-      cliCalls: 0,
-      modelCalls: 0,
-      runningCalls: 0,
-      succeededCalls: 0,
-      failedCalls: 0,
-      distinctModels: 0
-    };
-
-    for (const row of result.rows) {
-      const role = row.role_required as AgentRole;
-      const cliType = row.cli_type as CliType;
-      const cliModel = String(row.cli_model);
-      const cliCalls = Number(row.cli_calls);
-      const modelCalls = Number(row.model_calls);
-      const runningCalls = Number(row.running_calls);
-      const succeededCalls = Number(row.succeeded_calls);
-      const failedCalls = Number(row.failed_calls);
-      const lastRunAt = row.last_run_at ? new Date(row.last_run_at).toISOString() : undefined;
-
-      totals.cliCalls += cliCalls;
-      totals.modelCalls += modelCalls;
-      totals.runningCalls += runningCalls;
-      totals.succeededCalls += succeededCalls;
-      totals.failedCalls += failedCalls;
-      if (modelCalls > 0) {
-        distinctModels.add(`${cliType}:${cliModel}`);
-      }
-
-      const agentUsage = byAgent.get(role) ?? {
-        role,
-        cliCalls: 0,
-        modelCalls: 0,
-        runningCalls: 0,
-        succeededCalls: 0,
-        failedCalls: 0,
-        lastRunAt: undefined,
-        models: []
-      };
-      agentUsage.cliCalls += cliCalls;
-      agentUsage.modelCalls += modelCalls;
-      agentUsage.runningCalls += runningCalls;
-      agentUsage.succeededCalls += succeededCalls;
-      agentUsage.failedCalls += failedCalls;
-      agentUsage.lastRunAt = latestIso(agentUsage.lastRunAt, lastRunAt);
-      agentUsage.models.push({
-        cliType,
-        cliModel,
-        cliCalls,
-        modelCalls,
-        runningCalls,
-        succeededCalls,
-        failedCalls,
-        lastRunAt
-      });
-      byAgent.set(role, agentUsage);
-
-      const cliUsage = byCli.get(cliType) ?? {
-        cliType,
-        cliCalls: 0,
-        modelCalls: 0,
-        runningCalls: 0,
-        succeededCalls: 0,
-        failedCalls: 0,
-        lastRunAt: undefined
-      };
-      cliUsage.cliCalls += cliCalls;
-      cliUsage.modelCalls += modelCalls;
-      cliUsage.runningCalls += runningCalls;
-      cliUsage.succeededCalls += succeededCalls;
-      cliUsage.failedCalls += failedCalls;
-      cliUsage.lastRunAt = latestIso(cliUsage.lastRunAt, lastRunAt);
-      byCli.set(cliType, cliUsage);
-    }
-
-    totals.distinctModels = distinctModels.size;
-
-    return {
+    return buildAgentCliUsageSummary({
       goalId: input.goalId,
-      generatedAt: new Date().toISOString(),
-      totals,
-      byAgent: Array.from(byAgent.values()).sort((left, right) => roleSort(left.role) - roleSort(right.role)),
-      byCli: Array.from(byCli.values()).sort((left, right) => left.cliType.localeCompare(right.cliType))
-    };
+      rows: result.rows.map((row) => ({
+        role: row.role_required as AgentRole,
+        agentId: row.agent_id ? String(row.agent_id) : null,
+        agentName: row.agent_name ? String(row.agent_name) : null,
+        cliType: row.cli_type as CliType,
+        cliModel: row.cli_model ? String(row.cli_model) : null,
+        status: String(row.status),
+        cliCalls: Number(row.cli_calls),
+        runAt: row.run_at ? new Date(row.run_at).toISOString() : null
+      }))
+    });
   }
 
   async findNextCreatedTask(input: {
@@ -1887,22 +1817,6 @@ function mapCodexOutboxEvent(row: Record<string, unknown>): CodexOutboxEvent {
     updatedAt: new Date(String(row.updated_at)).toISOString(),
     ackedAt: row.acked_at ? new Date(String(row.acked_at)).toISOString() : undefined
   };
-}
-
-function latestIso(current?: string, candidate?: string): string | undefined {
-  if (!candidate) return current;
-  if (!current) return candidate;
-  return Date.parse(candidate) > Date.parse(current) ? candidate : current;
-}
-
-function roleSort(role: AgentRole): number {
-  const order: Record<AgentRole, number> = {
-    master: 0,
-    rule_writer: 1,
-    test_writer: 2,
-    worker: 3
-  };
-  return order[role] ?? 99;
 }
 
 function node(id: string, type: string, x: number, y: number, data: Record<string, unknown>): FlowNode {
