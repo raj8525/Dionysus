@@ -25,6 +25,8 @@ describe("role prompt builder", () => {
     expect(prompt).toContain("你不得写业务实现代码");
     expect(prompt).toContain("是否达到里程碑级成果");
     expect(prompt).toContain("Codex 执行浏览器级 E2E");
+    expect(prompt).toContain("部分里程碑");
+    expect(prompt).toContain("真实数据库持久化");
   });
 
   it("separates RuleWriter, TestWriter and Worker responsibilities", () => {
@@ -64,6 +66,7 @@ describe("role prompt builder", () => {
     expect(testPrompt).toContain("只能编写 features_test/");
     expect(testPrompt).toContain("先失败的红灯测试证据");
     expect(testPrompt).toContain("隔离 workspace");
+    expect(testPrompt).toContain("不得使用 stub");
     expect(workerPrompt).toContain("gate-check 已通过");
     expect(workerPrompt).toContain("产出 patch");
     expect(workerPrompt).toContain("最小可验证交付物");

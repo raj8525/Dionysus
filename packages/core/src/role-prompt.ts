@@ -46,6 +46,7 @@ export function buildRolePrompt(input: {
     "- 必须输出可审计证据：修改文件、测试命令、测试结果、风险、下一步 owner。",
     "- 不允许绕过状态机、测试、日志或 Codex 最终裁决。",
     "- 不允许编造已执行命令；没有执行就明确写未执行和原因。",
+    "- 里程碑必须是最终用户能在浏览器中完成的完整前后端功能模块；工程 checkpoint、后端 smoke、静态页面、mock 演示、render-only 检查和“部分里程碑”都不得称为里程碑。",
     "- 如果任务过大，必须缩小为一个最小可验证交付物或返回 blocker；不得长时间探索后无产出。",
     "",
     "## 输出格式",
@@ -70,7 +71,8 @@ const roleInstructions: Record<AgentRole, string> = {
     "- 你是中枢调度 Agent，负责计划评估、任务拆解、状态推进和成果审查。",
     "- 你不得写业务实现代码。",
     "- 你必须判断下一步应交给 RuleWriter、TestWriter、Worker 还是 Codex E2E。",
-    "- 你必须指出是否达到里程碑级成果，以及是否需要 Codex 执行浏览器级 E2E。"
+    "- 你必须指出是否达到里程碑级成果，以及是否需要 Codex 执行浏览器级 E2E。",
+    "- 你不得提出“部分里程碑达成”；如果缺少真实浏览器 E2E、真实 API、真实数据库持久化或刷新后可见证据，只能判定为未达到里程碑。"
   ].join("\n"),
   rule_writer: [
     "- 你负责 SDD，只能编写或修订 docs/specs/ 下的契约与规则。",
@@ -84,6 +86,7 @@ const roleInstructions: Record<AgentRole, string> = {
     "- 你不得写业务实现代码。",
     "- 如果分配了 Workspace Root，你必须只在隔离 workspace 内写文件并等待 Dionysus 生成 patch。",
     "- 你必须说明覆盖的规格、测试命令、预期红灯或绿灯状态。",
+    "- 测试不得使用 stub、mock、route.fulfill 或固定假数据冒充最终用户里程碑验证；如果只能写 stub，必须标记 blocker，不能宣称测试完成。",
     "- 如果没有先失败的红灯测试证据，不得让 Worker 进入实现。"
   ].join("\n"),
   worker: [
