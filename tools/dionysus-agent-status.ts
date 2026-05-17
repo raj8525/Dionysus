@@ -33,6 +33,7 @@ export function summarizeAgentControlStatus(input: AgentControlStatusInput): Age
   const runningTasks = countByStatus(input.tasks, "running");
   const blockedTasks = countByStatus(input.tasks, "blocked");
   const runningRuns = countByStatus(input.runs, "running");
+  const unboundRunningRuns = input.runs.filter((run) => run.status === "running" && !run.agentId && !run.agent_id).length;
   const agents = input.agents ?? [];
   const idleAgents = countByStatus(agents, "idle");
   const workingAgents = countByStatus(agents, "working");
@@ -40,7 +41,7 @@ export function summarizeAgentControlStatus(input: AgentControlStatusInput): Age
   const disabledAgentInstances = countByStatus(agents, "disabled");
   const unboundRecentRuns = input.runs.filter((run) => !run.agentId && !run.agent_id).length;
   const boundRecentRuns = input.runs.length - unboundRecentRuns;
-  const inconsistentRuntime = runtimeReady && runningRuns > 0 && (workingAgents === 0 || unboundRecentRuns > 0);
+  const inconsistentRuntime = runtimeReady && runningRuns > 0 && (workingAgents === 0 || unboundRunningRuns > 0);
 
   return {
     runtime: runtimeReady && !inconsistentRuntime ? "ready" : "blocked",
@@ -64,6 +65,7 @@ export function summarizeAgentControlStatus(input: AgentControlStatusInput): Age
       runningRuns,
       workingAgents,
       unboundRecentRuns,
+      unboundRunningRuns,
       runningTasks
     })
   };
@@ -81,12 +83,13 @@ function nextAction(input: {
   runningRuns: number;
   workingAgents: number;
   unboundRecentRuns: number;
+  unboundRunningRuns: number;
 }): string {
   if (!input.runtimeReady) {
     return "先修复 system doctor 中的 PostgreSQL / RabbitMQ / Worker blocker";
   }
   if (input.inconsistentRuntime) {
-    if (input.unboundRecentRuns > 0) {
+    if (input.unboundRunningRuns > 0) {
       return "存在 running run 未绑定具体 Agent，先检查 Runtime 版本与 task_runs.agent_id";
     }
     return "存在 running run 但没有 working Agent，先检查 Agent release/claim 状态";

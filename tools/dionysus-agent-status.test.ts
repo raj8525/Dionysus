@@ -86,4 +86,28 @@ describe("agent control status summary", () => {
       nextAction: "存在 running run 未绑定具体 Agent，先检查 Runtime 版本与 task_runs.agent_id"
     });
   });
+
+  it("does not let historical unbound runs block a currently bound running run", () => {
+    expect(summarizeAgentControlStatus({
+      health: {
+        ok: true,
+        worker: { ok: true, status: "ok" },
+        rabbitmq: { ok: true },
+        database: { ok: true }
+      },
+      configs: [{ role: "master", cliType: "claude_code", enabled: true }],
+      agents: [{ name: "Master", role: "master", status: "working" }],
+      tasks: [{ status: "running" }],
+      runs: [
+        { status: "running", agentId: "master-1" },
+        { status: "succeeded" },
+        { status: "failed" }
+      ]
+    })).toMatchObject({
+      runtime: "ready",
+      runningRuns: 1,
+      workingAgents: 1,
+      unboundRecentRuns: 2
+    });
+  });
 });
