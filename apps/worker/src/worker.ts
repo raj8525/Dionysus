@@ -57,6 +57,9 @@ const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
 const execFileAsync = promisify(execFile);
+const runtimeInstanceId = randomUUID();
+const runtimeStartedAt = new Date().toISOString();
+const codeCommitSha = await readDionysusCodeCommitSha();
 
 async function handleWorkerTask(message: QueueMessage): Promise<void> {
   if (!message.task_id) {
@@ -931,6 +934,9 @@ function startWorkerHeartbeatScheduler(): NodeJS.Timeout {
   return setInterval(() => {
     repo.recordSystemEvent("worker.heartbeat", {
       pid: process.pid,
+      runtimeInstanceId,
+      runtimeStartedAt,
+      codeCommitSha,
       workerCliType,
       workerCliModel,
       workspaceRoot,
@@ -946,6 +952,9 @@ console.log(
 );
 await repo.recordSystemEvent("worker.started", {
   pid: process.pid,
+  runtimeInstanceId,
+  runtimeStartedAt,
+  codeCommitSha,
   workerCliType,
   workerCliModel,
   workspaceRoot,
@@ -959,6 +968,16 @@ process.on("SIGHUP", () => {
   repo.recordSystemEvent("worker.sighup_ignored", { pid: process.pid })
     .catch((error: unknown) => console.error("failed to record ignored SIGHUP", error));
 });
+
+async function readDionysusCodeCommitSha(): Promise<string | undefined> {
+  const repoRoot = resolve(process.cwd(), "../..");
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, timeout: 10_000 });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
 const scheduledTimers = [
   startWorkerHeartbeatScheduler(),
   startWatchdogScheduler(),

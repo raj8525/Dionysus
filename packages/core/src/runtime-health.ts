@@ -18,6 +18,7 @@ export type WorkerHealth =
     lastSeenAt: string;
     ageSeconds: number;
     maxAgeSeconds: number;
+    runtime?: WorkerRuntimeMetadata;
   }
   | {
     ok: false;
@@ -26,12 +27,22 @@ export type WorkerHealth =
     lastSeenAt: string;
     ageSeconds: number;
     maxAgeSeconds: number;
+    runtime?: WorkerRuntimeMetadata;
   }
   | {
     ok: false;
     status: "missing";
     maxAgeSeconds: number;
   };
+
+export interface WorkerRuntimeMetadata {
+  pid?: number;
+  runtimeInstanceId?: string;
+  runtimeStartedAt?: string;
+  codeCommitSha?: string;
+  workerCliType?: string;
+  workerCliModel?: string;
+}
 
 export function deriveWorkerHealth(input: WorkerHealthInput): WorkerHealth {
   const latest = input.events
@@ -54,7 +65,8 @@ export function deriveWorkerHealth(input: WorkerHealthInput): WorkerHealth {
       lastEventType: latest.eventType,
       lastSeenAt: latest.createdAt,
       ageSeconds,
-      maxAgeSeconds: input.maxAgeSeconds
+      maxAgeSeconds: input.maxAgeSeconds,
+      runtime: normalizeWorkerRuntimeMetadata(latest.payload)
     };
   }
 
@@ -64,6 +76,19 @@ export function deriveWorkerHealth(input: WorkerHealthInput): WorkerHealth {
     lastEventType: latest.eventType,
     lastSeenAt: latest.createdAt,
     ageSeconds,
-    maxAgeSeconds: input.maxAgeSeconds
+    maxAgeSeconds: input.maxAgeSeconds,
+    runtime: normalizeWorkerRuntimeMetadata(latest.payload)
   };
+}
+
+function normalizeWorkerRuntimeMetadata(payload: Record<string, unknown> | undefined): WorkerRuntimeMetadata | undefined {
+  if (!payload) return undefined;
+  const metadata: WorkerRuntimeMetadata = {};
+  if (typeof payload.pid === "number") metadata.pid = payload.pid;
+  if (typeof payload.runtimeInstanceId === "string") metadata.runtimeInstanceId = payload.runtimeInstanceId;
+  if (typeof payload.runtimeStartedAt === "string") metadata.runtimeStartedAt = payload.runtimeStartedAt;
+  if (typeof payload.codeCommitSha === "string") metadata.codeCommitSha = payload.codeCommitSha;
+  if (typeof payload.workerCliType === "string") metadata.workerCliType = payload.workerCliType;
+  if (typeof payload.workerCliModel === "string") metadata.workerCliModel = payload.workerCliModel;
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
