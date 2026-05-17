@@ -38,6 +38,7 @@ export type FastLanePhase =
   | "blocked"
   | "working"
   | "worker_review"
+  | "ready_for_data_followups"
   | "waiting_for_integration"
   | "ready_for_reviewer"
   | "reviewer_review"
@@ -235,8 +236,17 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
     }]
   });
 
+  const stagedTasks = plan.tasks.map((task) => {
+    if (task.lane !== "worker") return task;
+    return {
+      ...task,
+      queue: task.title.includes("数据基座")
+    };
+  });
+
   return {
     ...plan,
+    tasks: stagedTasks,
     nextCommands: [
       ...plan.nextCommands,
       `pnpm dionysus fastlane status --goal-id <goal-id>`,
@@ -405,6 +415,26 @@ export function buildFastLaneStatus(input: FastLaneStatusInput): FastLaneStatusS
       phase: "waiting_for_integration",
       nextAction: "等待 integration queue 应用并验证 Worker patch。",
       nextCommands: [`pnpm dionysus integration list --goal-id ${goalId}`],
+      counts,
+      workerTasks,
+      reviewerTasks
+    });
+  }
+
+  const dataFoundationDone = workerTasks.some((task) =>
+    String(task.title ?? "").includes("数据基座") && String(task.status) === "done"
+  );
+  const dataFollowupWorkers = workerTasks.filter((task) =>
+    String(task.status) === "created" &&
+    (String(task.title ?? "").includes("只读 API") || String(task.title ?? "").includes("Vue 只读首页"))
+  );
+  if (dataFoundationDone && dataFollowupWorkers.length > 0) {
+    return summary({
+      goalId,
+      goalStatus,
+      phase: "ready_for_data_followups",
+      nextAction: "数据基座已完成，可以并发启动只读 API 和 Vue 只读首页 Worker。",
+      nextCommands: dataFollowupWorkers.map((task) => `pnpm dionysus task enqueue --task-id ${String(task.id)}`),
       counts,
       workerTasks,
       reviewerTasks

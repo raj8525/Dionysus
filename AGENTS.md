@@ -215,6 +215,13 @@ pnpm dionysus fastlane coupon-module-plan \
 - Vue 只读首页：页面读取真实接口数据，禁止 `v-html`、raw HTML import 或长字符串整页模板。
 - Reviewer：90 分门禁，确认数据、接口、页面、E2E 证据和本轮无写路径。
 
+分阶段入队规则：
+
+- `coupon-module-start` 只会立即入队“数据基座”Worker。
+- “只读 API”和“Vue 只读首页”Worker 先保持 `created`，不得抢跑。
+- 数据基座 Worker 完成后，Codex 必须先 review/approve 数据 patch；随后 `fastlane status` 会返回两个入队命令，并允许 API/Vue 并发。
+- 只有数据、API、Vue 三个 Worker 都 done，才能启动 ReviewerCLI。
+
 启动时使用：
 
 ```bash

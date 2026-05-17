@@ -81,6 +81,13 @@ pnpm -s dionysus fastlane coupon-module-start \
 
 `coupon-module-start` 和普通 `fastlane start` 一样会先执行 readiness，支持 `--allow-dirty-path` 和 `--dry-run`。本模板默认禁止写路径，写接口只能在只读闭环验收后作为下一轮模块里程碑。
 
+分阶段入队规则：
+
+- `coupon-module-start` 只立即入队“数据基座”Worker。
+- “只读 API”和“Vue 只读首页”Worker 先保持 `created`，避免跳过数据库虚拟数据。
+- 数据基座完成后，Codex 先 review/approve，再运行 `fastlane status` 获取 API/Vue 入队命令。
+- API/Vue 可以在数据基座通过后并发；ReviewerCLI 必须等全部 Worker done 后才启动。
+
 ```bash
 pnpm -s dionysus fastlane plan \
   --title "简短目标" \

@@ -331,6 +331,16 @@ And 只读 API 任务必须禁止写接口进入本轮范围
 And Vue 任务必须要求读取真实接口数据并禁止 `v-html`、raw HTML import 或长字符串整页模板
 And ReviewerCLI 必须执行 90 分门禁，检查数据、接口、页面、E2E 证据和本轮无写路径
 
+## 场景 8.5：Coupon 数据先行模板必须分阶段入队
+
+Given Codex 运行 `pnpm dionysus fastlane coupon-module-start`
+When Dionysus 创建 Coupon 模块任务树
+Then 只有数据基座 Worker 可以立即入队
+And 只读 API 和 Vue 只读首页 Worker 必须保持 `created`
+When 数据基座 Worker 已完成且 Codex approve
+Then `fastlane status` 必须提示入队只读 API 和 Vue 只读首页 Worker
+And ReviewerCLI 必须等全部 Worker 完成后才能启动
+
 ## 场景 9：Master 自动识别里程碑候选
 
 Given integration queue 已通过

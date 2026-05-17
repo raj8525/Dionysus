@@ -129,7 +129,7 @@ describe("dionysus fast lane planner", () => {
 
     expect(plan.goal.title).toBe("租户管理只读闭环");
     expect(plan.tasks.map((task) => task.lane)).toEqual(["worker", "worker", "worker", "reviewer"]);
-    expect(plan.tasks.map((task) => task.queue)).toEqual([true, true, true, false]);
+    expect(plan.tasks.map((task) => task.queue)).toEqual([true, false, false, false]);
     expect(plan.tasks[0].description).toContain("先补数据库表结构和完整虚拟数据");
     expect(plan.tasks[0].description).toContain("migrations/");
     expect(plan.tasks[1].description).toContain("只读 API");
@@ -140,6 +140,27 @@ describe("dionysus fast lane planner", () => {
     expect(plan.tasks[3].description).toContain("90 分质量门禁");
     expect(plan.tasks[3].description).toContain("写路径不得进入本轮范围");
     expect(plan.nextCommands.join("\n")).toContain("fastlane status");
+  });
+
+  it("tells Codex to enqueue read-path workers only after the data foundation worker is done", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-data-first", status: "fast_lane" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 租户管理 数据基座", "done"),
+        task("w2", "FastLane Worker 2: 租户管理 只读 API", "created"),
+        task("w3", "FastLane Worker 3: 租户管理 Vue 只读首页", "created"),
+        task("r1", "FastLane Reviewer 1: 租户管理 ReviewerCLI 90 分质量门禁", "created")
+      ],
+      integrations: [],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("ready_for_data_followups");
+    expect(status.nextAction).toContain("数据基座已完成");
+    expect(status.nextCommands).toEqual([
+      "pnpm dionysus task enqueue --task-id w2",
+      "pnpm dionysus task enqueue --task-id w3"
+    ]);
   });
 
   it("prioritizes Codex outbox blockers over normal fast lane flow", () => {
