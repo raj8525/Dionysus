@@ -14,6 +14,7 @@
 - 任务状态、运行记录、日志、里程碑和通知必须写入 PostgreSQL。
 - 异步任务必须通过 RabbitMQ。
 - 里程碑出现后必须触发 Codex 浏览器级 E2E 验收。
+- Coupon 管理后台页面规则：`hotels.vue` 已完成，不再参考 `hotels.html` 重写；其他页面迁移 Vue 时参考 `apps/admin-web/html/` 对应模板，但必须重写为动态 Vue 页面，禁止 HTML 注入。
 
 ## 必读文档
 
@@ -170,6 +171,7 @@ pnpm dionysus fastlane status --goal-id "<goal-id>"
 - Worker 产出 patch 并完成 integration 后，再用 `pnpm dionysus task enqueue --task-id "<reviewer-task-id>"` 启动 Reviewer。
 - 如已有集成产物需要立即审核，可显式加 `--queue-reviewers`。
 - 同一任务被 ReviewerCLI 第 10 次 reject 时，Dionysus 会阻断任务并写入 Codex Outbox；Codex 必须亲自接手，不能继续重排 WorkerCLI。
+- Coupon 页面任务必须在 worker prompt 中显式写清：`hotels.vue` 保持现状，只做必要接口或路由增量；除 `hotels.vue` 外的页面才参考对应 HTML 模板重写为 Vue。
 - `fastlane status` 必须能明确区分：等待 Worker、等待 Worker review、等待 integration、可启动 Reviewer、等待 Reviewer review、Codex final、blocked、closed。
 - 过程监控固定使用：
 
