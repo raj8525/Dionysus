@@ -185,7 +185,9 @@ pnpm dionysus codex ack --event-id "<event-id>"
 
 `system runtime start` 必须本地启动 API 与 Worker 后台进程，并把 pid/log 位置返回给 Codex；返回前必须等待 API `/health` 至少可访问，避免 Codex 紧接着执行 `agent config list`、`goal status` 等 API 命令时遇到 `fetch failed` 竞态；`status` 必须基于 pid 文件检查进程是否仍在运行；`stop` 必须停止由 Dionysus 管理的 API 与 Worker。这个能力不依赖 API 已经可用，因为它用于修复 `fetch failed` 级别的基础阻断。
 
-`reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
+`reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。
+
+`reconcile` 还必须检查 pending `blocker` 所属 goal 的状态。如果 goal 已经是 `done` 或 `cancelled`，该 blocker 已不再代表当前可执行工作，也必须自动标记为 `acked`。`failed` goal 的 blocker 不得自动关闭，因为失败目标仍需要 Codex 或人类判断。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
 
 `release_ready` 的 ack 必须强制检查 `release_records.codex_outbox_event_id = <event-id>` 是否存在。不存在时 `POST /api/codex/outbox/:id/ack` 必须返回 `409 CODEX_OUTBOX_ACK_BLOCKED`，提示 Codex 先执行 `release record`。只有显式传入 `{ "force": true }` 时才允许人工破例 ack。
 

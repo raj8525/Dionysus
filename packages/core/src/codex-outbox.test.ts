@@ -4,7 +4,8 @@ import {
   buildCodexOutboxDraft,
   evaluateCodexOutboxAckGate,
   formatCodexHeartbeat,
-  formatCodexOutboxReconciliation
+  formatCodexOutboxReconciliation,
+  shouldReconcileCodexOutboxForGoalStatus
 } from "./codex-outbox.js";
 
 describe("codex outbox", () => {
@@ -91,5 +92,33 @@ describe("codex outbox", () => {
       eventType: "blocker",
       releaseRecordCount: 0
     })).toEqual({ allowed: true });
+  });
+
+  it("auto-reconciles pending blockers only for completed or cancelled goals", () => {
+    expect(shouldReconcileCodexOutboxForGoalStatus({
+      eventType: "blocker",
+      outboxStatus: "pending",
+      goalStatus: "cancelled"
+    })).toBe(true);
+    expect(shouldReconcileCodexOutboxForGoalStatus({
+      eventType: "blocker",
+      outboxStatus: "pending",
+      goalStatus: "done"
+    })).toBe(true);
+    expect(shouldReconcileCodexOutboxForGoalStatus({
+      eventType: "blocker",
+      outboxStatus: "pending",
+      goalStatus: "failed"
+    })).toBe(false);
+    expect(shouldReconcileCodexOutboxForGoalStatus({
+      eventType: "release_ready",
+      outboxStatus: "pending",
+      goalStatus: "cancelled"
+    })).toBe(false);
+    expect(shouldReconcileCodexOutboxForGoalStatus({
+      eventType: "blocker",
+      outboxStatus: "acked",
+      goalStatus: "cancelled"
+    })).toBe(false);
   });
 });

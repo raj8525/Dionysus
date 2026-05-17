@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { buildAgentCliUsageSummary, normalizeAgentCliConfig, selectAgentForRun } from "@dionysus/core";
+import {
+  buildAgentCliUsageSummary,
+  normalizeAgentCliConfig,
+  selectAgentForRun,
+  shouldReconcileCodexOutboxForGoalStatus
+} from "@dionysus/core";
 import type {
   AgentCliConfig,
   AgentCliUsageSummary,
@@ -2017,29 +2022,58 @@ export class DionysusRepository {
   }
 
   async reconcileResolvedCodexOutboxEvents(): Promise<{ acked: number; events: CodexOutboxEvent[] }> {
-    const result = await this.pool.query(
-      `with resolved as (
-         select co.id
+    const integrationResult = await this.pool.query<{ id: string }>(
+      `select co.id
          from ${this.table("codex_outbox")} co
          join ${this.table("integration_queue")} iq
            on iq.id::text = co.payload_json->>'integrationId'
          where co.status = 'pending'
            and co.event_type = 'blocker'
-           and iq.status = 'passed'
-       )
-       update ${this.table("codex_outbox")} co
+           and iq.status = 'passed'`
+    );
+    const goalResult = await this.pool.query<{
+      id: string;
+      event_type: CodexOutboxEventType;
+      outbox_status: CodexOutboxStatus;
+      goal_status: Goal["status"];
+    }>(
+      `select co.id,
+              co.event_type,
+              co.status as outbox_status,
+              g.status as goal_status
+       from ${this.table("codex_outbox")} co
+       join ${this.table("goals")} g
+         on g.id = co.goal_id
+       where co.status = 'pending'
+         and co.event_type = 'blocker'`
+    );
+    const ids = Array.from(new Set([
+      ...integrationResult.rows.map((row) => row.id),
+      ...goalResult.rows
+        .filter((row) => shouldReconcileCodexOutboxForGoalStatus({
+          eventType: row.event_type,
+          outboxStatus: row.outbox_status,
+          goalStatus: row.goal_status
+        }))
+        .map((row) => row.id)
+    ]));
+    if (ids.length === 0) {
+      return { acked: 0, events: [] };
+    }
+    const result = await this.pool.query(
+      `update ${this.table("codex_outbox")} co
        set status = 'acked', acked_at = now(), updated_at = now()
-       from resolved
-       where co.id = resolved.id
+       where co.id = any($1::uuid[])
        returning co.id, co.goal_id, co.event_type, co.severity, co.status, co.title, co.summary,
-                 co.payload_json, co.created_at, co.updated_at, co.acked_at`
+                 co.payload_json, co.created_at, co.updated_at, co.acked_at`,
+      [ids]
     );
     const events = result.rows.map(mapCodexOutboxEvent);
     if (events.length > 0) {
       await this.recordSystemEvent("codex.outbox_reconciled", {
         acked: events.length,
         eventIds: events.map((event) => event.id),
-        reason: "integration passed"
+        reason: "integration passed or goal closed"
       });
     }
     return { acked: events.length, events };

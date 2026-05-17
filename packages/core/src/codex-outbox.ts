@@ -1,3 +1,5 @@
+import type { GoalStatus } from "./types.js";
+
 export type CodexOutboxEventType = "blocker" | "e2e_required" | "release_ready" | "user_notify";
 export type CodexOutboxSeverity = "info" | "warning" | "error";
 export type CodexOutboxStatus = "pending" | "acked" | "cancelled";
@@ -34,6 +36,16 @@ export interface CodexOutboxReconciliationSummary {
 export interface CodexOutboxAckGateDecision {
   allowed: boolean;
   reason?: string;
+}
+
+export function shouldReconcileCodexOutboxForGoalStatus(input: {
+  eventType: CodexOutboxEventType;
+  outboxStatus: CodexOutboxStatus;
+  goalStatus?: GoalStatus | null;
+}): boolean {
+  return input.outboxStatus === "pending"
+    && input.eventType === "blocker"
+    && (input.goalStatus === "done" || input.goalStatus === "cancelled");
 }
 
 export function buildCodexOutboxDraft(input: {
