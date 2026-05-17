@@ -1190,7 +1190,8 @@ export async function buildServer() {
     if (!goal) {
       return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
     }
-    const git = await checkGitPreflight(goal.targetRoot);
+    const allowedDirtyPaths = readAllowedDirtyPaths(request.body);
+    const git = await checkGitPreflight(goal.targetRoot, { allowedDirtyPaths });
     const queued = await repo.listQueuedIntegrations(id);
     const integrations = await repo.listIntegrations(id);
     const appliedIntegrations = integrations.filter((integration) =>

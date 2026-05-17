@@ -512,6 +512,12 @@ async function main(): Promise<void> {
     }));
   }
 
+  if (domain === "goal" && action === "release-ready") {
+    return print(await request(`/api/goals/${requiredFlag(args, "--goal-id")}/integrations/release-ready`, "POST", {
+      allowedDirtyPaths: readRepeatedFlag(args, "--allow-dirty-path")
+    }));
+  }
+
   const apiCommand = resolveApiCommand([domain, action, ...args].filter((value): value is string => Boolean(value)));
   if (apiCommand) {
     return print(await request(apiCommand.path, apiCommand.method));
@@ -947,7 +953,7 @@ function usage(): void {
   tsx tools/dionysus.ts goal remediation --goal-id "..."
   tsx tools/dionysus.ts goal remediation-patch --goal-id "..."
   tsx tools/dionysus.ts goal master-step --goal-id "..."
-  tsx tools/dionysus.ts goal release-ready --goal-id "..."
+  tsx tools/dionysus.ts goal release-ready --goal-id "..." [--allow-dirty-path "path/to/existing-change"]
   tsx tools/dionysus.ts goal detect-milestones --goal-id "..."
   tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict [--allow-dirty-path "path/to/existing-change"]
   tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30 [--allow-dirty-path "path/to/existing-change"]

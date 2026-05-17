@@ -56,6 +56,7 @@ POST /api/goals/:id/integrations/release-ready
 
 `integrations/release-ready` 不能把所有 dirty worktree 都视为同一种阻塞。规则：
 
+- 请求体可选 `allowedDirtyPaths: string[]`，用于声明已经识别归属、不得混入本次发布的既有 dirty path。
 - 如果存在 queued integration，目标 worktree 必须 clean，才能发布 integration。
 - 如果没有 queued integration，但 worktree 的变更文件全部来自已经 `passed/applied` 的 integration changedFiles，则返回 `ready_for_codex_commit`，并创建 `release_ready` Codex Outbox 事件，交给 Codex 做最终验证、提交和推送。
 - 如果 dirty 文件中存在不属于已通过 integration 的路径，则返回 `blocked`，blocker 必须列出 unmanaged changes。
@@ -428,7 +429,7 @@ pnpm dionysus goal gate-check --goal-id "<goal-id>"
 pnpm dionysus goal remediation --goal-id "<goal-id>"
 pnpm dionysus goal remediation-patch --goal-id "<goal-id>"
 pnpm dionysus goal master-step --goal-id "<goal-id>"
-pnpm dionysus goal release-ready --goal-id "<goal-id>"
+pnpm dionysus goal release-ready --goal-id "<goal-id>" [--allow-dirty-path "path/to/existing-change"]
 pnpm dionysus integration list --goal-id "<goal-id>"
 pnpm dionysus integration retry --integration-id "<integration-id>"
 pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no-queue

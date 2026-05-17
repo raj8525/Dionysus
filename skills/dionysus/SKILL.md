@@ -134,6 +134,7 @@ curl 'http://127.0.0.1:23100/api/system-events?prefix=coupon.seed&limit=8'
 Dashboard 的 `Codex Outbox / 待 Codex 介入事项` 面板会显示 pending 的 blocker、E2E、release_ready 和用户通知事件，包括 payload 线索和建议命令。非 `release_ready` 事件可以在面板中 ack；`release_ready` 必须先写 release record，再 ack：
 
 ```bash
+pnpm -s dionysus goal release-ready --goal-id "<goal-id>" --allow-dirty-path "apps/admin-web/src/pages/login.vue"
 pnpm -s dionysus release record --goal-id "<goal-id>" --codex-outbox-event-id "<event-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
 pnpm -s dionysus codex ack --event-id "<event-id>"
 ```

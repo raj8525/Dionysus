@@ -75,7 +75,7 @@ pnpm dionysus goal gate-check --goal-id "<goal-id>"
 pnpm dionysus goal remediation --goal-id "<goal-id>"
 pnpm dionysus goal remediation-patch --goal-id "<goal-id>"
 pnpm dionysus goal master-step --goal-id "<goal-id>"
-pnpm dionysus goal release-ready --goal-id "<goal-id>"
+pnpm dionysus goal release-ready --goal-id "<goal-id>" [--allow-dirty-path "apps/admin-web/src/pages/login.vue"]
 pnpm dionysus goal detect-milestones --goal-id "<goal-id>"
 pnpm dionysus goal run-cycle --goal-id "<goal-id>" --target-url "http://localhost:23101" --run-e2e --mode strict [--allow-dirty-path "apps/admin-web/src/pages/login.vue"]
 pnpm dionysus goal supervise --goal-id "<goal-id>" --iterations 5 --interval-seconds 30 [--allow-dirty-path "apps/admin-web/src/pages/login.vue"]
