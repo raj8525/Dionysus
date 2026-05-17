@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRuntimeProcessSpecs, summarizeRuntimeStatus, waitForRuntimeReady } from "./dionysus-runtime.js";
+import { buildRuntimeHealPlan, buildRuntimeProcessSpecs, summarizeRuntimeStatus, waitForRuntimeReady } from "./dionysus-runtime.js";
 
 describe("Dionysus runtime process management", () => {
   it("builds stable API and Worker process specs from the repo root", () => {
@@ -41,6 +41,62 @@ describe("Dionysus runtime process management", () => {
         { name: "worker", pid: 202, running: false, pidFile: "worker.pid", logFile: "worker.log" }
       ],
       nextAction: "运行 pnpm dionysus system runtime start"
+    });
+  });
+
+  it("starts missing runtime processes during heal", () => {
+    expect(buildRuntimeHealPlan({
+      processStatus: {
+        ok: false,
+        processes: [
+          { name: "api", pid: 101, running: true, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: false, pidFile: "worker.pid", logFile: "worker.log" }
+        ]
+      }
+    })).toEqual({
+      action: "start",
+      reason: "process not running: worker",
+      nextAction: "运行 pnpm dionysus system runtime start"
+    });
+  });
+
+  it("restarts a running runtime when worker health is stale", () => {
+    expect(buildRuntimeHealPlan({
+      processStatus: {
+        ok: true,
+        processes: [
+          { name: "api", pid: 101, running: true, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: true, pidFile: "worker.pid", logFile: "worker.log" }
+        ]
+      },
+      health: {
+        ok: false,
+        worker: { ok: false, status: "stale" }
+      }
+    })).toEqual({
+      action: "restart",
+      reason: "worker health stale",
+      nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+    });
+  });
+
+  it("does not restart healthy runtime processes", () => {
+    expect(buildRuntimeHealPlan({
+      processStatus: {
+        ok: true,
+        processes: [
+          { name: "api", pid: 101, running: true, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: true, pidFile: "worker.pid", logFile: "worker.log" }
+        ]
+      },
+      health: {
+        ok: true,
+        worker: { ok: true, status: "ok" }
+      }
+    })).toEqual({
+      action: "none",
+      reason: "runtime healthy",
+      nextAction: "继续执行 Dionysus goal/readiness/fastlane"
     });
   });
 

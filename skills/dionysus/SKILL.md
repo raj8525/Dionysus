@@ -28,9 +28,19 @@ Dionysus 是给 Codex 用的 Agent Team 执行系统。目标不是让 Agent 自
 cd /Volumes/MacMiniSSD/code/Dionysus
 git status --short --branch
 pnpm -s dionysus system doctor --brief
+pnpm -s dionysus system runtime heal
 pnpm -s dionysus system readiness --target-root "/Volumes/MacMiniSSD/code/Coupon"
 pnpm -s dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
 ```
+
+如果 doctor/readiness 显示 `Worker Runtime 未就绪`、`worker.status=stale` 或 runtime pid 缺失，先运行：
+
+```bash
+pnpm -s dionysus system runtime heal
+pnpm -s dionysus system doctor --brief
+```
+
+`runtime heal` 会在进程缺失时启动缺失进程，在 Worker 心跳过期但进程仍存在时重启 runtime；自愈后再继续 readiness 或 fast lane。
 
 `system doctor --brief` 和 Dashboard 的 Worker 状态会同时显示 Worker 心跳与 effective run config。心跳里的 `runtime.workerCliType` 只是进程 fallback；真实任务执行优先使用 PostgreSQL `agent_cli_configs` 中的角色配置。看到 fallback 为 `mock` 时，不要直接判断 Worker 仍在用 mock，必须看 `worker.effectiveRunConfig` 或 `agent config list`。
 

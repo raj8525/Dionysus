@@ -31,6 +31,12 @@ export interface RuntimeStatusSummary {
   nextAction: string;
 }
 
+export interface RuntimeHealPlan {
+  action: "none" | "start" | "restart";
+  reason: string;
+  nextAction: string;
+}
+
 export function buildRuntimeProcessSpecs(input: {
   repoRoot: string;
   logDir?: string;
@@ -86,6 +92,47 @@ export function getRuntimeStatus(specs: RuntimeProcessSpec[]): ReturnType<typeof
   }));
 }
 
+export function buildRuntimeHealPlan(input: {
+  processStatus: Pick<RuntimeStatusSummary, "ok" | "processes">;
+  health?: unknown;
+}): RuntimeHealPlan {
+  if (!input.processStatus.ok) {
+    const stopped = input.processStatus.processes
+      .filter((process) => !process.running)
+      .map((process) => process.name)
+      .join(", ");
+    return {
+      action: "start",
+      reason: stopped ? `process not running: ${stopped}` : "runtime process missing",
+      nextAction: "运行 pnpm dionysus system runtime start"
+    };
+  }
+
+  const health = record(input.health);
+  const worker = record(health.worker);
+  if (worker.ok === false) {
+    return {
+      action: "restart",
+      reason: `worker health ${String(worker.status ?? "not ok")}`,
+      nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+    };
+  }
+
+  if (health.ok === false) {
+    return {
+      action: "none",
+      reason: "runtime processes are running, but health is blocked by a non-worker dependency",
+      nextAction: "运行 pnpm dionysus system doctor --brief 查看 database/rabbitmq/API blocker"
+    };
+  }
+
+  return {
+    action: "none",
+    reason: "runtime healthy",
+    nextAction: "继续执行 Dionysus goal/readiness/fastlane"
+  };
+}
+
 export async function startRuntime(
   specs: RuntimeProcessSpec[],
   options: {
@@ -118,7 +165,7 @@ export async function startRuntime(
     intervalMs: options.readinessIntervalMs ?? 200,
     healthUrl: options.healthUrl ?? defaultRuntimeHealthUrl(),
     status: () => getRuntimeStatus(specs),
-    ready: () => checkHttpReady(options.healthUrl ?? defaultRuntimeHealthUrl())
+    ready: () => checkRuntimeHealthReady(options.healthUrl ?? defaultRuntimeHealthUrl())
   });
 }
 
@@ -234,13 +281,19 @@ async function sleepAsync(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function checkHttpReady(healthUrl: string): Promise<boolean> {
+async function checkRuntimeHealthReady(healthUrl: string): Promise<boolean> {
   try {
     const response = await fetch(healthUrl);
-    return response.ok;
+    if (!response.ok) return false;
+    const payload = await response.json() as unknown;
+    return record(payload).ok === true;
   } catch {
     return false;
   }
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 function defaultRuntimeHealthUrl(): string {

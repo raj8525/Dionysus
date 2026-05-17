@@ -16,7 +16,7 @@ import {
 } from "./dionysus-fastlane.js";
 import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./dionysus-readiness.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
-import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
+import { buildRuntimeHealPlan, buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
 import { buildSupervisionAgentStatus, buildSupervisionStepRecord, summarizeSupervisionStep } from "./dionysus-supervise.js";
 import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus/core";
@@ -112,6 +112,27 @@ async function main(): Promise<void> {
     }
     if (runtimeAction === "stop") {
       return print(stopRuntime(specs));
+    }
+    if (runtimeAction === "heal") {
+      const processStatus = getRuntimeStatus(specs);
+      const health = processStatus.ok
+        ? await request("/health").catch((error: unknown) => ({
+          ok: false,
+          worker: { ok: false, status: "health_request_failed" },
+          error: error instanceof Error ? error.message : String(error)
+        }))
+        : undefined;
+      const plan = buildRuntimeHealPlan({ processStatus, health });
+      if (plan.action === "none") {
+        return print({ status: "no_action", plan, processStatus, health });
+      }
+      if (plan.action === "restart") {
+        const stopped = stopRuntime(specs);
+        const started = await startRuntime(specs);
+        return print({ status: "healed", plan, stopped, started });
+      }
+      const started = await startRuntime(specs);
+      return print({ status: "healed", plan, started });
     }
   }
 
@@ -926,6 +947,7 @@ function usage(): void {
   tsx tools/dionysus.ts system doctor --brief
   tsx tools/dionysus.ts system readiness --target-root "/path/to/project" [--allow-dirty-path "path/to/existing-change"]
   tsx tools/dionysus.ts system worker start
+  tsx tools/dionysus.ts system runtime heal
   tsx tools/dionysus.ts agent probe
   tsx tools/dionysus.ts agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"
   tsx tools/dionysus.ts agent config list
