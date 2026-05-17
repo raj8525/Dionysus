@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { Activity, AlertTriangle, BarChart3, CheckCircle2, GitCommit, Network, Settings2 } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, CheckCircle2, Database, GitCommit, Network, Settings2 } from "lucide-react";
 import {
   createGoal,
   fetchAgents,
@@ -55,6 +55,7 @@ import {
 } from "./api.js";
 import { AgentConfigValidationError, saveValidatedAgentCliConfig } from "./agent-config-validation.js";
 import { cliCallTotalLabel, describeUsageScope, liveUsageRefreshLabel, modelCallTotalLabel, modelCallLabel } from "./agent-usage-display.js";
+import { buildSeedEvidenceSummary } from "./seed-evidence-display.js";
 import { summarizeSystemHealth } from "./system-health.js";
 
 const nodeTypes = {
@@ -95,6 +96,7 @@ export function App() {
   const [runLogs, setRunLogs] = useState<Record<string, TaskRunLogRecord[]>>({});
   const [loadingRunLogs, setLoadingRunLogs] = useState<string | null>(null);
   const [masterEvents, setMasterEvents] = useState<SystemEvent[]>([]);
+  const [seedEvents, setSeedEvents] = useState<SystemEvent[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
   const [e2eCampaigns, setE2ECampaigns] = useState<E2ECampaignRecord[]>([]);
   const [e2eCases, setE2ECases] = useState<E2ECaseRecord[]>([]);
@@ -103,7 +105,7 @@ export function App() {
   const [agents, setAgents] = useState<AgentRecord[]>([]);
 
   useEffect(() => {
-    Promise.all([refreshGoals(), refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshAgentCliUsage()])
+    Promise.all([refreshGoals(), refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshSeedEvents(), refreshAgentCliUsage()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -120,6 +122,7 @@ export function App() {
     const interval = window.setInterval(() => {
       Promise.all([
         refreshSystemHealth(),
+        refreshSeedEvents(),
         refreshAgents(),
         refreshAgentCliUsage({ goalId: activeGoalId, targetRoot: currentGoal?.targetRoot }),
         activeGoalId ? refreshGoalEvidence(activeGoalId) : Promise.resolve()
@@ -242,6 +245,10 @@ export function App() {
 
   async function refreshSystemHealth() {
     setSystemHealth(await fetchSystemHealth());
+  }
+
+  async function refreshSeedEvents() {
+    setSeedEvents(await fetchSystemEvents("coupon.seed", 8));
   }
 
   async function refreshAgentCliUsage(scope: { goalId?: string | null; targetRoot?: string | null } = { goalId: activeGoalId, targetRoot: currentGoal?.targetRoot }) {
@@ -511,6 +518,41 @@ export function App() {
               ))
             ) : (
               <div className="emptyState">尚未加载 Agent 实例</div>
+            )}
+          </div>
+        </section>
+        <section className="seedEvidencePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Data Evidence</p>
+              <h3>Coupon 数据基座执行证据</h3>
+            </div>
+            <button type="button" className="secondary" onClick={refreshSeedEvents}>
+              刷新数据证据
+            </button>
+          </div>
+          <div className="seedEvidenceList">
+            {seedEvents.length ? (
+              seedEvents.map((event) => {
+                const summary = buildSeedEvidenceSummary(event);
+                return (
+                  <article key={event.id} className={`seedEvidenceItem ${summary.tone}`}>
+                    <div>
+                      <Database size={16} />
+                      <strong>{summary.title}</strong>
+                      <span>{new Date(event.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p>{summary.detail}</p>
+                    <div className="watchdogMeta">
+                      <span className={`eventPill ${summary.tone === "bad" ? "bad" : "neutral"}`}>{event.eventType}</span>
+                      <span>{summary.statusLabel}</span>
+                      <span>{summary.targetRoot}</span>
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="emptyState">暂无 Coupon seed apply 证据</div>
             )}
           </div>
         </section>

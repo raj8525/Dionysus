@@ -241,6 +241,8 @@ pnpm dionysus coupon seed apply \
 
 传入 `--goal-id <goal-id>` 时会自动把 seed apply 结果写入 Dionysus PostgreSQL `system_events`；没有 goal 但需要留证据时使用 `--record-event`。不要只保留终端输出。
 
+前端 Dashboard 的 `Data Evidence / Coupon 数据基座执行证据` 面板会显示最近的 `coupon.seed*` 事件，包括 migration、执行状态和 verify SQL 输出。Codex 检查 seed 证据时优先看这个面板或 `/api/system-events?prefix=coupon.seed`。
+
 该模板固定生成 3 个 Worker 和 1 个 Reviewer：
 
 - 数据基座：先补 `migrations/`、完整虚拟数据、契约和 `features_test/`。

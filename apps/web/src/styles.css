@@ -905,6 +905,54 @@ h3 {
   gap: 10px;
 }
 
+.seedEvidenceList {
+  display: grid;
+  gap: 10px;
+}
+
+.seedEvidenceItem {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.seedEvidenceItem.good {
+  border-color: #bfd9c9;
+  background: #fbfffd;
+}
+
+.seedEvidenceItem.bad {
+  border-color: #f3b6b6;
+  background: #fff8f8;
+}
+
+.seedEvidenceItem > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.seedEvidenceItem > div:first-child span {
+  margin-left: auto;
+}
+
+.seedEvidenceItem strong {
+  font-size: 13px;
+}
+
+.seedEvidenceItem span,
+.seedEvidenceItem p {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.seedEvidenceItem p {
+  margin: 0;
+}
+
 .watchdogEvent {
   display: grid;
   gap: 8px;

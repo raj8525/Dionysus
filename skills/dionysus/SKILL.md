@@ -123,6 +123,12 @@ pnpm -s dionysus coupon seed apply \
 
 如果本轮已有 Dionysus goal，传入 `--goal-id <goal-id>`，CLI 会自动把 seed apply 结果写入 Dionysus PostgreSQL `system_events`；没有 goal 但仍需留证据时使用 `--record-event`。不要只保留终端输出。
 
+Dashboard 的 `Data Evidence / Coupon 数据基座执行证据` 面板会显示最近的 `coupon.seed*` 事件。需要命令行核查时用：
+
+```bash
+curl 'http://127.0.0.1:23100/api/system-events?prefix=coupon.seed&limit=8'
+```
+
 分阶段入队规则：
 
 - `coupon-module-start` 只立即入队“数据基座”Worker。

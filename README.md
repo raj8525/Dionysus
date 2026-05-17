@@ -218,6 +218,8 @@ pnpm dionysus coupon seed apply \
 
 如果本轮已有 Dionysus goal，传入 `--goal-id <goal-id>`；CLI 会自动把 `coupon.seed_applied`、`coupon.seed_apply_failed` 或 `coupon.seed_apply_dry_run` 写入 Dionysus PostgreSQL `system_events`。没有 goal 但仍需留证据时使用 `--record-event`。
 
+Dashboard 的 `Data Evidence / Coupon 数据基座执行证据` 面板会读取最近的 `coupon.seed*` 事件，展示 migration、执行状态和 verify SQL 输出。Codex 不需要手工查库确认 seed 是否已经入库。
+
 ```bash
 pnpm dionysus fastlane plan \
   --title "库存流水查询闭环" \
