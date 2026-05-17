@@ -10,6 +10,7 @@ dist/
 .dionysus/logs/
 .dionysus/pids/
 .dionysus/workspaces/
+.dionysus/quarantine/
 .dionysus/real-worker-target/
 .dionysus/runtime-target/
 .dionysus/*.png

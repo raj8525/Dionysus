@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
 import { resolve } from "node:path";
+import { promisify } from "node:util";
 import type { AgentRole, CliType, Goal, RolePromptTask } from "@dionysus/core";
 import {
   applyPatchToTarget,
@@ -49,6 +51,7 @@ const workerHeartbeatIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS
 const dbConfig = loadDatabaseConfig();
 const pool = createPool(dbConfig);
 const repo = new DionysusRepository(pool, dbConfig.schema);
+const execFileAsync = promisify(execFile);
 
 async function handleWorkerTask(message: QueueMessage): Promise<void> {
   if (!message.task_id) {
@@ -102,6 +105,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       return;
     }
     const activeRunId = runId;
+    const targetStatusBefore = await readGitStatus(taskTargetRoot);
 
     let logSequence = 1;
     let streamedLogs = false;
@@ -122,6 +126,18 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     }
     if (!streamedLogs && result.stderr) {
       await repo.appendRunLog(runId, "stderr", result.stderr, 2);
+    }
+    const targetMutation = await detectTargetRootMutation(taskTargetRoot, targetStatusBefore);
+    if (targetMutation.mutated) {
+      const reason = `Agent wrote directly into targetRoot ${taskTargetRoot}; this violates isolated workspace rules.\nBefore:\n${targetMutation.before || "(clean)"}\nAfter:\n${targetMutation.after || "(clean)"}`;
+      await repo.appendRunLog(runId, "stderr", reason, 98);
+      await repo.recordTaskEvent(message.task_id, "target_root_mutation_detected", {
+        targetRoot: taskTargetRoot,
+        before: targetMutation.before,
+        after: targetMutation.after
+      });
+      await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 1 });
+      return;
     }
 
     let queuedPatchId: string | null = null;
@@ -259,6 +275,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     return;
   }
   const activeRunId = runId;
+  const targetStatusBefore = await readGitStatus(taskTargetRoot);
   let logSequence = 1;
   let streamedLogs = false;
   const pendingLogWrites: Array<Promise<void>> = [];
@@ -277,6 +294,19 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   }
   if (!streamedLogs && result.stderr) {
     await repo.appendRunLog(runId, "stderr", result.stderr, 2);
+  }
+  const targetMutation = await detectTargetRootMutation(taskTargetRoot, targetStatusBefore);
+  if (targetMutation.mutated) {
+    const reason = `Agent wrote directly into targetRoot ${taskTargetRoot}; this violates isolated workspace rules.\nBefore:\n${targetMutation.before || "(clean)"}\nAfter:\n${targetMutation.after || "(clean)"}`;
+    await repo.appendRunLog(runId, "stderr", reason, 98);
+    await repo.recordTaskEvent(message.task_id, "target_root_mutation_detected", {
+      targetRoot: taskTargetRoot,
+      before: targetMutation.before,
+      after: targetMutation.after,
+      role
+    });
+    await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 1 });
+    return;
   }
   await repo.recordTaskEvent(message.task_id, result.exitCode === 0 ? `${roleName}.completed` : `${roleName}.failed`, {
     messageId: message.message_id,
@@ -329,6 +359,36 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
       reason: dispatchDecision.reason
     });
   }
+}
+
+async function readGitStatus(cwd: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", ["status", "--porcelain"], { cwd });
+    return normalizeGitStatus(stdout);
+  } catch (error) {
+    return `GIT_STATUS_FAILED: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+async function detectTargetRootMutation(
+  targetRootPath: string,
+  before: string
+): Promise<{ mutated: boolean; before: string; after: string }> {
+  const after = await readGitStatus(targetRootPath);
+  return {
+    mutated: before !== after,
+    before,
+    after
+  };
+}
+
+function normalizeGitStatus(status: string): string {
+  return status
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .sort()
+    .join("\n");
 }
 
 async function handleIntegrationTask(message: QueueMessage): Promise<void> {
