@@ -56,8 +56,8 @@ pnpm dionysus agent config set --role worker --cli opencode --model "minimax/Min
 pnpm dionysus agent status --goal-id "<goal-id>"
 pnpm dionysus agent usage --goal-id "<goal-id>"
 pnpm dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
-pnpm dionysus fastlane coupon-module-plan --module "租户管理" --title "租户管理只读闭环" --description "让最终用户在租户管理页看到数据库中的完整集团租户事实数据" --target-root /Volumes/MacMiniSSD/code/Coupon --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants"
-pnpm dionysus fastlane coupon-module-start --module "租户管理" --title "租户管理只读闭环" --description "让最终用户在租户管理页看到数据库中的完整集团租户事实数据" --target-root /Volumes/MacMiniSSD/code/Coupon --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants"
+pnpm dionysus fastlane coupon-module-plan --module "租户管理" --title "租户管理只读闭环" --description "让最终用户在租户管理页看到数据库中的完整集团租户事实数据" --target-root /Volumes/MacMiniSSD/code/Coupon --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants" [--data-only]
+pnpm dionysus fastlane coupon-module-start --module "租户管理" --title "租户管理只读闭环" --description "让最终用户在租户管理页看到数据库中的完整集团租户事实数据" --target-root /Volumes/MacMiniSSD/code/Coupon --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants" [--data-only]
 pnpm dionysus fastlane plan --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
 pnpm dionysus fastlane start --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
 pnpm dionysus fastlane status --goal-id "<goal-id>"
@@ -207,12 +207,29 @@ pnpm dionysus fastlane coupon-module-plan \
   --api "/api/admin/tenants"
 ```
 
+如果当前目标只是补齐数据库测试数据或 seed，不需要派生 API/Vue 实现任务，必须使用 `--data-only`：
+
+```bash
+pnpm dionysus fastlane coupon-module-plan \
+  --module "酒店管理" \
+  --title "酒店模块测试数据基座" \
+  --description "只补充酒店模块 PostgreSQL 测试数据" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/hotels" \
+  --data-only
+```
+
+`--data-only` 只创建“数据基座 Worker + 数据基座 ReviewerCLI”，不会创建 API Worker 或 Vue Worker。适用场景是已有页面/API 基本成立，但主 PostgreSQL 缺少完整虚拟数据、状态枚举或验收样本。Codex 审查通过后可以直接运行 migration、验证数据库和 API，再记录 release。
+
 该模板固定生成 3 个 Worker 和 1 个 Reviewer：
 
 - 数据基座：先补 `migrations/`、完整虚拟数据、契约和 `features_test/`。
 - 只读 API：只做从 PostgreSQL 读取的接口和测试，不做写接口。
 - Vue 只读首页：页面读取真实接口数据，禁止 `v-html`、raw HTML import 或长字符串整页模板。
 - Reviewer：90 分门禁，确认数据、接口、页面、E2E 证据和本轮无写路径。
+
+`--data-only` 例外：只生成数据基座 Worker 和数据基座 Reviewer，不生成后续 API/Vue 阶段。
 
 分阶段入队规则：
 
@@ -221,6 +238,7 @@ pnpm dionysus fastlane coupon-module-plan \
 - API 层会阻断提前 `task enqueue`，数据基座未完成时返回 `COUPON_DATA_FIRST_GATE_BLOCKED`，不是仅靠 prompt 约束。
 - 数据基座 Worker 完成后，Codex 必须先 review/approve 数据 patch；approve 后 API 会自动并发派发“只读 API”和“Vue 只读首页”Worker，`fastlane status` 也会在需要手动处理时返回两个入队命令。
 - 只有数据、API、Vue 三个 Worker 都 done，才能启动 ReviewerCLI。
+- `--data-only` 下没有 API/Vue 阶段；数据基座 Worker 完成后直接进入数据基座 Reviewer 和 Codex 最终审核。
 
 启动时使用：
 
@@ -232,6 +250,19 @@ pnpm dionysus fastlane coupon-module-start \
   --target-root /Volumes/MacMiniSSD/code/Coupon \
   --page "apps/admin-web/src/pages/tenants.vue" \
   --api "/api/admin/tenants"
+```
+
+只补测试数据时启动：
+
+```bash
+pnpm dionysus fastlane coupon-module-start \
+  --module "酒店管理" \
+  --title "酒店模块测试数据基座" \
+  --description "只补充酒店模块 PostgreSQL 测试数据" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/hotels" \
+  --data-only
 ```
 
 ```bash

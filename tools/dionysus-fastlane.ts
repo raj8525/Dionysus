@@ -30,6 +30,7 @@ export interface CouponDataFirstFastLaneInput {
   pagePath: string;
   apiPath: string;
   htmlTemplatePath?: string;
+  dataOnly?: boolean;
 }
 
 export type FastLanePhase =
@@ -173,7 +174,10 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
         "- 只做数据基座和只读验收准备，不实现写路径。",
         "- seed 必须覆盖页面首屏、列表、详情、状态、统计、空态/异常态可验证数据。",
         "- 更新或补充 docs/specs / contracts / features_test，写清覆盖的字段和验收查询。",
-        "- 输出 migration 文件、seed 覆盖说明、验证 SQL 或测试命令。"
+        "- 输出 migration 文件、seed 覆盖说明、验证 SQL 或测试命令。",
+        `- 验收命令必须以目标项目根目录 ${targetRoot} 为准，不能把 Dionysus 隔离 workspace 路径写入长期文档。`,
+        "- PostgreSQL 验证必须同时给出两种方式：psql 直连命令，以及 `docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon ...` 容器内命令。",
+        "- migration 必须幂等；如果重复执行，预期结果应为不重复插入并保持统计不变。"
       ].join("\n")
     },
     {
@@ -223,19 +227,29 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
       description,
       "",
       `Coupon module: ${moduleName}`,
-      "执行原则：数据先行、先读后写；本轮只证明最终用户可通过前端读取完整数据库虚拟数据，写路径进入后续里程碑。"
+      input.dataOnly
+        ? "执行原则：数据先行；本轮只生成数据库 migration/seed、规格和验收证据，不启动 API/Vue Worker。"
+        : "执行原则：数据先行、先读后写；本轮只证明最终用户可通过前端读取完整数据库虚拟数据，写路径进入后续里程碑。"
     ].join("\n"),
     targetRoot,
-    workers,
+    workers: input.dataOnly ? [workers[0]] : workers,
     reviewers: [{
-      title: `${moduleName} ReviewerCLI 90 分质量门禁`,
+      title: input.dataOnly
+        ? `${moduleName} 数据基座 ReviewerCLI 90 分质量门禁`
+        : `${moduleName} ReviewerCLI 90 分质量门禁`,
       description: [
-        "审查数据先行和只读闭环是否真正成立。",
+        input.dataOnly ? "审查数据基座是否真正可用于目标项目主库验收。" : "审查数据先行和只读闭环是否真正成立。",
         "必须检查：",
         "- 数据库 migration/seed 是否覆盖页面所有展示字段。",
-        "- 只读 API 是否从 PostgreSQL 返回真实数据。",
-        "- Vue 页面是否动态读取接口数据，且没有 HTML 注入或主要静态假数据。",
-        "- E2E/手工浏览器证据是否覆盖最终用户主路径和刷新持久性。",
+        input.dataOnly
+          ? "- 验收命令必须以 Coupon 根目录为准，不能引用 Dionysus 隔离 workspace 路径。"
+          : "- 只读 API 是否从 PostgreSQL 返回真实数据。",
+        input.dataOnly
+          ? "- PostgreSQL 验证必须提供 psql 与 docker compose 两种执行方式。"
+          : "- Vue 页面是否动态读取接口数据，且没有 HTML 注入或主要静态假数据。",
+        input.dataOnly
+          ? "- seed 必须幂等，能重复执行且不会重复插入。"
+          : "- E2E/手工浏览器证据是否覆盖最终用户主路径和刷新持久性。",
         "- 写路径不得进入本轮范围。",
         "- 低于 90 分必须 BLOCKED 并列出具体返工项。"
       ].join("\n")
@@ -255,6 +269,9 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
     tasks: stagedTasks,
     nextCommands: [
       ...plan.nextCommands,
+      input.dataOnly
+        ? "data-only 模式不会创建 API/Vue Worker；Codex 审查数据基座后可直接运行 migration 和记录 release。"
+        : "数据基座完成并由 Codex approve 后，才启动 API/Vue Worker。",
       `pnpm dionysus fastlane status --goal-id <goal-id>`,
       `pnpm dionysus agent usage --target-root ${targetRoot}`
     ]

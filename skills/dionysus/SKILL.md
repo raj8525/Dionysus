@@ -89,6 +89,21 @@ pnpm -s dionysus fastlane coupon-module-start \
 
 `coupon-module-start` 和普通 `fastlane start` 一样会先执行 readiness，支持 `--allow-dirty-path` 和 `--dry-run`。本模板默认禁止写路径，写接口只能在只读闭环验收后作为下一轮模块里程碑。
 
+如果本轮目标只是补充主 PostgreSQL 测试数据、状态枚举或 seed，不需要改 API/Vue，必须加 `--data-only`。该模式只创建“数据基座 Worker + 数据基座 ReviewerCLI”，不会派生 API Worker 或 Vue Worker：
+
+```bash
+pnpm -s dionysus fastlane coupon-module-start \
+  --module "酒店管理" \
+  --title "酒店模块测试数据基座" \
+  --description "只补充酒店模块 PostgreSQL 测试数据" \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/hotels" \
+  --data-only
+```
+
+`--data-only` 适用于已有页面/API 基本成立但缺少真实数据库测试数据的场景。Codex 审查 Worker patch 后，直接运行 migration、验证 PostgreSQL/API、记录 release；不要让 Dionysus 自动扩张成接口或页面改造。
+
 分阶段入队规则：
 
 - `coupon-module-start` 只立即入队“数据基座”Worker。
@@ -96,6 +111,7 @@ pnpm -s dionysus fastlane coupon-module-start \
 - API 层会阻断提前 `task enqueue`，数据基座未完成时返回 `COUPON_DATA_FIRST_GATE_BLOCKED`。
 - 数据基座完成后，Codex 先 review/approve；API 会自动并发派发 API/Vue，必要时再运行 `fastlane status` 获取手动入队命令。
 - API/Vue 可以在数据基座通过后并发；ReviewerCLI 必须等全部 Worker done 后才启动。
+- `--data-only` 下没有 API/Vue 阶段；数据基座 Worker 完成后直接进入数据基座 Reviewer 和 Codex 最终审核。
 
 ```bash
 pnpm -s dionysus fastlane plan \

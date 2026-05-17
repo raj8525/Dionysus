@@ -158,6 +158,27 @@ describe("dionysus fast lane planner", () => {
     expect(plan.nextCommands.join("\n")).toContain("fastlane status");
   });
 
+  it("can build a Coupon data-only module plan without API or Vue workers", () => {
+    const plan = buildCouponDataFirstFastLanePlan({
+      module: "酒店管理",
+      title: "酒店模块测试数据基座",
+      description: "只补充酒店模块 PostgreSQL 测试数据",
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      pagePath: "apps/admin-web/src/pages/hotels.vue",
+      apiPath: "/api/admin/hotels",
+      dataOnly: true
+    });
+
+    expect(plan.tasks.map((task) => task.title)).toEqual([
+      "FastLane Worker 1: 酒店管理 数据基座",
+      "FastLane Reviewer 1: 酒店管理 数据基座 ReviewerCLI 90 分质量门禁"
+    ]);
+    expect(plan.tasks.map((task) => task.queue)).toEqual([true, false]);
+    expect(plan.tasks[0].description).toContain("不能把 Dionysus 隔离 workspace 路径写入长期文档");
+    expect(plan.tasks[0].description).toContain("docker compose -f docker-compose.yml exec -T postgres psql");
+    expect(plan.nextCommands.join("\n")).toContain("data-only 模式不会创建 API/Vue Worker");
+  });
+
   it("builds a Coupon hotel-store module plan without tenant-page semantics", () => {
     const plan = buildCouponDataFirstFastLanePlan({
       module: "酒店管理",
