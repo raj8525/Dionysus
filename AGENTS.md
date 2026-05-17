@@ -143,6 +143,21 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`，并等待 API `/health` 可访问后才返回。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
 
+## Integration 受保护文件门禁
+
+Dionysus 不只依赖 prompt 约束 Worker。Integration Worker 会在应用 patch 前检查受保护文件：
+
+```env
+DIONYSUS_PROTECTED_FILES=apps/admin-web/src/pages/hotels.vue
+DIONYSUS_ALLOW_PROTECTED_FILES=
+```
+
+规则：
+
+- `DIONYSUS_PROTECTED_FILES` 命中的 patch 默认 `blocked`，不会执行 `git apply`。
+- 只有 Codex 明确判断本轮任务允许修改成熟文件时，才临时设置 `DIONYSUS_ALLOW_PROTECTED_FILES`。
+- Coupon 当前默认保护 `apps/admin-web/src/pages/hotels.vue`，因为该页面已有成熟交互：点击左侧租户应在 `/hotels` 内切换右侧详情，不得被 Worker 改成强制跳转或整页重写。
+
 ## Fast Lane
 
 默认推进真实 Coupon 功能时，Codex 优先使用 fast lane，而不是完整 Master 状态机：

@@ -16,8 +16,22 @@ export async function applyPatchToTarget(input: {
   targetRoot: string;
   patchText: string;
   verificationCommands?: string[];
+  protectedFiles?: string[];
+  allowProtectedFiles?: string[];
 }): Promise<PatchApplyResult> {
   const patchChangedFiles = changedFilesFromPatch(input.patchText);
+  const protectedViolation = findProtectedFileViolation({
+    changedFiles: patchChangedFiles,
+    protectedFiles: input.protectedFiles ?? [],
+    allowProtectedFiles: input.allowProtectedFiles ?? []
+  });
+  if (protectedViolation.length > 0) {
+    return {
+      status: "blocked",
+      changedFiles: patchChangedFiles,
+      reason: `patch touches protected files without explicit allow: ${protectedViolation.join(", ")}`
+    };
+  }
 
   const patchFile = await writeTempPatch(input.patchText);
   try {
@@ -56,6 +70,35 @@ function changedFilesFromPatch(patchText: string): string[] {
     }
   }
   return Array.from(files).sort();
+}
+
+function findProtectedFileViolation(input: {
+  changedFiles: string[];
+  protectedFiles: string[];
+  allowProtectedFiles: string[];
+}): string[] {
+  const protectedRules = normalizeRules(input.protectedFiles);
+  const allowRules = normalizeRules(input.allowProtectedFiles);
+  if (protectedRules.length === 0) return [];
+
+  return input.changedFiles
+    .map(normalizePath)
+    .filter((file) => matchesAnyRule(file, protectedRules) && !matchesAnyRule(file, allowRules));
+}
+
+function normalizeRules(rules: string[]): string[] {
+  return rules.map(normalizePath).filter(Boolean);
+}
+
+function normalizePath(path: string): string {
+  return path.trim().replace(/\\/g, "/").replace(/^\.\/+/, "");
+}
+
+function matchesAnyRule(file: string, rules: string[]): boolean {
+  return rules.some((rule) => {
+    if (rule.endsWith("/")) return file.startsWith(rule);
+    return file === rule;
+  });
 }
 
 async function runVerificationCommands(cwd: string, commands: string[]): Promise<string | null> {

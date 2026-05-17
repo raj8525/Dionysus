@@ -153,4 +153,54 @@ describe("integration patch applier", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("blocks patches that touch protected files unless explicitly allowed", async () => {
+    const root = await initRepo();
+    try {
+      const protectedFile = "apps/admin-web/src/pages/hotels.vue";
+      await execFileAsync("mkdir", ["-p", "apps/admin-web/src/pages"], { cwd: root });
+      await writeFile(join(root, protectedFile), "before\n");
+      await execFileAsync("git", ["add", "."], { cwd: root });
+      await execFileAsync(
+        "git",
+        ["-c", "user.email=dionysus@example.local", "-c", "user.name=Dionysus", "commit", "-m", "add protected page"],
+        { cwd: root }
+      );
+
+      const patch = [
+        "diff --git a/apps/admin-web/src/pages/hotels.vue b/apps/admin-web/src/pages/hotels.vue",
+        "index 5a60f7d..61e9f52 100644",
+        "--- a/apps/admin-web/src/pages/hotels.vue",
+        "+++ b/apps/admin-web/src/pages/hotels.vue",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        ""
+      ].join("\n");
+
+      const blocked = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch,
+        protectedFiles: [protectedFile]
+      });
+      const statusAfterBlocked = await execFileAsync("git", ["status", "--porcelain"], { cwd: root });
+
+      expect(blocked.status).toBe("blocked");
+      expect(blocked.changedFiles).toEqual([protectedFile]);
+      expect(blocked.reason).toContain(protectedFile);
+      expect(statusAfterBlocked.stdout.trim()).toBe("");
+
+      const allowed = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch,
+        protectedFiles: [protectedFile],
+        allowProtectedFiles: [protectedFile]
+      });
+
+      expect(allowed.status).toBe("applied");
+      expect(allowed.changedFiles).toEqual([protectedFile]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

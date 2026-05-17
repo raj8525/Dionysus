@@ -46,6 +46,8 @@ const agentRunTimeoutMs = parsePositiveInteger(process.env.DIONYSUS_AGENT_RUN_TI
 const targetRoot = process.env.TARGET_COUPON_ROOT ?? process.cwd();
 const workspaceRoot = process.env.DIONYSUS_WORKSPACE_ROOT ?? resolve(process.cwd(), "../../.dionysus/workspaces");
 const integrationVerificationCommands = readCommandList(process.env.DIONYSUS_INTEGRATION_VERIFY_COMMANDS);
+const protectedFiles = readCommandList(process.env.DIONYSUS_PROTECTED_FILES);
+const allowProtectedFiles = readCommandList(process.env.DIONYSUS_ALLOW_PROTECTED_FILES);
 const watchdogIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_INTERVAL_SECONDS, 60);
 const watchdogRunningTimeoutMinutes = parsePositiveInteger(process.env.DIONYSUS_WATCHDOG_RUNNING_TIMEOUT_MINUTES, 15);
 const masterControlIntervalSeconds = parsePositiveInteger(process.env.DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS, 120);
@@ -526,7 +528,9 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
   const result = await applyPatchToTarget({
     targetRoot: targetRootForGoal(goal, targetRoot),
     patchText: integration.patchText,
-    verificationCommands
+    verificationCommands,
+    protectedFiles,
+    allowProtectedFiles
   });
   await repo.completeIntegration({
     integrationId: integration.id,
@@ -887,6 +891,8 @@ await repo.recordSystemEvent("worker.started", {
   workerCliType,
   workerCliModel,
   workspaceRoot,
+  protectedFiles,
+  allowProtectedFiles,
   watchdogIntervalSeconds,
   masterControlIntervalSeconds,
   workerHeartbeatIntervalSeconds
