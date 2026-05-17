@@ -23,6 +23,7 @@ import {
   findUnmanagedGitChanges,
   resolveNotificationChannels,
   queueForRole,
+  evaluateTaskReviewRejectionPolicy,
   shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
   taskReviewStatusForVerdict
@@ -582,6 +583,49 @@ export async function buildServer() {
       return reply.code(409).send({ error: "TASK_NOT_REVIEWABLE", requiredStatus: "needs_review" });
     }
     if (parsed.data.verdict === "reject") {
+      const rejectionCount = await repo.countTaskReviewRejections(id);
+      const policy = evaluateTaskReviewRejectionPolicy({
+        verdict: parsed.data.verdict,
+        rejectionCount
+      });
+      if (policy.action === "codex_takeover") {
+        const reason = [
+          policy.reason,
+          `task_id=${id}`,
+          `title=${String(task.title ?? "")}`,
+          `role=${String(task.role_required ?? "")}`,
+          `last_reject_reason=${parsed.data.reason}`
+        ].filter(Boolean).join("\n");
+        await repo.markTaskBlocked({ taskId: id, reason });
+        await repo.recordTaskEvent(id, "task.review_codex_takeover", {
+          rejectionCount: policy.rejectionCount,
+          threshold: policy.threshold,
+          lastRejectReason: parsed.data.reason
+        });
+        const event = await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+          goalId: String(task.goal_id),
+          eventType: "blocker",
+          reason,
+          source: "task.review.rejection_policy",
+          payload: {
+            taskId: id,
+            title: task.title,
+            roleRequired: task.role_required,
+            rejectionCount: policy.rejectionCount,
+            threshold: policy.threshold,
+            lastRejectReason: parsed.data.reason,
+            requiredAction: "Codex must inspect the task, fix or rewrite the work directly, then review and release it."
+          }
+        }));
+        return reply.code(202).send({
+          ...task,
+          status: "blocked",
+          blocked_reason: reason,
+          codexTakeoverRequired: true,
+          rejectionPolicy: policy,
+          codexOutboxEvent: event
+        });
+      }
       const roleRequired = String(task.role_required);
       await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
         message_id: randomUUID(),

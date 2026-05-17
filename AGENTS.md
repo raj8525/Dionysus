@@ -162,6 +162,7 @@ pnpm dionysus fastlane start \
 - Reviewer 任务默认只创建不入队，避免没有 Worker 产物时假审核。
 - Worker 产出 patch 并完成 integration 后，再用 `pnpm dionysus task enqueue --task-id "<reviewer-task-id>"` 启动 Reviewer。
 - 如已有集成产物需要立即审核，可显式加 `--queue-reviewers`。
+- 同一任务被 ReviewerCLI 第 10 次 reject 时，Dionysus 会阻断任务并写入 Codex Outbox；Codex 必须亲自接手，不能继续重排 WorkerCLI。
 - 过程监控固定使用：
 
 ```bash

@@ -783,6 +783,16 @@ export class DionysusRepository {
     }
   }
 
+  async countTaskReviewRejections(taskId: string): Promise<number> {
+    const result = await this.pool.query(
+      `select count(*)::int as rejection_count
+       from ${this.table("task_events")}
+       where task_id = $1 and event_type = 'task.review_reject'`,
+      [taskId]
+    );
+    return Number(result.rows[0]?.rejection_count ?? 0);
+  }
+
   async createTaskRun(input: {
     taskId: string;
     cliType: CliType;

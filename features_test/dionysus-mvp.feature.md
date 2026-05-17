@@ -491,6 +491,11 @@ When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict rej
 Then task 状态必须变为 `queued`
 And Dionysus 必须重新投递到该 task 的角色队列
 And Dionysus 不得放行下一条 task
+When 同一个 task 第 10 次被 `verdict reject`
+Then task 必须进入 `blocked`
+And 系统必须写入 Codex Outbox `blocker`
+And 系统不得继续投递当前 task 给 WorkerCLI
+And Codex 必须亲自接手该任务
 When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict block --reason "需要人工澄清"`
 Then task 状态必须变为 `blocked`
 And blocker reason 必须保存在 task 上
