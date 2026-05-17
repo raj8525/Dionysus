@@ -285,6 +285,13 @@ async function main(): Promise<void> {
     return print(await request(`/api/notifications/${requiredFlag(args, "--notification-id")}/deliver`, "POST"));
   }
 
+  if (domain === "integration" && action === "evidence") {
+    return print(await request(`/api/integrations/${requiredFlag(args, "--integration-id")}/evidence`, "POST", {
+      finalUserFeatureEvidence: readRepeatedFlag(args, "--final-user-evidence"),
+      realDataPersistenceEvidence: readRepeatedFlag(args, "--persistence-evidence")
+    }));
+  }
+
   if (domain === "codex" && action === "outbox") {
     const status = readFlag(args, "--status") ?? "pending";
     const limit = optionalNumberFlag(args, "--limit") ?? 20;
@@ -700,6 +707,7 @@ function usage(): void {
   tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict
   tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30
   tsx tools/dionysus.ts integration list --goal-id "..."
+  tsx tools/dionysus.ts integration evidence --integration-id "..." --final-user-evidence "admin 登录后完成新增租户" --persistence-evidence "刷新后租户仍从 PostgreSQL 返回"
   tsx tools/dionysus.ts integration retry --integration-id "..."
   tsx tools/dionysus.ts task create --goal-id "..." --title "..." --role worker [--no-queue]
   tsx tools/dionysus.ts task enqueue --task-id "..."

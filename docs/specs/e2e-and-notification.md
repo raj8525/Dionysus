@@ -13,6 +13,7 @@ Master 必须在每次 main commit 后判断是否出现里程碑候选。
 - 至少有正向流程和关键异常流程。
 - main 测试通过。
 - 无 critical / blocker 任务。
+- integration 结果必须写入 `finalUserFeatureEvidence[]` 和 `realDataPersistenceEvidence[]`。没有这两类显式证据时，Dionysus 不得自动创建 milestone。
 
 不符合以上条件的进展只能记为 engineering checkpoint。例如后端 smoke、测试补齐、CLI 修复、文档更新、静态页面、单页渲染、mock 数据演示，都不得创建 milestone，也不得触发用户通知。
 

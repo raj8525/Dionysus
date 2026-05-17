@@ -14,11 +14,13 @@ describe("milestone orchestration", () => {
         integrationStatus: "passed",
         patchStatus: "applied",
         changedFiles: ["apps/admin-web/src/pages/hotels.vue", "apps/admin-api/internal/handler/tenant.go"],
-        testStatus: "passed"
+        testStatus: "passed",
+        finalUserFeatureEvidence: ["admin/admin 登录后在酒店页面新增租户"],
+        realDataPersistenceEvidence: ["刷新后新租户仍从 PostgreSQL 返回"]
       })
     ).toMatchObject({
       shouldCreate: true,
-      name: "Coupon milestone: 2 changed files ready for Codex E2E"
+      name: "Coupon milestone: final-user fullstack module ready for Codex E2E"
     });
 
     expect(
@@ -40,11 +42,26 @@ describe("milestone orchestration", () => {
         integrationStatus: "passed",
         patchStatus: "applied",
         changedFiles: ["apps/admin-web/src/pages/hotels.vue"],
-        testStatus: "passed"
+        testStatus: "passed",
+        finalUserFeatureEvidence: ["用户可以看到页面"],
+        realDataPersistenceEvidence: ["刷新后数据仍存在"]
       })
     ).toMatchObject({
       shouldCreate: false,
       candidateReason: "Milestone gate is not satisfied: missing backend/API/database changes."
+    });
+
+    expect(
+      detectMilestoneCandidate({
+        goalTitle: "Coupon",
+        integrationStatus: "passed",
+        patchStatus: "applied",
+        changedFiles: ["apps/admin-web/src/pages/hotels.vue", "apps/admin-api/internal/handler/tenant.go"],
+        testStatus: "passed"
+      })
+    ).toMatchObject({
+      shouldCreate: false,
+      candidateReason: "Milestone gate is not satisfied: missing final-user browser workflow evidence."
     });
 
     expect(

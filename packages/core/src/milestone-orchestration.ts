@@ -7,6 +7,8 @@ export interface MilestoneDetectionInput {
   patchStatus: "created" | "queued" | "applied" | "rejected" | "failed";
   changedFiles: string[];
   testStatus: "passed" | "failed" | "blocked" | "missing";
+  finalUserFeatureEvidence?: string[];
+  realDataPersistenceEvidence?: string[];
 }
 
 export interface MilestoneCandidateDraft {
@@ -33,21 +35,32 @@ export interface E2ECampaignDraft {
 export function detectMilestoneCandidate(input: MilestoneDetectionInput): MilestoneCandidateDraft {
   const hasFrontend = input.changedFiles.some(isUserFacingFrontendFile);
   const hasBackend = input.changedFiles.some(isBackendOrDatabaseFile);
+  const hasFinalUserFeatureEvidence = Boolean(input.finalUserFeatureEvidence?.length);
+  const hasRealDataPersistenceEvidence = Boolean(input.realDataPersistenceEvidence?.length);
   const ready =
     input.integrationStatus === "passed" &&
     input.patchStatus === "applied" &&
     input.testStatus === "passed" &&
     hasFrontend &&
-    hasBackend;
+    hasBackend &&
+    hasFinalUserFeatureEvidence &&
+    hasRealDataPersistenceEvidence;
 
   const changedSummary = `${input.changedFiles.length} changed files`;
   return {
     shouldCreate: ready,
-    name: `${input.goalTitle} milestone: ${changedSummary} ready for Codex E2E`,
+    name: `${input.goalTitle} milestone: final-user fullstack module ready for Codex E2E`,
     description: ready
-      ? `Integration passed with ${changedSummary}. Codex must run browser E2E before this milestone can be marked done.`
-      : `Not ready for milestone. integration=${input.integrationStatus}, patch=${input.patchStatus}, tests=${input.testStatus}, frontend=${hasFrontend}, backend=${hasBackend}.`,
-    candidateReason: milestoneCandidateReason({ ready, hasFrontend, hasBackend, changedFiles: input.changedFiles })
+      ? `Integration passed with ${changedSummary}, final-user feature evidence, and real persistence evidence. Codex must run browser E2E before this milestone can be marked done.`
+      : `Not ready for milestone. integration=${input.integrationStatus}, patch=${input.patchStatus}, tests=${input.testStatus}, frontend=${hasFrontend}, backend=${hasBackend}, finalUserEvidence=${hasFinalUserFeatureEvidence}, persistenceEvidence=${hasRealDataPersistenceEvidence}.`,
+    candidateReason: milestoneCandidateReason({
+      ready,
+      hasFrontend,
+      hasBackend,
+      hasFinalUserFeatureEvidence,
+      hasRealDataPersistenceEvidence,
+      changedFiles: input.changedFiles
+    })
   };
 }
 
@@ -55,16 +68,24 @@ function milestoneCandidateReason(input: {
   ready: boolean;
   hasFrontend: boolean;
   hasBackend: boolean;
+  hasFinalUserFeatureEvidence: boolean;
+  hasRealDataPersistenceEvidence: boolean;
   changedFiles: string[];
 }): string {
   if (input.ready) {
-    return `Patch applied, tests passed, and a full user-facing frontend-to-backend feature exists: ${input.changedFiles.join(", ")}`;
+    return `Patch applied, tests passed, and final-user frontend-to-backend feature evidence exists: ${input.changedFiles.join(", ")}`;
   }
   if (!input.hasFrontend) {
     return "Milestone gate is not satisfied: missing user-facing frontend changes.";
   }
   if (!input.hasBackend) {
     return "Milestone gate is not satisfied: missing backend/API/database changes.";
+  }
+  if (!input.hasFinalUserFeatureEvidence) {
+    return "Milestone gate is not satisfied: missing final-user browser workflow evidence.";
+  }
+  if (!input.hasRealDataPersistenceEvidence) {
+    return "Milestone gate is not satisfied: missing real database persistence evidence.";
   }
   return "Milestone gate is not satisfied.";
 }

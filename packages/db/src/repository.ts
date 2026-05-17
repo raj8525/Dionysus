@@ -1013,13 +1013,21 @@ export class DionysusRepository {
     for (const row of integrations.rows) {
       const resultJson = row.result_json ?? {};
       const testStatus = resultJson.testStatus === "passed" ? "passed" : "missing";
+      const finalUserFeatureEvidence = Array.isArray(resultJson.finalUserFeatureEvidence)
+        ? resultJson.finalUserFeatureEvidence.map(String)
+        : [];
+      const realDataPersistenceEvidence = Array.isArray(resultJson.realDataPersistenceEvidence)
+        ? resultJson.realDataPersistenceEvidence.map(String)
+        : [];
       const changedFiles = Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : [];
       const candidate = detectMilestoneCandidate({
         goalTitle: goal.title,
         integrationStatus: row.integration_status,
         patchStatus: row.patch_status,
         changedFiles,
-        testStatus
+        testStatus,
+        finalUserFeatureEvidence,
+        realDataPersistenceEvidence
       });
       if (!candidate.shouldCreate) continue;
 
@@ -1600,6 +1608,45 @@ export class DionysusRepository {
     } finally {
       client.release();
     }
+  }
+
+  async recordIntegrationEvidence(input: {
+    integrationId: string;
+    finalUserFeatureEvidence: string[];
+    realDataPersistenceEvidence: string[];
+  }): Promise<Record<string, unknown> | null> {
+    const result = await this.pool.query(
+      `update ${this.table("integration_queue")}
+       set result_json = coalesce(result_json, '{}'::jsonb) || $2::jsonb,
+           updated_at = now()
+       where id = $1
+       returning id, goal_id, task_id, status, result_json, created_at, updated_at`,
+      [
+        input.integrationId,
+        JSON.stringify({
+          finalUserFeatureEvidence: input.finalUserFeatureEvidence,
+          realDataPersistenceEvidence: input.realDataPersistenceEvidence
+        })
+      ]
+    );
+    if (!result.rowCount) {
+      return null;
+    }
+    const row = result.rows[0];
+    await this.recordSystemEvent("integration.evidence_recorded", {
+      integrationId: input.integrationId,
+      finalUserFeatureEvidence: input.finalUserFeatureEvidence.length,
+      realDataPersistenceEvidence: input.realDataPersistenceEvidence.length
+    });
+    return {
+      id: String(row.id),
+      goalId: String(row.goal_id),
+      taskId: String(row.task_id),
+      status: String(row.status),
+      result: row.result_json ?? {},
+      createdAt: new Date(row.created_at).toISOString(),
+      updatedAt: new Date(row.updated_at).toISOString()
+    };
   }
 
   async listQueuedIntegrations(goalId: string): Promise<Array<{

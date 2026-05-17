@@ -94,6 +94,11 @@ const recordE2ECaseResultSchema = z.object({
   result: z.record(z.string(), z.unknown()).optional()
 });
 
+const recordIntegrationEvidenceSchema = z.object({
+  finalUserFeatureEvidence: z.array(z.string().min(1)).min(1),
+  realDataPersistenceEvidence: z.array(z.string().min(1)).min(1)
+});
+
 const createPatchSchema = z.object({
   goalId: z.string().uuid(),
   taskId: z.string().uuid(),
@@ -1119,6 +1124,19 @@ export async function buildServer() {
       created_at: new Date().toISOString()
     });
     return reply.code(202).send({ status: "queued", integration });
+  });
+
+  app.post("/api/integrations/:id/evidence", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = recordIntegrationEvidenceSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_INTEGRATION_EVIDENCE", details: parsed.error.flatten() });
+    }
+    const integration = await repo.recordIntegrationEvidence({ integrationId: id, ...parsed.data });
+    if (!integration) {
+      return reply.code(404).send({ error: "INTEGRATION_NOT_FOUND" });
+    }
+    return reply.code(200).send(integration);
   });
 
   app.post("/api/patches", async (request, reply) => {

@@ -183,10 +183,11 @@ Worker Runtime 会按 `DIONYSUS_MASTER_CONTROL_INTERVAL_SECONDS` 周期投递 `d
 
 ## Milestone / E2E / Notification
 
-Milestone 必须是最终用户能在浏览器里体验的完整功能模块，要求前端到后端打通，数据真实落库并可刷新后继续看到；工程 smoke、测试补齐、静态页面、mock 数据演示和基础设施修复不得触发 milestone 通知。
+Milestone 必须是最终用户能在浏览器里体验的完整功能模块，要求前端到后端打通，数据真实落库并可刷新后继续看到；工程 smoke、测试补齐、静态页面、mock 数据演示和基础设施修复不得触发 milestone 通知。自动检测 milestone 时，integration 结果还必须包含 `finalUserFeatureEvidence[]` 与 `realDataPersistenceEvidence[]` 两类显式证据。
 
 ```bash
 curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/detect-milestones
+pnpm dionysus integration evidence --integration-id "<integration-id>" --final-user-evidence "admin 登录后完成新增租户" --persistence-evidence "刷新后租户仍从 PostgreSQL 返回"
 curl -X POST http://127.0.0.1:23100/api/milestones/<milestone-id>/e2e-campaigns \
   -H 'content-type: application/json' \
   --data '{"targetUrl":"http://127.0.0.1:5173","acceptance":["主要验收点"]}'

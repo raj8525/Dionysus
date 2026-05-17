@@ -15,5 +15,6 @@ dist/
 .dionysus/runtime-target/
 .dionysus/*.png
 coverage/
+test-results/
 *.log
 .playwright-cli/
