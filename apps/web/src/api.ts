@@ -40,6 +40,14 @@ export interface SystemHealth {
     lastSeenAt?: string;
     ageSeconds?: number;
     maxAgeSeconds: number;
+    effectiveRunConfig?: {
+      source: "role_config" | "runtime_fallback" | "unknown";
+      cliType?: string;
+      cliModel?: string;
+      roleConfigEnabled?: boolean;
+      runtimeCliType?: string;
+      runtimeCliModel?: string;
+    };
   };
 }
 

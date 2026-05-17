@@ -32,6 +32,8 @@ pnpm -s dionysus system readiness --target-root "/Volumes/MacMiniSSD/code/Coupon
 pnpm -s dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
 ```
 
+`system doctor --brief` 和 Dashboard 的 Worker 状态会同时显示 Worker 心跳与 effective run config。心跳里的 `runtime.workerCliType` 只是进程 fallback；真实任务执行优先使用 PostgreSQL `agent_cli_configs` 中的角色配置。看到 fallback 为 `mock` 时，不要直接判断 Worker 仍在用 mock，必须看 `worker.effectiveRunConfig` 或 `agent config list`。
+
 在目标项目执行：
 
 ```bash

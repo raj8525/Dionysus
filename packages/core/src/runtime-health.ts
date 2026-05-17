@@ -44,6 +44,57 @@ export interface WorkerRuntimeMetadata {
   workerCliModel?: string;
 }
 
+export interface WorkerEffectiveRunConfig {
+  source: "role_config" | "runtime_fallback" | "unknown";
+  cliType?: string;
+  cliModel?: string;
+  roleConfigEnabled?: boolean;
+  runtimeCliType?: string;
+  runtimeCliModel?: string;
+}
+
+export function deriveWorkerEffectiveRunConfig(input: {
+  runtime?: WorkerRuntimeMetadata;
+  roleConfig?: {
+    cliType: string;
+    cliModel?: string;
+    enabled?: boolean;
+  } | null;
+}): WorkerEffectiveRunConfig {
+  const runtimeCliType = input.runtime?.workerCliType;
+  const runtimeCliModel = input.runtime?.workerCliModel;
+  const roleConfigEnabled = input.roleConfig ? input.roleConfig.enabled !== false : undefined;
+
+  if (input.roleConfig && roleConfigEnabled) {
+    return {
+      source: "role_config",
+      cliType: input.roleConfig.cliType,
+      cliModel: input.roleConfig.cliModel,
+      roleConfigEnabled,
+      runtimeCliType,
+      runtimeCliModel
+    };
+  }
+
+  if (runtimeCliType) {
+    return {
+      source: "runtime_fallback",
+      cliType: runtimeCliType,
+      cliModel: runtimeCliModel,
+      roleConfigEnabled,
+      runtimeCliType,
+      runtimeCliModel
+    };
+  }
+
+  return {
+    source: "unknown",
+    roleConfigEnabled,
+    runtimeCliType,
+    runtimeCliModel
+  };
+}
+
 export function deriveWorkerHealth(input: WorkerHealthInput): WorkerHealth {
   const latest = input.events
     .filter((event) => event.eventType === "worker.heartbeat" || event.eventType === "worker.started")

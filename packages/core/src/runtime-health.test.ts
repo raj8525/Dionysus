@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveWorkerHealth } from "./runtime-health.js";
+import { deriveWorkerEffectiveRunConfig, deriveWorkerHealth } from "./runtime-health.js";
 
 describe("runtime health", () => {
   it("marks worker ok when a recent heartbeat exists", () => {
@@ -77,6 +77,46 @@ describe("runtime health", () => {
       ok: false,
       status: "missing",
       maxAgeSeconds: 60
+    });
+  });
+
+  it("reports the role CLI config as the effective Worker run config even when runtime fallback is mock", () => {
+    expect(deriveWorkerEffectiveRunConfig({
+      runtime: {
+        workerCliType: "mock"
+      },
+      roleConfig: {
+        cliType: "opencode",
+        cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+        enabled: true
+      }
+    })).toEqual({
+      source: "role_config",
+      cliType: "opencode",
+      cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+      roleConfigEnabled: true,
+      runtimeCliType: "mock",
+      runtimeCliModel: undefined
+    });
+  });
+
+  it("falls back to runtime metadata only when no enabled Worker role config exists", () => {
+    expect(deriveWorkerEffectiveRunConfig({
+      runtime: {
+        workerCliType: "gemini_cli"
+      },
+      roleConfig: {
+        cliType: "opencode",
+        cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+        enabled: false
+      }
+    })).toEqual({
+      source: "runtime_fallback",
+      cliType: "gemini_cli",
+      cliModel: undefined,
+      roleConfigEnabled: false,
+      runtimeCliType: "gemini_cli",
+      runtimeCliModel: undefined
     });
   });
 });

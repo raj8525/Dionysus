@@ -21,11 +21,12 @@ export function summarizeSystemHealth(health: SystemHealth | null): SystemHealth
 
   const workerStatus = String(health.worker.status);
   const ageSeconds = typeof health.worker.ageSeconds === "number" ? `${health.worker.ageSeconds}s` : "n/a";
+  const effectiveCli = health.worker.effectiveRunConfig?.cliType;
   return {
     overall: health.ok ? "ready" : "degraded",
     database: health.database.ok ? "ready" : "blocked",
     rabbitmq: health.rabbitmq.ok ? "ready" : "blocked",
     worker: health.worker.ok ? "ready" : "blocked",
-    workerLabel: `${workerStatus} / ${ageSeconds}`
+    workerLabel: effectiveCli ? `${workerStatus} / ${ageSeconds} / ${effectiveCli}` : `${workerStatus} / ${ageSeconds}`
   };
 }

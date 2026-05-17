@@ -29,6 +29,7 @@ import {
   selectCouponDataFirstFollowupTasks,
   shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
+  deriveWorkerEffectiveRunConfig,
   taskReviewStatusForVerdict
 } from "@dionysus/core";
 import type { NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
@@ -186,14 +187,15 @@ export async function buildServer() {
   });
 
   app.get("/health", async () => {
-    const [database, rabbitmq, workerEvents] = await Promise.all([
+    const [database, rabbitmq, workerEvents, workerRoleConfig] = await Promise.all([
       repo.healthCheck(),
       checkRabbitMqHealth(),
       repo.listSystemEvents({ eventPrefix: "worker.", limit: 5 }) as Promise<Array<{
         eventType: string;
         createdAt: string;
         payload?: Record<string, unknown>;
-      }>>
+      }>>,
+      repo.getAgentCliConfig("worker").catch(() => null)
     ]);
     const worker = deriveWorkerHealth({
       nowIso: new Date().toISOString(),
@@ -202,12 +204,19 @@ export async function buildServer() {
         : 90,
       events: workerEvents
     });
+    const workerWithEffectiveConfig = {
+      ...worker,
+      effectiveRunConfig: deriveWorkerEffectiveRunConfig({
+        runtime: worker.status === "missing" ? undefined : worker.runtime,
+        roleConfig: workerRoleConfig
+      })
+    };
     return {
-      ok: database.ok && rabbitmq.ok && worker.ok,
+      ok: database.ok && rabbitmq.ok && workerWithEffectiveConfig.ok,
       service: "dionysus-api",
       database,
       rabbitmq,
-      worker
+      worker: workerWithEffectiveConfig
     };
   });
 

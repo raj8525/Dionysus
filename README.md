@@ -72,6 +72,13 @@ Web: http://127.0.0.1:23101
 
 Dashboard 首页会显示 PostgreSQL、RabbitMQ、Worker heartbeat 与 CLI 探测状态。Codex 也可以用 `pnpm dionysus system doctor --brief` 查看同一套健康信息。
 
+Worker 健康状态区分两件事：
+
+- `runtime.workerCliType`：Worker 进程启动时的兼容 fallback，可能是 `mock`。
+- `worker.effectiveRunConfig`：实际执行 Worker 任务时使用的角色 CLI 配置，优先来自 PostgreSQL `agent_cli_configs`。
+
+判断当前 Worker 是否会调用真实 CLI 时，以 `worker.effectiveRunConfig`、Dashboard Worker 标签或 `pnpm dionysus agent config list` 为准，不要只看 runtime fallback。
+
 启动真实项目 fast lane 前，用 readiness 一次性检查 Dionysus Runtime、Agent CLI 配置和目标项目入口状态：
 
 ```bash
