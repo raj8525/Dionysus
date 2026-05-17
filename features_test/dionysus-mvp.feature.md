@@ -339,7 +339,8 @@ Then 只有数据基座 Worker 可以立即入队
 And 只读 API 和 Vue 只读首页 Worker 必须保持 `created`
 And 如果 Codex 或脚本提前调用 `task enqueue`，API 必须返回 `COUPON_DATA_FIRST_GATE_BLOCKED`
 When 数据基座 Worker 已完成且 Codex approve
-Then `fastlane status` 必须提示入队只读 API 和 Vue 只读首页 Worker
+Then API 必须自动并发派发只读 API 和 Vue 只读首页 Worker
+And `fastlane status` 必须在自动派发未发生或需要人工介入时提示入队命令
 And ReviewerCLI 必须等全部 Worker 完成后才能启动
 
 ## 场景 9：Master 自动识别里程碑候选

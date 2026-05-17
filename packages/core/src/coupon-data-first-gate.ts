@@ -2,6 +2,7 @@ export interface CouponDataFirstGateTask {
   id?: unknown;
   title?: unknown;
   status?: unknown;
+  role_required?: unknown;
 }
 
 export interface CouponDataFirstGateResult {
@@ -37,4 +38,22 @@ export function evaluateCouponDataFirstEnqueueGate(input: {
     error: "COUPON_DATA_FIRST_GATE_BLOCKED",
     reason: blockedReason
   };
+}
+
+export function selectCouponDataFirstFollowupTasks(input: {
+  reviewedTask: CouponDataFirstGateTask;
+  goalTasks: CouponDataFirstGateTask[];
+}): CouponDataFirstGateTask[] {
+  const reviewedTitle = String(input.reviewedTask.title ?? "");
+  const reviewedStatus = String(input.reviewedTask.status ?? "");
+  if (!reviewedTitle.startsWith("FastLane Worker") || !reviewedTitle.includes("数据基座") || reviewedStatus !== "done") {
+    return [];
+  }
+
+  return input.goalTasks.filter((task) => {
+    const title = String(task.title ?? "");
+    return String(task.status ?? "") === "created" &&
+      title.startsWith("FastLane Worker") &&
+      (title.includes("只读 API") || title.includes("Vue 只读首页"));
+  });
 }

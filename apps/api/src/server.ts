@@ -26,6 +26,7 @@ import {
   evaluateReviewerApprovalGate,
   evaluateTaskReviewRejectionPolicy,
   evaluateCouponDataFirstEnqueueGate,
+  selectCouponDataFirstFollowupTasks,
   shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
   taskReviewStatusForVerdict
@@ -1328,6 +1329,35 @@ async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTas
   const reviewedTaskId = String(reviewedTask.id);
   const goalId = String(reviewedTask.goal_id);
   const priority = Number(reviewedTask.priority ?? 0);
+  const goalTasks = await repo.listTasks(goalId);
+  const couponFollowups = selectCouponDataFirstFollowupTasks({ reviewedTask, goalTasks });
+  if (couponFollowups.length > 0) {
+    for (const nextTask of couponFollowups) {
+      const roleRequired = String(nextTask.role_required);
+      if (!["master", "rule_writer", "test_writer", "worker"].includes(roleRequired)) {
+        await repo.recordTaskEvent(reviewedTaskId, "review.dispatch_next_task_skipped", {
+          nextTaskId: String(nextTask.id),
+          reason: "invalid role",
+          roleRequired
+        });
+        continue;
+      }
+      await repo.markTaskQueued(String(nextTask.id));
+      await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
+        message_id: randomUUID(),
+        goal_id: goalId,
+        task_id: String(nextTask.id),
+        type: `${roleRequired}_task_review_approved_data_followup`,
+        attempt: 1,
+        idempotency_key: `${String(nextTask.id)}:${roleRequired}:data-followup:${Date.now()}`,
+        created_at: new Date().toISOString()
+      });
+    }
+    await repo.recordTaskEvent(reviewedTaskId, "review.dispatch_coupon_data_followups", {
+      nextTaskIds: couponFollowups.map((task) => String(task.id))
+    });
+    return;
+  }
   const nextTask = await repo.findNextCreatedTask({ goalId, afterPriority: priority });
   if (!nextTask) {
     await repo.recordTaskEvent(reviewedTaskId, "review.no_next_task", { goalId });

@@ -86,7 +86,7 @@ pnpm -s dionysus fastlane coupon-module-start \
 - `coupon-module-start` 只立即入队“数据基座”Worker。
 - “只读 API”和“Vue 只读首页”Worker 先保持 `created`，避免跳过数据库虚拟数据。
 - API 层会阻断提前 `task enqueue`，数据基座未完成时返回 `COUPON_DATA_FIRST_GATE_BLOCKED`。
-- 数据基座完成后，Codex 先 review/approve，再运行 `fastlane status` 获取 API/Vue 入队命令。
+- 数据基座完成后，Codex 先 review/approve；API 会自动并发派发 API/Vue，必要时再运行 `fastlane status` 获取手动入队命令。
 - API/Vue 可以在数据基座通过后并发；ReviewerCLI 必须等全部 Worker done 后才启动。
 
 ```bash
