@@ -434,8 +434,10 @@ pnpm dionysus integration retry --integration-id "<integration-id>"
 pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no-queue
 pnpm dionysus task enqueue --task-id "<task-id>"
 pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged sequence"
-pnpm dionysus task review --task-id "<task-id>" --verdict approve --reason "reviewed by Codex"
+pnpm dionysus task review --task-id "<task-id>" --verdict approve --score 90 --reason "reviewed by Codex"
 ```
+
+`task review` 请求体支持 `score`。普通 Worker 任务可由 Codex 直接 approve；`FastLane Reviewer` 任务执行 90 分质量门禁，`approve` 必须携带 `score >= 90`。缺少 `score` 或 `score < 90` 时 API 必须返回 `409 REVIEWER_SCORE_GATE_BLOCKED`，要求 Codex 改用 `--verdict reject` 并把具体修复项交回 WorkerCLI。
 
 `system worker start` 必须用 detached 进程启动 Worker Runtime，并把 stdout/stderr 写入 `.dionysus/logs/worker-*.log`。Codex 不应该依赖前台 shell 会话维持 Worker 心跳。
 

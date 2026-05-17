@@ -175,6 +175,14 @@ pnpm dionysus agent usage --target-root /Volumes/MacMiniSSD/code/Coupon
 
 `fastlane status` 会直接给出当前 phase、下一步动作和下一条命令，避免 Codex 手工从通用 `goal status` JSON 里猜测是否该 review Worker、等待 integration、启动 ReviewerCLI 或进入最终 E2E/发布。
 
+ReviewerCLI 任务不能口头说“通过”后直接放行。Codex 审查 Reviewer 输出后，只有分数达到 90 才能执行：
+
+```bash
+pnpm dionysus task review --task-id "<reviewer-task-id>" --verdict approve --score 90 --reason "Reviewer gate accepted by Codex"
+```
+
+低于 90 或没有分数时，API 会返回 `REVIEWER_SCORE_GATE_BLOCKED`；这时必须 `--verdict reject` 并把具体修复项交回 WorkerCLI。
+
 Coupon 管理后台页面任务有一条固定约束：`hotels.vue` 已经完成，不再参考 `apps/admin-web/html/hotels.html` 重写；其他页面迁移 Vue 时参考 `apps/admin-web/html/` 对应模板，但必须重写为响应式数据、接口调用、loading、error、empty state 和事件处理都完整的 Vue 页面，禁止通过 `v-html`、raw import 或长字符串注入 HTML。
 
 手动标记已有目标为 fast lane：

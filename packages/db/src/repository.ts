@@ -750,6 +750,7 @@ export class DionysusRepository {
     verdict: "approve" | "reject" | "block";
     nextStatus: "done" | "queued" | "blocked";
     reason: string;
+    reviewScore?: number;
   }): Promise<Record<string, unknown> | null> {
     const client = await this.pool.connect();
     try {
@@ -775,7 +776,12 @@ export class DionysusRepository {
           randomUUID(),
           input.taskId,
           `task.review_${input.verdict}`,
-          JSON.stringify({ verdict: input.verdict, nextStatus: input.nextStatus, reason: input.reason })
+          JSON.stringify({
+            verdict: input.verdict,
+            nextStatus: input.nextStatus,
+            reason: input.reason,
+            reviewScore: input.reviewScore ?? null
+          })
         ]
       );
       await client.query("commit");

@@ -309,7 +309,7 @@ export function buildFastLaneStatus(input: FastLaneStatusInput): FastLaneStatusS
       nextAction: "审查 ReviewerCLI 报告；90 分以下 reject，90 分以上进入 Codex 最终 E2E/发布。",
       nextCommands: reviewersNeedingReview.flatMap((task) => [
         `pnpm dionysus run logs --run-id <run-id-for-task-${String(task.id)}>`,
-        `pnpm dionysus task review --task-id ${String(task.id)} --verdict approve --reason "Reviewer gate accepted by Codex"`
+        `pnpm dionysus task review --task-id ${String(task.id)} --verdict approve --score 90 --reason "Reviewer gate accepted by Codex"`
       ]),
       counts,
       workerTasks,

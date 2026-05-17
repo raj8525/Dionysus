@@ -151,6 +151,14 @@ Reviewer 低于 90 分：不要应用 patch，创建迭代 Worker 任务。
 
 Reviewer 达到 90 分：Codex 继续做最终检查。
 
+Reviewer 任务 approve 时必须把分数交给 API：
+
+```bash
+pnpm -s dionysus task review --task-id "<reviewer-task-id>" --verdict approve --score 90 --reason "Reviewer gate accepted by Codex"
+```
+
+没有 `--score` 或低于 90 会被 API 拒绝。低于 90 时必须使用 `--verdict reject`，并在 `--reason` 中写清 WorkerCLI 需要修复的具体问题。
+
 ## Codex 最终检查
 
 Codex 必须亲自做：

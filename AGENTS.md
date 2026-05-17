@@ -80,7 +80,7 @@ pnpm dionysus goal supervise --goal-id "<goal-id>" --iterations 5 --interval-sec
 pnpm dionysus integration list --goal-id "<goal-id>"
 pnpm dionysus integration retry --integration-id "<integration-id>"
 pnpm dionysus task enqueue --task-id "<task-id>"
-pnpm dionysus task review --task-id "<task-id>" --verdict approve --reason "reviewed by Codex"
+pnpm dionysus task review --task-id "<task-id>" --verdict approve --score 90 --reason "reviewed by Codex"
 pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
 pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"
 pnpm dionysus e2e cases --campaign-id "<campaign-id>"
@@ -216,6 +216,7 @@ pnpm dionysus fastlane status --goal-id "<goal-id>"
 - Reviewer 任务默认只创建不入队，避免没有 Worker 产物时假审核。
 - Worker 产出 patch 并完成 integration 后，再用 `pnpm dionysus task enqueue --task-id "<reviewer-task-id>"` 启动 Reviewer。
 - 如已有集成产物需要立即审核，可显式加 `--queue-reviewers`。
+- Reviewer 任务 `approve` 必须带 `--score 90` 或更高；低于 90 或没有分数会被 API 以 `REVIEWER_SCORE_GATE_BLOCKED` 拒绝。低于 90 时必须用 `--verdict reject` 并写清 Worker 修复项。
 - 同一任务被 ReviewerCLI 第 10 次 reject 时，Dionysus 会阻断任务并写入 Codex Outbox；Codex 必须亲自接手，不能继续重排 WorkerCLI。
 - Coupon 页面任务必须在 worker prompt 中显式写清：`hotels.vue` 保持现状，只做必要接口或路由增量；除 `hotels.vue` 外的页面才参考对应 HTML 模板重写为 Vue。
 - `fastlane status` 必须能明确区分：等待 Worker、等待 Worker review、等待 integration、可启动 Reviewer、等待 Reviewer review、Codex final、blocked、closed。

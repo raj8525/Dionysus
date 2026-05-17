@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  evaluateReviewerApprovalGate,
   evaluateTaskReviewRejectionPolicy,
   shouldDispatchAfterTaskReview,
   taskReviewStatusForVerdict
@@ -51,5 +52,48 @@ describe("taskReviewStatusForVerdict", () => {
       verdict: "block",
       rejectionCount: 99
     }).action).toBe("none");
+  });
+
+  it("requires score >= 90 before approving FastLane Reviewer tasks", () => {
+    expect(evaluateReviewerApprovalGate({
+      taskTitle: "FastLane Reviewer 1: 质量门禁",
+      verdict: "approve"
+    })).toEqual({
+      allowed: false,
+      threshold: 90,
+      reason: "FastLane Reviewer approval requires review score >= 90; score is missing."
+    });
+
+    expect(evaluateReviewerApprovalGate({
+      taskTitle: "FastLane Reviewer 1: 质量门禁",
+      verdict: "approve",
+      score: 89
+    })).toEqual({
+      allowed: false,
+      threshold: 90,
+      score: 89,
+      reason: "FastLane Reviewer score 89 is below 90; reject and send concrete fixes back to WorkerCLI."
+    });
+
+    expect(evaluateReviewerApprovalGate({
+      taskTitle: "FastLane Reviewer 1: 质量门禁",
+      verdict: "approve",
+      score: 90
+    })).toEqual({
+      allowed: true,
+      threshold: 90,
+      score: 90
+    });
+  });
+
+  it("does not require scores for Worker task approval or reviewer rejection", () => {
+    expect(evaluateReviewerApprovalGate({
+      taskTitle: "FastLane Worker 1: 后端",
+      verdict: "approve"
+    }).allowed).toBe(true);
+    expect(evaluateReviewerApprovalGate({
+      taskTitle: "FastLane Reviewer 1: 质量门禁",
+      verdict: "reject"
+    }).allowed).toBe(true);
   });
 });

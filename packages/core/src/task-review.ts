@@ -5,6 +5,7 @@ export type TaskReviewNextStatus = Extract<TaskStatus, "done" | "queued" | "bloc
 export type TaskReviewRejectionPolicyAction = "none" | "retry" | "codex_takeover";
 
 export const DEFAULT_REVIEW_REJECTION_TAKEOVER_THRESHOLD = 10;
+export const DEFAULT_REVIEWER_APPROVAL_SCORE_THRESHOLD = 90;
 
 export function taskReviewStatusForVerdict(verdict: TaskReviewVerdict): TaskReviewNextStatus {
   const statuses = {
@@ -43,4 +44,49 @@ export function evaluateTaskReviewRejectionPolicy(input: {
     };
   }
   return { action: "retry", threshold, rejectionCount };
+}
+
+export function evaluateReviewerApprovalGate(input: {
+  taskTitle?: string;
+  verdict: TaskReviewVerdict;
+  score?: number | null;
+  threshold?: number;
+}): {
+  allowed: boolean;
+  threshold: number;
+  score?: number;
+  reason?: string;
+} {
+  const threshold = input.threshold ?? DEFAULT_REVIEWER_APPROVAL_SCORE_THRESHOLD;
+  const title = input.taskTitle ?? "";
+  const isFastLaneReviewer = title.startsWith("FastLane Reviewer");
+  if (!isFastLaneReviewer || input.verdict !== "approve") {
+    return { allowed: true, threshold, score: normalizeScore(input.score) };
+  }
+
+  const score = normalizeScore(input.score);
+  if (score === undefined) {
+    return {
+      allowed: false,
+      threshold,
+      reason: `FastLane Reviewer approval requires review score >= ${threshold}; score is missing.`
+    };
+  }
+
+  if (score < threshold) {
+    return {
+      allowed: false,
+      threshold,
+      score,
+      reason: `FastLane Reviewer score ${score} is below ${threshold}; reject and send concrete fixes back to WorkerCLI.`
+    };
+  }
+
+  return { allowed: true, threshold, score };
+}
+
+function normalizeScore(score: number | null | undefined): number | undefined {
+  if (score === null || score === undefined) return undefined;
+  if (!Number.isFinite(score)) return undefined;
+  return Math.max(0, Math.min(100, Math.floor(score)));
 }

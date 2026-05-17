@@ -95,6 +95,22 @@ describe("dionysus fast lane planner", () => {
     expect(status.nextCommands).toEqual(["pnpm dionysus task enqueue --task-id r1"]);
   });
 
+  it("requires a reviewer approval score in the suggested handoff command", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-review", status: "fast_lane" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 后端", "done"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "needs_review")
+      ],
+      integrations: [],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("reviewer_review");
+    expect(status.nextCommands).toContain("pnpm dionysus run logs --run-id <run-id-for-task-r1>");
+    expect(status.nextCommands).toContain("pnpm dionysus task review --task-id r1 --verdict approve --score 90 --reason \"Reviewer gate accepted by Codex\"");
+  });
+
   it("prioritizes Codex outbox blockers over normal fast lane flow", () => {
     const status = buildFastLaneStatus({
       goal: { id: "goal-3", status: "fast_lane" },

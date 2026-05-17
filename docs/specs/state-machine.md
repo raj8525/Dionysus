@@ -53,6 +53,7 @@ cancelled
 - Task 只能从 `created`、`queued`、`failed` 原子进入 `running`；如果同一 task 已经 `running`，重复队列消息必须记录 `task.run_skipped_already_active` 并退出，不能再创建第二个 running run。
 - Agent run 成功后必须进入 `needs_review`，不得直接放行下一任务。
 - 只有 `task review --verdict approve` 才能将任务标记为 `done` 并放行下一条 created task。
+- `FastLane Reviewer` 任务执行 90 分质量门禁；`task review --verdict approve` 必须携带 `score >= 90`，否则 API 必须拒绝状态迁移。
 - `task review --verdict reject` 只能把当前任务退回 `queued` 并重跑当前任务，不得放行下一任务。
 - `task review --verdict block` 只能把当前任务标记为 `blocked`，不得放行下一任务。
 - 同一任务第 10 次 `task review --verdict reject` 后必须强制进入 `blocked`，并写入 Codex Outbox `blocker`，由 Codex 亲自接手；不得继续 requeue WorkerCLI。

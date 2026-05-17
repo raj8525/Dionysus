@@ -23,6 +23,7 @@ import {
   findUnmanagedGitChanges,
   resolveNotificationChannels,
   queueForRole,
+  evaluateReviewerApprovalGate,
   evaluateTaskReviewRejectionPolicy,
   shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
@@ -122,7 +123,8 @@ const cancelTaskSchema = z.object({
 
 const reviewTaskSchema = z.object({
   verdict: z.enum(["approve", "reject", "block"]),
-  reason: z.string().min(1).default("reviewed by Codex")
+  reason: z.string().min(1).default("reviewed by Codex"),
+  score: z.number().int().min(0).max(100).optional()
 });
 
 const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS ?? "90", 10);
@@ -573,12 +575,31 @@ export async function buildServer() {
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_TASK_REVIEW_INPUT", details: parsed.error.flatten() });
     }
+    const reviewTarget = await repo.getTask(id);
+    if (!reviewTarget || reviewTarget.status !== "needs_review") {
+      return reply.code(409).send({ error: "TASK_NOT_REVIEWABLE", requiredStatus: "needs_review" });
+    }
+    const reviewerApprovalGate = evaluateReviewerApprovalGate({
+      taskTitle: String(reviewTarget.title ?? ""),
+      verdict: parsed.data.verdict,
+      score: parsed.data.score
+    });
+    if (!reviewerApprovalGate.allowed) {
+      return reply.code(409).send({
+        error: "REVIEWER_SCORE_GATE_BLOCKED",
+        requiredScore: reviewerApprovalGate.threshold,
+        score: reviewerApprovalGate.score ?? null,
+        reason: reviewerApprovalGate.reason,
+        requiredAction: "Use --verdict reject below 90 and include concrete Worker fix instructions; only approve ReviewerCLI results with --score >= 90."
+      });
+    }
     const nextStatus = taskReviewStatusForVerdict(parsed.data.verdict);
     const task = await repo.reviewTask({
       taskId: id,
       verdict: parsed.data.verdict,
       nextStatus,
-      reason: parsed.data.reason
+      reason: parsed.data.reason,
+      reviewScore: parsed.data.score
     });
     if (!task) {
       return reply.code(409).send({ error: "TASK_NOT_REVIEWABLE", requiredStatus: "needs_review" });
