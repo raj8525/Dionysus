@@ -6,7 +6,7 @@ import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
-import { buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
+import { buildCouponDataFirstFastLanePlan, buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
 import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./dionysus-readiness.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
@@ -183,6 +183,62 @@ async function main(): Promise<void> {
       reviewers: readRepeatedFlag(args, "--reviewer").map(parseFastLaneItem),
       queueReviewers: hasFlag(args, "--queue-reviewers")
     }));
+  }
+
+  if (domain === "fastlane" && action === "coupon-module-plan") {
+    return print(buildCouponDataFirstFastLanePlan({
+      module: requiredFlag(args, "--module"),
+      title: requiredFlag(args, "--title"),
+      description: requiredFlag(args, "--description"),
+      targetRoot: requiredFlag(args, "--target-root"),
+      pagePath: requiredFlag(args, "--page"),
+      apiPath: requiredFlag(args, "--api"),
+      htmlTemplatePath: readFlag(args, "--html-template")
+    }));
+  }
+
+  if (domain === "fastlane" && action === "coupon-module-start") {
+    const targetRoot = requiredFlag(args, "--target-root");
+    const readiness = await collectReadinessSummary(targetRoot, readRepeatedFlag(args, "--allow-dirty-path"));
+    assertReadyForFastLaneStart(readiness);
+    const plan = buildCouponDataFirstFastLanePlan({
+      module: requiredFlag(args, "--module"),
+      title: requiredFlag(args, "--title"),
+      description: requiredFlag(args, "--description"),
+      targetRoot,
+      pagePath: requiredFlag(args, "--page"),
+      apiPath: requiredFlag(args, "--api"),
+      htmlTemplatePath: readFlag(args, "--html-template")
+    });
+    if (hasFlag(args, "--dry-run")) {
+      return print({
+        status: "dry_run",
+        readiness,
+        plan
+      });
+    }
+    const createdGoal = await request("/api/goals", "POST", plan.goal) as { id: string };
+    const goal = await request(`/api/goals/${createdGoal.id}/fast-lane`, "POST", {
+      reason: "created by dionysus coupon-module-start"
+    }) as { id: string };
+    const tasks = [];
+    for (const task of plan.tasks) {
+      tasks.push(await request("/api/tasks", "POST", {
+        goalId: goal.id,
+        title: task.title,
+        description: task.description,
+        roleRequired: task.roleRequired,
+        priority: task.priority,
+        queue: task.queue
+      }));
+    }
+    return print({
+      goal,
+      tasks,
+      reviewerTasks: tasks.filter((task) => String((task as Record<string, unknown>).status) === "created"),
+      readiness,
+      nextCommands: plan.nextCommands.map((command) => command.replaceAll("<goal-id>", goal.id))
+    });
   }
 
   if (domain === "fastlane" && action === "start") {
@@ -828,6 +884,8 @@ function usage(): void {
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
   tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面"
+  tsx tools/dionysus.ts fastlane coupon-module-plan --module "租户管理" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/hotels.vue" --api "/api/admin/tenants" [--html-template "apps/admin-web/html/hotels.html"]
+  tsx tools/dionysus.ts fastlane coupon-module-start --module "租户管理" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/hotels.vue" --api "/api/admin/tenants" [--html-template "apps/admin-web/html/hotels.html"] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane status --goal-id "..."
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."

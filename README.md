@@ -134,6 +134,37 @@ pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
 
 需要先预演时加 `--dry-run`，它只执行 readiness 和计划生成，不创建 goal / task。
 
+Coupon 模块开发优先使用数据先行模板，而不是手写 `--worker`。它会固定拆成：
+
+- 数据基座 Worker：migration、完整 seed、契约和 features_test。
+- 只读 API Worker：从 PostgreSQL 返回页面需要的全部字段。
+- Vue 只读首页 Worker：接真实 API、保留成熟交互、禁止 HTML 注入。
+- ReviewerCLI：90 分质量门禁，确认本轮只做读闭环，不混入写路径。
+
+```bash
+pnpm dionysus fastlane coupon-module-plan \
+  --module "租户管理" \
+  --title "租户管理只读闭环" \
+  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/tenants" \
+  --html-template "apps/admin-web/html/hotels.html"
+```
+
+确认计划后启动：
+
+```bash
+pnpm dionysus fastlane coupon-module-start \
+  --module "租户管理" \
+  --title "租户管理只读闭环" \
+  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/tenants" \
+  --html-template "apps/admin-web/html/hotels.html"
+```
+
 ```bash
 pnpm dionysus fastlane plan \
   --title "库存流水查询闭环" \

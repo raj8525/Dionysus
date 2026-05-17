@@ -159,6 +159,7 @@ export function buildCodexReadinessSummary(input: {
     nextCommands: status === "ready"
       ? [
         `cd ${input.targetRoot} && git status --short`,
+        "cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus fastlane coupon-module-plan --module \"...\" --title \"...\" --description \"...\" --target-root \"" + input.targetRoot + "\" --page \"apps/admin-web/src/pages/<module>.vue\" --api \"/api/admin/<module>\" --html-template \"apps/admin-web/html/<module>.html\"",
         "cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus fastlane plan --title \"...\" --description \"...\" --target-root \"" + input.targetRoot + "\" --worker \"...::...\""
       ]
       : [

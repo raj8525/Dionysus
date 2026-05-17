@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
+import {
+  buildCouponDataFirstFastLanePlan,
+  buildFastLanePlan,
+  buildFastLaneStatus,
+  parseFastLaneItem
+} from "./dionysus-fastlane.js";
 
 describe("dionysus fast lane planner", () => {
   it("parses title and description from CLI item syntax", () => {
@@ -109,6 +114,32 @@ describe("dionysus fast lane planner", () => {
     expect(status.phase).toBe("reviewer_review");
     expect(status.nextCommands).toContain("pnpm dionysus run logs --run-id <run-id-for-task-r1>");
     expect(status.nextCommands).toContain("pnpm dionysus task review --task-id r1 --verdict approve --score 90 --reason \"Reviewer gate accepted by Codex\"");
+  });
+
+  it("builds a Coupon data-first module plan before write-path work", () => {
+    const plan = buildCouponDataFirstFastLanePlan({
+      module: "租户管理",
+      title: "租户管理只读闭环",
+      description: "让最终用户在酒店租户首页看到数据库中的完整租户事实数据",
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      pagePath: "apps/admin-web/src/pages/hotels.vue",
+      apiPath: "/api/admin/tenants",
+      htmlTemplatePath: "apps/admin-web/html/hotels.html"
+    });
+
+    expect(plan.goal.title).toBe("租户管理只读闭环");
+    expect(plan.tasks.map((task) => task.lane)).toEqual(["worker", "worker", "worker", "reviewer"]);
+    expect(plan.tasks.map((task) => task.queue)).toEqual([true, true, true, false]);
+    expect(plan.tasks[0].description).toContain("先补数据库表结构和完整虚拟数据");
+    expect(plan.tasks[0].description).toContain("migrations/");
+    expect(plan.tasks[1].description).toContain("只读 API");
+    expect(plan.tasks[1].description).toContain("/api/admin/tenants");
+    expect(plan.tasks[2].description).toContain("Vue 页面必须读取真实接口数据");
+    expect(plan.tasks[2].description).toContain("禁止 v-html");
+    expect(plan.tasks[2].description).toContain("hotels.vue 已经是成熟页面");
+    expect(plan.tasks[3].description).toContain("90 分质量门禁");
+    expect(plan.tasks[3].description).toContain("写路径不得进入本轮范围");
+    expect(plan.nextCommands.join("\n")).toContain("fastlane status");
   });
 
   it("prioritizes Codex outbox blockers over normal fast lane flow", () => {

@@ -53,6 +53,34 @@ pnpm -s dionysus system readiness \
 
 ## Fast Lane 目标创建
 
+Coupon 真实模块优先使用专用数据先行模板，除非任务不是 Coupon 模块或需要非常特殊的拆分。它固定按“数据基座 → 只读 API → Vue 只读首页 → ReviewerCLI”拆任务，避免漏掉数据库虚拟数据、接口字段、动态页面和最终用户验收。
+
+```bash
+pnpm -s dionysus fastlane coupon-module-plan \
+  --module "租户管理" \
+  --title "租户管理只读闭环" \
+  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/tenants" \
+  --html-template "apps/admin-web/html/hotels.html"
+```
+
+确认计划后启动：
+
+```bash
+pnpm -s dionysus fastlane coupon-module-start \
+  --module "租户管理" \
+  --title "租户管理只读闭环" \
+  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/tenants" \
+  --html-template "apps/admin-web/html/hotels.html"
+```
+
+`coupon-module-start` 和普通 `fastlane start` 一样会先执行 readiness，支持 `--allow-dirty-path` 和 `--dry-run`。本模板默认禁止写路径，写接口只能在只读闭环验收后作为下一轮模块里程碑。
+
 ```bash
 pnpm -s dionysus fastlane plan \
   --title "简短目标" \

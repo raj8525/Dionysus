@@ -35,6 +35,7 @@ describe("Codex readiness summary", () => {
     expect(summary.status).toBe("ready");
     expect(summary.blockers).toEqual([]);
     expect(summary.nextAction).toContain("可以启动 fast lane");
+    expect(summary.nextCommands.join("\n")).toContain("fastlane coupon-module-plan");
   });
 
   it("blocks when target worktree is dirty or worker is still mock", () => {

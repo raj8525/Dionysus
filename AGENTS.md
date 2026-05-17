@@ -56,6 +56,8 @@ pnpm dionysus agent config set --role worker --cli opencode --model "minimax/Min
 pnpm dionysus agent status --goal-id "<goal-id>"
 pnpm dionysus agent usage --goal-id "<goal-id>"
 pnpm dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
+pnpm dionysus fastlane coupon-module-plan --module "租户管理" --title "租户管理只读闭环" --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" --target-root /Volumes/MacMiniSSD/code/Coupon --page "apps/admin-web/src/pages/hotels.vue" --api "/api/admin/tenants" --html-template "apps/admin-web/html/hotels.html"
+pnpm dionysus fastlane coupon-module-start --module "租户管理" --title "租户管理只读闭环" --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" --target-root /Volumes/MacMiniSSD/code/Coupon --page "apps/admin-web/src/pages/hotels.vue" --api "/api/admin/tenants" --html-template "apps/admin-web/html/hotels.html"
 pnpm dionysus fastlane plan --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
 pnpm dionysus fastlane start --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
 pnpm dionysus fastlane status --goal-id "<goal-id>"
@@ -192,6 +194,39 @@ pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon --a
 `fastlane start` 会自动执行同一套 readiness 门禁；未通过时不会创建 goal 或 task。如需允许已确认既有改动，必须把同一组 `--allow-dirty-path` 传给 `fastlane start`。
 
 需要先确认门禁和拆分是否正确时，用 `--dry-run` 预演；它不会创建 goal 或 task。
+
+Coupon 模块开发优先用专用数据先行模板，避免 Codex 手写 Worker 时漏掉 seed、读接口、Vue 动态数据或 E2E 验收：
+
+```bash
+pnpm dionysus fastlane coupon-module-plan \
+  --module "租户管理" \
+  --title "租户管理只读闭环" \
+  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/tenants" \
+  --html-template "apps/admin-web/html/hotels.html"
+```
+
+该模板固定生成 3 个 Worker 和 1 个 Reviewer：
+
+- 数据基座：先补 `migrations/`、完整虚拟数据、契约和 `features_test/`。
+- 只读 API：只做从 PostgreSQL 读取的接口和测试，不做写接口。
+- Vue 只读首页：页面读取真实接口数据，禁止 `v-html`、raw HTML import 或长字符串整页模板。
+- Reviewer：90 分门禁，确认数据、接口、页面、E2E 证据和本轮无写路径。
+
+启动时使用：
+
+```bash
+pnpm dionysus fastlane coupon-module-start \
+  --module "租户管理" \
+  --title "租户管理只读闭环" \
+  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --page "apps/admin-web/src/pages/hotels.vue" \
+  --api "/api/admin/tenants" \
+  --html-template "apps/admin-web/html/hotels.html"
+```
 
 ```bash
 pnpm dionysus fastlane start \

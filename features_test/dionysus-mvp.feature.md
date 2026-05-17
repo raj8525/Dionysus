@@ -321,6 +321,16 @@ Then Dionysus 必须反向应用 patch 回滚
 And 目标 Git 工作区必须恢复干净
 And integration 必须标记为 `failed`
 
+## 场景 8.4：Coupon 模块必须优先生成数据先行只读计划
+
+Given Codex 准备开发 Coupon 的一个完整业务模块
+When Codex 运行 `pnpm dionysus fastlane coupon-module-plan`
+Then Dionysus 必须固定生成数据基座、只读 API、Vue 只读首页和 ReviewerCLI 四类任务
+And 数据基座任务必须要求先补数据库表结构、完整虚拟数据、契约和 `features_test/`
+And 只读 API 任务必须禁止写接口进入本轮范围
+And Vue 任务必须要求读取真实接口数据并禁止 `v-html`、raw HTML import 或长字符串整页模板
+And ReviewerCLI 必须执行 90 分门禁，检查数据、接口、页面、E2E 证据和本轮无写路径
+
 ## 场景 9：Master 自动识别里程碑候选
 
 Given integration queue 已通过
