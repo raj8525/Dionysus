@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCodexReadinessSummary } from "./dionysus-readiness.js";
+import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./dionysus-readiness.js";
 
 describe("Codex readiness summary", () => {
   it("passes only when runtime, configured CLI agents, and target project are ready", () => {
@@ -124,5 +124,39 @@ describe("Codex readiness summary", () => {
     expect(blocked.target.allowedDirtyChanges).toEqual([" M apps/admin-web/src/pages/login.vue"]);
     expect(blocked.target.blockingChanges).toEqual([" M apps/admin-web/src/pages/hotels.vue"]);
     expect(blocked.blockers).toContain("目标项目存在未允许的工作区改动：1 个");
+  });
+
+  it("throws before fastlane start when readiness is blocked", () => {
+    const summary = buildCodexReadinessSummary({
+      targetRoot: "/repo/Coupon",
+      health: {
+        ok: true,
+        database: { ok: true },
+        rabbitmq: { ok: true },
+        worker: { ok: true }
+      },
+      cliProbe: [
+        { cliType: "opencode", available: true }
+      ],
+      configs: [
+        { role: "worker", cliType: "mock", enabled: true }
+      ],
+      target: {
+        gitClean: false,
+        changes: [" M apps/admin-web/src/pages/login.vue"],
+        hasAgentsMd: true,
+        hasPlan: true,
+        hasSpecs: true,
+        hasFeaturesTest: true
+      }
+    });
+
+    expect(() => assertReadyForFastLaneStart(summary)).toThrow("fastlane start blocked by readiness");
+    expect(() => assertReadyForFastLaneStart(summary)).toThrow("Worker 仍配置为 mock");
+    expect(() => assertReadyForFastLaneStart({
+      ...summary,
+      status: "ready",
+      blockers: []
+    })).not.toThrow();
   });
 });

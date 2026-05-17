@@ -52,6 +52,20 @@ export interface CodexReadinessSummary {
   nextCommands: string[];
 }
 
+export function assertReadyForFastLaneStart(summary: CodexReadinessSummary): void {
+  if (summary.status === "ready") {
+    return;
+  }
+
+  throw new Error([
+    "fastlane start blocked by readiness",
+    ...summary.blockers.map((blocker) => `- ${blocker}`),
+    "",
+    "Run:",
+    `pnpm -s dionysus system readiness --target-root ${summary.targetRoot}`
+  ].join("\n"));
+}
+
 const requiredRoles: AgentRole[] = ["master", "rule_writer", "test_writer", "worker"];
 
 export function buildCodexReadinessSummary(input: {

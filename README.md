@@ -130,6 +130,10 @@ pnpm goal:create -- \
 pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
 ```
 
+`fastlane start` 会自动执行同一套 readiness 门禁；如果未通过，不会创建 goal / task。存在已确认既有脏路径时，把同一组 `--allow-dirty-path` 传给 `fastlane start`。
+
+需要先预演时加 `--dry-run`，它只执行 readiness 和计划生成，不创建 goal / task。
+
 ```bash
 pnpm dionysus fastlane plan \
   --title "库存流水查询闭环" \

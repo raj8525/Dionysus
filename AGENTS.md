@@ -179,6 +179,10 @@ pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon --a
 
 只能允许具体文件或明确目录，不能把未知改动一概放行。
 
+`fastlane start` 会自动执行同一套 readiness 门禁；未通过时不会创建 goal 或 task。如需允许已确认既有改动，必须把同一组 `--allow-dirty-path` 传给 `fastlane start`。
+
+需要先确认门禁和拆分是否正确时，用 `--dry-run` 预演；它不会创建 goal 或 task。
+
 ```bash
 pnpm dionysus fastlane start \
   --title "库存流水查询闭环" \

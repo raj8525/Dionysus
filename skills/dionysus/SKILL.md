@@ -62,7 +62,7 @@ pnpm -s dionysus fastlane plan \
   --worker "前端::明确文件范围、验收标准、测试命令"
 ```
 
-确认拆分后启动：
+确认拆分后启动。`fastlane start` 会自动执行 readiness；如果目标项目存在未允许的脏改动、Worker 仍为 mock、CLI 不可用或 SDD/TDD 入口缺失，会直接失败，不会创建 goal / task：
 
 ```bash
 pnpm -s dionysus fastlane start \
@@ -74,7 +74,20 @@ pnpm -s dionysus fastlane start \
   --reviewer "ReviewerCLI 90分门禁::检查契约、测试、UI、真实数据与可合并性"
 ```
 
-记录返回的 `goal-id`。`fastlane start` 会创建 `fast_lane` goal、入队 Worker 任务，并创建但默认不入队 Reviewer 任务。`fast_lane` goal 会被 Master Control 排除，防止完整 Master 状态机重复拆任务。
+如需在已确认的既有脏路径旁边启动无关任务，必须把同一组 `--allow-dirty-path` 传给 `fastlane start`。
+
+不确定是否会通过门禁时，先加 `--dry-run`。它会执行 readiness 和计划生成，但不创建 goal/task：
+
+```bash
+pnpm -s dionysus fastlane start \
+  --title "门禁预演" \
+  --description "只验证 readiness 和任务拆分，不启动 Worker" \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --worker "后端::只读检查" \
+  --dry-run
+```
+
+记录返回的 `goal-id`。`fastlane start` 通过 readiness 后会创建 `fast_lane` goal、入队 Worker 任务，并创建但默认不入队 Reviewer 任务。`fast_lane` goal 会被 Master Control 排除，防止完整 Master 状态机重复拆任务。
 
 ## 并行 WorkerCLI
 

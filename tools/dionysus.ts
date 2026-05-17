@@ -7,7 +7,7 @@ import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
-import { buildCodexReadinessSummary } from "./dionysus-readiness.js";
+import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./dionysus-readiness.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
@@ -66,20 +66,7 @@ async function main(): Promise<void> {
 
   if (domain === "system" && action === "readiness") {
     const targetRoot = requiredFlag(args, "--target-root");
-    const [health, cliProbe, configs, target] = await Promise.all([
-      request("/health") as Promise<Record<string, unknown>>,
-      request("/api/cli/probe", "POST") as Promise<Array<Record<string, unknown>>>,
-      request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
-      inspectReadinessTarget(targetRoot)
-    ]);
-    return print(buildCodexReadinessSummary({
-      targetRoot,
-      health,
-      cliProbe,
-      configs,
-      target,
-      allowedDirtyPaths: readRepeatedFlag(args, "--allow-dirty-path")
-    }));
+    return print(await collectReadinessSummary(targetRoot, readRepeatedFlag(args, "--allow-dirty-path")));
   }
 
   if (domain === "system" && action === "worker" && args[0] === "start") {
@@ -199,14 +186,24 @@ async function main(): Promise<void> {
   }
 
   if (domain === "fastlane" && action === "start") {
+    const targetRoot = requiredFlag(args, "--target-root");
+    const readiness = await collectReadinessSummary(targetRoot, readRepeatedFlag(args, "--allow-dirty-path"));
+    assertReadyForFastLaneStart(readiness);
     const plan = buildFastLanePlan({
       title: requiredFlag(args, "--title"),
       description: requiredFlag(args, "--description"),
-      targetRoot: requiredFlag(args, "--target-root"),
+      targetRoot,
       workers: readRepeatedFlag(args, "--worker").map(parseFastLaneItem),
       reviewers: readRepeatedFlag(args, "--reviewer").map(parseFastLaneItem),
       queueReviewers: hasFlag(args, "--queue-reviewers")
     });
+    if (hasFlag(args, "--dry-run")) {
+      return print({
+        status: "dry_run",
+        readiness,
+        plan
+      });
+    }
     const createdGoal = await request("/api/goals", "POST", plan.goal) as { id: string };
     const goal = await request(`/api/goals/${createdGoal.id}/fast-lane`, "POST", {
       reason: "created by dionysus fastlane start"
@@ -226,6 +223,7 @@ async function main(): Promise<void> {
       goal,
       tasks,
       reviewerTasks: tasks.filter((task) => String((task as Record<string, unknown>).status) === "created"),
+      readiness,
       nextCommands: plan.nextCommands.map((command) => command.replaceAll("<goal-id>", goal.id))
     });
   }
@@ -562,6 +560,23 @@ async function collectCampaignsForMilestones(milestones: Array<Record<string, un
   return campaigns;
 }
 
+async function collectReadinessSummary(targetRoot: string, allowedDirtyPaths: string[]): Promise<ReturnType<typeof buildCodexReadinessSummary>> {
+  const [health, cliProbe, configs, target] = await Promise.all([
+    request("/health") as Promise<Record<string, unknown>>,
+    request("/api/cli/probe", "POST") as Promise<Array<Record<string, unknown>>>,
+    request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
+    inspectReadinessTarget(targetRoot)
+  ]);
+  return buildCodexReadinessSummary({
+    targetRoot,
+    health,
+    cliProbe,
+    configs,
+    target,
+    allowedDirtyPaths
+  });
+}
+
 async function superviseGoal(input: {
   goalId: string;
   iterations: number;
@@ -812,7 +827,7 @@ function usage(): void {
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
   tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面"
-  tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers]
+  tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane status --goal-id "..."
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
   tsx tools/dionysus.ts release list --goal-id "..."
