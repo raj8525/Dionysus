@@ -219,6 +219,8 @@ POST /api/releases
 
 当 Codex 处理 `release_ready`，完成最终验证、提交和推送后，必须写入 release record。该记录是 Dionysus 判断目标项目是否真正发布到 Git 主线的审计证据，不能只依赖当前会话自然语言。
 
+`release record` 同时是 goal 状态闭环的事实源：当记录为 `status=passed` 且 `pushed=true` 时，API 必须自动把仍处于活动状态的 goal 更新为 `done`；当记录为 `status=failed` 或 `status=blocked` 时，API 必须分别把仍处于活动状态的 goal 更新为 `failed` 或 `blocked`。已经处于 `done`、`failed`、`cancelled` 的终态 goal 不得被 release record 重新打开或覆盖。
+
 创建请求：
 
 ```json

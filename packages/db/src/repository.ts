@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   buildAgentCliUsageSummary,
+  deriveGoalStatusAfterRelease,
   normalizeAgentCliConfig,
   selectAgentForRun,
   shouldReconcileCodexOutboxForGoalStatus
@@ -524,6 +525,39 @@ export class DionysusRepository {
           pushed: input.pushed
         })]
       );
+      const goalResult = await client.query(
+        `select status
+         from ${this.table("goals")}
+         where id = $1
+         for update`,
+        [input.goalId]
+      );
+      const nextGoalStatus = goalResult.rowCount
+        ? deriveGoalStatusAfterRelease({
+          currentStatus: goalResult.rows[0].status as Goal["status"],
+          releaseStatus: input.status,
+          pushed: input.pushed
+        })
+        : null;
+      if (nextGoalStatus) {
+        await client.query(
+          `update ${this.table("goals")}
+           set status = $2, updated_at = now()
+           where id = $1 and status not in ('done', 'failed', 'cancelled')`,
+          [input.goalId, nextGoalStatus]
+        );
+        await client.query(
+          `insert into ${this.table("system_events")} (id, event_type, payload_json)
+           values ($1, $2, $3)`,
+          [randomUUID(), "goal.release_status_applied", JSON.stringify({
+            goalId: input.goalId,
+            releaseRecordId: result.rows[0].id,
+            releaseStatus: input.status,
+            pushed: input.pushed,
+            goalStatus: nextGoalStatus
+          })]
+        );
+      }
       await client.query("commit");
       return mapReleaseRecord(result.rows[0]);
     } catch (error) {

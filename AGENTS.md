@@ -130,7 +130,7 @@ pnpm dionysus release record --goal-id "<goal-id>" --codex-outbox-event-id "<eve
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
-`release record` 是 Codex 发布闭环的正式证据，必须包含 commit、branch、是否 push、改动文件、验证命令和中文摘要。`release_ready` 没有对应 `--codex-outbox-event-id` 的 release record 时，ack 会被 API 拒绝；只有人工破例才使用 `pnpm dionysus codex ack --event-id "<event-id>" --force`。
+`release record` 是 Codex 发布闭环的正式证据，必须包含 commit、branch、是否 push、改动文件、验证命令和中文摘要。`status=passed` 且 `pushed=true` 的 release record 会自动把对应 goal 标记为 `done`，所以不要再手工 cancel 已发布目标。`status=failed` / `status=blocked` 会分别把仍处于活动状态的 goal 标记为 `failed` / `blocked`。`release_ready` 没有对应 `--codex-outbox-event-id` 的 release record 时，ack 会被 API 拒绝；只有人工破例才使用 `pnpm dionysus codex ack --event-id "<event-id>" --force`。
 
 `codex heartbeat` 会先自动执行一次 `codex reconcile`，把已经由 integration queue 证明解决的旧 blocker 自动 ack，避免 Codex 被陈旧阻塞误导。需要单独核查清理结果时运行：
 

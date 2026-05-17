@@ -139,6 +139,8 @@ pnpm -s dionysus release record --goal-id "<goal-id>" --codex-outbox-event-id "<
 pnpm -s dionysus codex ack --event-id "<event-id>"
 ```
 
+`status=passed` 且 `--pushed true` 的 release record 会自动把对应 goal 标记为 `done`。不要再为已发布目标执行 `goal cancel`；如果 `goal list` 仍显示旧状态，先检查 Dionysus API 是否运行的是当前代码，再重新写入或查看 release record。`status=failed` / `status=blocked` 会把仍处于活动状态的 goal 标记为 `failed` / `blocked`，用于保留失败证据。
+
 命令行兜底入口仍然是：
 
 ```bash
