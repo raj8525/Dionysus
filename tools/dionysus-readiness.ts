@@ -22,6 +22,8 @@ export interface ReadinessAgentConfigInput {
 export interface ReadinessTargetInput {
   gitClean: boolean;
   changes: string[];
+  allowedDirtyChanges?: string[];
+  blockingChanges?: string[];
   hasAgentsMd: boolean;
   hasPlan: boolean;
   hasSpecs: boolean;
@@ -58,6 +60,7 @@ export function buildCodexReadinessSummary(input: {
   cliProbe: ReadinessCliProbeInput[];
   configs: ReadinessAgentConfigInput[];
   target: ReadinessTargetInput;
+  allowedDirtyPaths?: string[];
 }): CodexReadinessSummary {
   const availableCliTypes = new Set(
     input.cliProbe
@@ -111,8 +114,13 @@ export function buildCodexReadinessSummary(input: {
     blockers.push("Worker 仍配置为 mock，不能证明低成本真实 CLI 可用");
   }
 
-  if (!input.target.gitClean) {
+  const allowedDirtyPaths = input.allowedDirtyPaths ?? [];
+  const allowedDirtyChanges = input.target.changes.filter((change) => isAllowedDirtyChange(change, allowedDirtyPaths));
+  const blockingChanges = input.target.changes.filter((change) => !isAllowedDirtyChange(change, allowedDirtyPaths));
+  if (!input.target.gitClean && allowedDirtyPaths.length === 0) {
     blockers.push(`目标项目工作区不干净：${input.target.changes.length} 个改动`);
+  } else if (blockingChanges.length > 0) {
+    blockers.push(`目标项目存在未允许的工作区改动：${blockingChanges.length} 个`);
   }
   if (!input.target.hasAgentsMd) blockers.push("目标项目缺少 AGENTS.md");
   if (!input.target.hasPlan) blockers.push("目标项目缺少 docs/PLAN.md");
@@ -126,7 +134,11 @@ export function buildCodexReadinessSummary(input: {
     blockers,
     runtime,
     configuredRoles,
-    target: input.target,
+    target: {
+      ...input.target,
+      allowedDirtyChanges,
+      blockingChanges
+    },
     nextAction: status === "ready"
       ? "可以启动 fast lane：先选择一个完整模块读路径目标，再拆 1-4 个 WorkerCLI 任务。"
       : "先处理 blockers，再启动 fast lane。",
@@ -141,6 +153,23 @@ export function buildCodexReadinessSummary(input: {
         "cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus agent config list"
       ]
   };
+}
+
+function isAllowedDirtyChange(change: string, allowedDirtyPaths: string[]): boolean {
+  if (allowedDirtyPaths.length === 0) {
+    return false;
+  }
+  const changedPath = extractChangedPath(change);
+  return allowedDirtyPaths.some((allowedPath) => {
+    const normalizedAllowedPath = allowedPath.replace(/^\.?\//, "");
+    return changedPath === normalizedAllowedPath || changedPath.startsWith(`${normalizedAllowedPath.replace(/\/$/, "")}/`);
+  });
+}
+
+function extractChangedPath(change: string): string {
+  const withoutStatus = change.length > 3 ? change.slice(3).trim() : change.trim();
+  const renamedTarget = withoutStatus.split(" -> ").pop() ?? withoutStatus;
+  return renamedTarget.replace(/^\.?\//, "");
 }
 
 function roleLabel(role: string): string {

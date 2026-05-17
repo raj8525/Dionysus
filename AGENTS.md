@@ -171,6 +171,14 @@ pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
 
 如果返回 `blocked`，先处理 `blockers`，不要继续创建 Worker 任务。
 
+如果 blocker 只是已确认归属的既有改动，且本轮任务不会触碰该文件，可以显式允许该文件再复查：
+
+```bash
+pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon --allow-dirty-path apps/admin-web/src/pages/login.vue
+```
+
+只能允许具体文件或明确目录，不能把未知改动一概放行。
+
 ```bash
 pnpm dionysus fastlane start \
   --title "库存流水查询闭环" \

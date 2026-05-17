@@ -80,6 +80,14 @@ pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
 
 只有返回 `status: "ready"` 时，才进入 `fastlane plan/start`。如果返回 `blocked`，先处理 `blockers`，避免 Worker 在目标项目工作区脏、CLI 仍是 mock 或 SDD/TDD 入口缺失时继续消耗 token。
 
+如果目标项目只有已确认归属的既有改动，可以显式允许该路径，其他未知改动仍会阻断：
+
+```bash
+pnpm dionysus system readiness \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --allow-dirty-path apps/admin-web/src/pages/login.vue
+```
+
 ## 验证命令
 
 ```bash

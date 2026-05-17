@@ -77,7 +77,8 @@ async function main(): Promise<void> {
       health,
       cliProbe,
       configs,
-      target
+      target,
+      allowedDirtyPaths: readRepeatedFlag(args, "--allow-dirty-path")
     }));
   }
 
@@ -802,7 +803,7 @@ function usage(): void {
   pnpm goal:create -- --title "..." --description "..." --target-root "/path/to/project"
   tsx tools/dionysus.ts system doctor
   tsx tools/dionysus.ts system doctor --brief
-  tsx tools/dionysus.ts system readiness --target-root "/path/to/project"
+  tsx tools/dionysus.ts system readiness --target-root "/path/to/project" [--allow-dirty-path "path/to/existing-change"]
   tsx tools/dionysus.ts system worker start
   tsx tools/dionysus.ts agent probe
   tsx tools/dionysus.ts agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"

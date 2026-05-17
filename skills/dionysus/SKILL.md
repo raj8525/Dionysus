@@ -41,6 +41,16 @@ git status --short --branch
 
 如果 readiness 返回 `blocked`，先处理 `blockers`，不要启动 WorkerCLI。常见 blockers 包括目标项目不 clean、Worker 仍是 mock、真实 CLI 不可用、目标项目缺少 `AGENTS.md` / `docs/PLAN.md` / `docs/specs/` / `features_test/`。
 
+如果目标项目存在明确属于用户或另一个 Agent 的既有改动，且本轮 Worker 文件范围不会碰它，可以显式允许该路径后再检查：
+
+```bash
+pnpm -s dionysus system readiness \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --allow-dirty-path "apps/admin-web/src/pages/login.vue"
+```
+
+只允许已经识别归属的路径；不要用目录级允许掩盖不明改动。
+
 ## Fast Lane 目标创建
 
 ```bash
