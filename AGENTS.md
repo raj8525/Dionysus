@@ -121,6 +121,8 @@ pnpm dionysus codex heartbeat --limit 5
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
+Dashboard 也有 `Codex Outbox / 待 Codex 介入事项` 面板，用于查看 pending 事件、payload 线索和建议命令。非 `release_ready` 事件可以在面板中 ack；`release_ready` 必须先执行 `pnpm dionysus release record ... --codex-outbox-event-id "<event-id>"`，面板不会直接放行普通 ack。
+
 处理 `release_ready` 时，Codex 完成最终验证、提交和推送后，必须先把发布结果写回 Dionysus，再 ack 对应 Outbox：
 
 ```bash

@@ -248,6 +248,7 @@ button:disabled {
 
 .preflightPanel,
 .runtimePanel,
+.codexOutboxPanel,
 .usagePanel,
 .masterPanel,
 .integrationPanel,
@@ -311,6 +312,78 @@ button:disabled {
 .agentInstance.disabled {
   border-color: #f3b4b4;
   background: #fff7f7;
+}
+
+.codexOutboxList {
+  display: grid;
+  gap: 10px;
+}
+
+.codexOutboxEvent {
+  display: grid;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid #e2d3b7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.codexOutboxEvent.bad {
+  border-color: #f3b4b4;
+  background: #fff7f7;
+}
+
+.codexOutboxEvent.warning {
+  border-color: #ead08a;
+  background: #fffaf0;
+}
+
+.codexOutboxHead,
+.codexOutboxActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.codexOutboxHead strong,
+.codexOutboxHead span,
+.codexOutboxEvent p,
+.codexOutboxActions small {
+  overflow-wrap: anywhere;
+}
+
+.codexOutboxHead strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.codexOutboxHead span,
+.codexOutboxActions small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.codexOutboxEvent p {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.commandSnippet {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .usageSummary {

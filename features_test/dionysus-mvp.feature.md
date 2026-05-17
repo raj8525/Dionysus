@@ -453,6 +453,15 @@ When Codex 完成处理并执行 `pnpm dionysus codex ack --event-id "<event-id>
 Then 该事件状态必须变为 `acked`
 And 后续 heartbeat 不应继续返回该事件
 
+## 场景 14.2：Dashboard 展示 Codex Outbox 并保护 release_ready ack
+
+Given `codex_outbox` 中存在 `pending` 的 `blocker`、`e2e_required`、`release_ready` 或 `user_notify` 事件
+When Codex 打开 Dashboard
+Then 页面必须展示待介入事件的类型、严重级别、摘要、payload 线索和建议处理命令
+And 非 `release_ready` 事件必须能在 Dashboard 上 ack
+And `release_ready` 事件在没有 release record 前必须禁用普通 ack，并提示先执行 `pnpm dionysus release record`
+And Dashboard 必须至少每 5 秒自动刷新一次 pending Codex Outbox，也必须提供手动刷新按钮
+
 ## 场景 15：Dashboard 实时展示 Agent CLI / 模型调用统计
 
 Given Dionysus 已经通过 Master、RuleWriter、TestWriter 或 Worker 发起过 CLI run

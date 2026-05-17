@@ -112,6 +112,24 @@ export interface SystemEvent {
   createdAt: string;
 }
 
+export type CodexOutboxEventType = "blocker" | "e2e_required" | "release_ready" | "user_notify";
+export type CodexOutboxSeverity = "info" | "warning" | "error";
+export type CodexOutboxStatus = "pending" | "acked" | "cancelled";
+
+export interface CodexOutboxEvent {
+  id: string;
+  goalId?: string;
+  eventType: CodexOutboxEventType;
+  severity: CodexOutboxSeverity;
+  status: CodexOutboxStatus;
+  title: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  ackedAt?: string;
+}
+
 export interface WatchdogRunResult {
   checked: number;
   actions: Array<{
@@ -474,6 +492,36 @@ export async function fetchSystemEvents(prefix?: string, limit = 20): Promise<Sy
     throw new Error(`Failed to load system events: ${response.status}`);
   }
   return (await response.json()) as SystemEvent[];
+}
+
+export async function fetchCodexOutboxEvents(input: {
+  status?: CodexOutboxStatus;
+  eventType?: CodexOutboxEventType;
+  limit?: number;
+} = {}): Promise<CodexOutboxEvent[]> {
+  const params = new URLSearchParams();
+  if (input.status) params.set("status", input.status);
+  if (input.eventType) params.set("eventType", input.eventType);
+  params.set("limit", String(input.limit ?? 10));
+  const response = await fetch(`${apiBase}/api/codex/outbox?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load Codex outbox: ${response.status}`);
+  }
+  return (await response.json()) as CodexOutboxEvent[];
+}
+
+export async function ackCodexOutboxEvent(eventId: string, force = false): Promise<CodexOutboxEvent> {
+  const response = await fetch(`${apiBase}/api/codex/outbox/${encodeURIComponent(eventId)}/ack`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ force })
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string; reason?: string; requiredAction?: string };
+    const reason = body.requiredAction ?? body.reason ?? body.error ?? String(response.status);
+    throw new Error(`Failed to ack Codex outbox: ${reason}`);
+  }
+  return (await response.json()) as CodexOutboxEvent;
 }
 
 export async function fetchTasks(goalId?: string): Promise<TaskRecord[]> {

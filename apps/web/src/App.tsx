@@ -3,9 +3,11 @@ import { Background, Controls, Handle, Position, ReactFlow, type Edge, type Node
 import { Activity, AlertTriangle, BarChart3, CheckCircle2, Database, GitCommit, Network, Settings2 } from "lucide-react";
 import {
   createGoal,
+  ackCodexOutboxEvent,
   fetchAgents,
   fetchAgentCliConfigs,
   fetchAgentCliUsage,
+  fetchCodexOutboxEvents,
   fetchCurrentFlow,
   fetchE2ECampaigns,
   fetchGoal,
@@ -35,6 +37,7 @@ import {
   type CliModelValidationResult,
   type CliProbeResult,
   type CliType,
+  type CodexOutboxEvent,
   type E2ECampaignRecord,
   type E2ECaseRecord,
   type FlowResponse,
@@ -55,6 +58,7 @@ import {
 } from "./api.js";
 import { AgentConfigValidationError, saveValidatedAgentCliConfig } from "./agent-config-validation.js";
 import { cliCallTotalLabel, describeUsageScope, liveUsageRefreshLabel, modelCallTotalLabel, modelCallLabel } from "./agent-usage-display.js";
+import { buildCodexOutboxDisplaySummary } from "./codex-outbox-display.js";
 import { buildSeedEvidenceSummary } from "./seed-evidence-display.js";
 import { summarizeSystemHealth } from "./system-health.js";
 
@@ -97,6 +101,8 @@ export function App() {
   const [loadingRunLogs, setLoadingRunLogs] = useState<string | null>(null);
   const [masterEvents, setMasterEvents] = useState<SystemEvent[]>([]);
   const [seedEvents, setSeedEvents] = useState<SystemEvent[]>([]);
+  const [codexOutboxEvents, setCodexOutboxEvents] = useState<CodexOutboxEvent[]>([]);
+  const [ackingCodexOutboxId, setAckingCodexOutboxId] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
   const [e2eCampaigns, setE2ECampaigns] = useState<E2ECampaignRecord[]>([]);
   const [e2eCases, setE2ECases] = useState<E2ECaseRecord[]>([]);
@@ -105,7 +111,7 @@ export function App() {
   const [agents, setAgents] = useState<AgentRecord[]>([]);
 
   useEffect(() => {
-    Promise.all([refreshGoals(), refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshSeedEvents(), refreshAgentCliUsage()])
+    Promise.all([refreshGoals(), refreshFlow(), refreshAgentConfigs(), refreshAgents(), refreshWatchdogEvents(), refreshSystemHealth(), refreshSeedEvents(), refreshCodexOutboxEvents(), refreshAgentCliUsage()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
@@ -123,6 +129,7 @@ export function App() {
       Promise.all([
         refreshSystemHealth(),
         refreshSeedEvents(),
+        refreshCodexOutboxEvents(),
         refreshAgents(),
         refreshAgentCliUsage({ goalId: activeGoalId, targetRoot: currentGoal?.targetRoot }),
         activeGoalId ? refreshGoalEvidence(activeGoalId) : Promise.resolve()
@@ -249,6 +256,23 @@ export function App() {
 
   async function refreshSeedEvents() {
     setSeedEvents(await fetchSystemEvents("coupon.seed", 8));
+  }
+
+  async function refreshCodexOutboxEvents() {
+    setCodexOutboxEvents(await fetchCodexOutboxEvents({ status: "pending", limit: 10 }));
+  }
+
+  async function ackOutboxEvent(event: CodexOutboxEvent) {
+    setAckingCodexOutboxId(event.id);
+    setError(null);
+    try {
+      await ackCodexOutboxEvent(event.id);
+      await refreshCodexOutboxEvents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAckingCodexOutboxId(null);
+    }
   }
 
   async function refreshAgentCliUsage(scope: { goalId?: string | null; targetRoot?: string | null } = { goalId: activeGoalId, targetRoot: currentGoal?.targetRoot }) {
@@ -553,6 +577,32 @@ export function App() {
               })
             ) : (
               <div className="emptyState">暂无 Coupon seed apply 证据</div>
+            )}
+          </div>
+        </section>
+        <section className="codexOutboxPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="eyebrow">Codex Outbox</p>
+              <h3>待 Codex 介入事项</h3>
+              <span className="usageScope">Dionysus 主动请求 Codex 处理 blocker、E2E、发布和用户通知。</span>
+            </div>
+            <button type="button" className="secondary" onClick={refreshCodexOutboxEvents}>
+              刷新 Outbox
+            </button>
+          </div>
+          <div className="codexOutboxList">
+            {codexOutboxEvents.length ? (
+              codexOutboxEvents.map((event) => (
+                <CodexOutboxEventRow
+                  key={event.id}
+                  event={event}
+                  acking={ackingCodexOutboxId === event.id}
+                  onAck={() => ackOutboxEvent(event)}
+                />
+              ))
+            ) : (
+              <div className="emptyState">当前没有待 Codex 介入事件</div>
             )}
           </div>
         </section>
@@ -1143,6 +1193,51 @@ function WatchdogEventRow({ event }: { event: WatchdogEvent }) {
         {event.taskStatus ? <span>{event.taskStatus}</span> : null}
       </div>
       <p>{event.blockedReason ?? describePayload(event.payload)}</p>
+    </article>
+  );
+}
+
+function CodexOutboxEventRow(props: {
+  event: CodexOutboxEvent;
+  acking: boolean;
+  onAck: () => void;
+}) {
+  const summary = buildCodexOutboxDisplaySummary(props.event);
+  const createdAt = props.event.createdAt ? new Date(props.event.createdAt).toLocaleString() : "unknown";
+  return (
+    <article className={`codexOutboxEvent ${summary.tone}`}>
+      <div className="codexOutboxHead">
+        <div>
+          <strong>{summary.title}</strong>
+          <span>{createdAt}</span>
+        </div>
+        <span className={`eventPill ${summary.tone === "bad" ? "bad" : "neutral"}`}>
+          {props.event.eventType}
+        </span>
+      </div>
+      <p>{summary.subtitle}</p>
+      <div className="watchdogMeta">
+        <span>{props.event.severity}</span>
+        <span>{props.event.status}</span>
+        {props.event.goalId ? <span>goal {props.event.goalId.slice(0, 8)}</span> : null}
+        <span>{summary.payloadLabel}</span>
+      </div>
+      <code className="commandSnippet">{summary.command}</code>
+      <div className="codexOutboxActions">
+        <small>
+          {summary.ackBlocked
+            ? "release_ready 必须先写 release record，再由 Codex ack。"
+            : "Codex 处理完根因后，可以从这里标记已处理。"}
+        </small>
+        <button
+          type="button"
+          className="secondary"
+          disabled={summary.ackBlocked || props.acking}
+          onClick={props.onAck}
+        >
+          {props.acking ? "Ack 中..." : summary.ackBlocked ? "需 release record" : "标记已处理"}
+        </button>
+      </div>
     </article>
   );
 }
