@@ -140,9 +140,12 @@ pnpm dionysus fastlane start \
 监控调用成本：
 
 ```bash
+pnpm dionysus fastlane status --goal-id "<goal-id>"
 pnpm dionysus agent usage --goal-id "<goal-id>"
 pnpm dionysus agent usage --target-root /Volumes/MacMiniSSD/code/Coupon
 ```
+
+`fastlane status` 会直接给出当前 phase、下一步动作和下一条命令，避免 Codex 手工从通用 `goal status` JSON 里猜测是否该 review Worker、等待 integration、启动 ReviewerCLI 或进入最终 E2E/发布。
 
 手动标记已有目标为 fast lane：
 

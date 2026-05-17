@@ -438,6 +438,14 @@ pnpm dionysus goal run-cycle --goal-id "<goal-id>" --target-url "<local-url>" --
 pnpm dionysus goal supervise --goal-id "<goal-id>" --iterations 5 --interval-seconds 30
 ```
 
+Fast lane 目标必须有专用状态入口：
+
+```text
+pnpm dionysus fastlane status --goal-id "<goal-id>"
+```
+
+该命令必须读取 `GET /api/goals/:id/status`，按 FastLane Worker / Reviewer 任务、integration、Codex Outbox 聚合为明确 phase 和 nextCommands。它必须能区分：`working`、`worker_review`、`waiting_for_integration`、`ready_for_reviewer`、`reviewer_review`、`codex_final`、`blocked`、`codex_outbox`、`closed`、`idle`，避免 Codex 通过人工猜测推进。
+
 `run-cycle` 必须顺序执行 preflight、master-step、detect-milestones，返回当前 blocker、nextOwner、nextActions。提供 `target-url` 时，它可以为待验收 milestone 创建或复用 E2E campaign；只有显式传入 `--run-e2e` 才运行浏览器测试，且 `strict` 模式不得伪造产品主路径通过。
 
 `supervise` 必须按轮次执行 agent status 与 run-cycle，直到出现 runtime blocker、业务 blocker、E2E 需要 Codex 介入，或达到最大轮次。它是 Codex 7x24 监督 Dionysus 的主入口，不能依赖前端刷新。每轮 agent status 必须同时读取 `/health`、`/api/agent-cli-configs`、`/api/agents`、`/api/tasks`、`/api/runs` 和 `/api/usage/agent-cli`，保证 Codex 监督入口、Dashboard 与 CLI usage 统计口径一致。

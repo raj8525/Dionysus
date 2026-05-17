@@ -5,7 +5,7 @@ import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
-import { buildFastLanePlan, parseFastLaneItem } from "./dionysus-fastlane.js";
+import { buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
@@ -207,6 +207,17 @@ async function main(): Promise<void> {
       reviewerTasks: tasks.filter((task) => String((task as Record<string, unknown>).status) === "created"),
       nextCommands: plan.nextCommands.map((command) => command.replaceAll("<goal-id>", goal.id))
     });
+  }
+
+  if (domain === "fastlane" && action === "status") {
+    const goalId = requiredFlag(args, "--goal-id");
+    const status = await request(`/api/goals/${encodeURIComponent(goalId)}/status`) as {
+      goal: Record<string, unknown>;
+      tasks: Array<Record<string, unknown>>;
+      integrations: Array<Record<string, unknown>>;
+      pendingCodexOutbox: Array<Record<string, unknown>>;
+    };
+    return print(buildFastLaneStatus(status));
   }
 
   if (domain === "release" && action === "record") {
@@ -748,6 +759,7 @@ function usage(): void {
   tsx tools/dionysus.ts agent usage --goal-id "..."
   tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面"
   tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers]
+  tsx tools/dionysus.ts fastlane status --goal-id "..."
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
   tsx tools/dionysus.ts release list --goal-id "..."
   tsx tools/dionysus.ts run logs --run-id "..."

@@ -56,6 +56,7 @@ pnpm dionysus agent usage --goal-id "<goal-id>"
 pnpm dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
 pnpm dionysus fastlane plan --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
 pnpm dionysus fastlane start --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
+pnpm dionysus fastlane status --goal-id "<goal-id>"
 pnpm dionysus goal list --limit 10
 pnpm dionysus goal cancel --goal-id "<goal-id>" --reason "smoke done"
 pnpm dionysus goal fast-lane --goal-id "<goal-id>" --reason "Codex controls this goal directly"
@@ -155,6 +156,12 @@ pnpm dionysus fastlane start \
   --reviewer "ReviewerCLI 90分门禁::检查契约、测试、UI、真实数据与可合并性"
 ```
 
+启动后固定用专用状态入口判断下一步，不要手工从通用 JSON 里猜：
+
+```bash
+pnpm dionysus fastlane status --goal-id "<goal-id>"
+```
+
 规则：
 
 - `fastlane start` 会创建一个 `fast_lane` goal，并把每个 `--worker` 转成已入队 Worker 任务。
@@ -163,6 +170,7 @@ pnpm dionysus fastlane start \
 - Worker 产出 patch 并完成 integration 后，再用 `pnpm dionysus task enqueue --task-id "<reviewer-task-id>"` 启动 Reviewer。
 - 如已有集成产物需要立即审核，可显式加 `--queue-reviewers`。
 - 同一任务被 ReviewerCLI 第 10 次 reject 时，Dionysus 会阻断任务并写入 Codex Outbox；Codex 必须亲自接手，不能继续重排 WorkerCLI。
+- `fastlane status` 必须能明确区分：等待 Worker、等待 Worker review、等待 integration、可启动 Reviewer、等待 Reviewer review、Codex final、blocked、closed。
 - 过程监控固定使用：
 
 ```bash

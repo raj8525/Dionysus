@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFastLanePlan, parseFastLaneItem } from "./dionysus-fastlane.js";
+import { buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
 
 describe("dionysus fast lane planner", () => {
   it("parses title and description from CLI item syntax", () => {
@@ -62,4 +62,77 @@ describe("dionysus fast lane planner", () => {
       workers: []
     })).toThrow("at least one --worker");
   });
+
+  it("tells Codex to review worker tasks before starting reviewers", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-1", status: "fast_lane" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 后端", "needs_review"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "created")
+      ],
+      integrations: [],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("worker_review");
+    expect(status.nextAction).toBe("先评审 Worker 产物，approve 后才能启动 ReviewerCLI。");
+    expect(status.nextCommands).toContain("pnpm dionysus task review --task-id w1 --verdict approve --reason \"Worker output accepted by Codex\"");
+  });
+
+  it("tells Codex to enqueue reviewer tasks when workers are done", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-2", status: "fast_lane" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 后端", "done"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "created")
+      ],
+      integrations: [],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("ready_for_reviewer");
+    expect(status.nextAction).toBe("Worker 已完成，启动 ReviewerCLI 做 90 分质量门禁。");
+    expect(status.nextCommands).toEqual(["pnpm dionysus task enqueue --task-id r1"]);
+  });
+
+  it("prioritizes Codex outbox blockers over normal fast lane flow", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-3", status: "fast_lane" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 后端", "done"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "created")
+      ],
+      integrations: [],
+      pendingCodexOutbox: [{ id: "event-1", title: "blocker" }]
+    });
+
+    expect(status.phase).toBe("codex_outbox");
+    expect(status.nextCommands).toEqual(["pnpm dionysus codex heartbeat --limit 5"]);
+  });
+
+  it("reports terminal fast lane goals without suggesting more work", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-4", status: "cancelled" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 后端", "cancelled"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "cancelled")
+      ],
+      integrations: [],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("closed");
+    expect(status.nextAction).toBe("fast lane goal 已结束，无需继续调度。");
+    expect(status.nextCommands).toEqual([]);
+  });
 });
+
+function task(id: string, title: string, status: string): Record<string, unknown> {
+  return {
+    id,
+    title,
+    status,
+    role_required: "worker",
+    priority: title.includes("Reviewer") ? 80 : 20
+  };
+}
