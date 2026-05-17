@@ -75,6 +75,14 @@ pnpm -s dionysus fastlane start \
 - 必须运行哪些测试。
 - 禁止事项，例如不得整页注入 HTML、不得改成熟页面布局。
 
+Coupon 管理后台固定补充规则：
+
+- 模块开发坚持“数据先行、先读后写”：先补数据库表结构和完整虚拟数据，再做只读接口和页面读取，最后才做写路径。
+- `hotels.vue` 已经完成，不再参考 `apps/admin-web/html/hotels.html` 重写。
+- 其他页面迁移 Vue 时参考 `apps/admin-web/html/` 对应模板，但必须重写为动态 Vue 页面。
+- Worker prompt 必须显式写清：禁止 `v-html`、raw HTML import、长字符串整页模板；必须有响应式数据、接口调用、loading、error、empty state 和真实用户交互。
+- `hotels.vue` 只允许在明确需要时做接口、路由或小范围交互增量，不允许重新套模板。
+
 优先用 `fastlane start --worker` 创建 Worker。只有需要人工追加任务时才单独创建：
 
 ```bash
