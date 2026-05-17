@@ -72,6 +72,14 @@ Web: http://127.0.0.1:23101
 
 Dashboard 首页会显示 PostgreSQL、RabbitMQ、Worker heartbeat 与 CLI 探测状态。Codex 也可以用 `pnpm dionysus system doctor --brief` 查看同一套健康信息。
 
+启动真实项目 fast lane 前，用 readiness 一次性检查 Dionysus Runtime、Agent CLI 配置和目标项目入口状态：
+
+```bash
+pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
+```
+
+只有返回 `status: "ready"` 时，才进入 `fastlane plan/start`。如果返回 `blocked`，先处理 `blockers`，避免 Worker 在目标项目工作区脏、CLI 仍是 mock 或 SDD/TDD 入口缺失时继续消耗 token。
+
 ## 验证命令
 
 ```bash
@@ -107,6 +115,12 @@ pnpm goal:create -- \
 ## Codex Fast Lane
 
 为了节省成本并提升速度，Codex 可以用 fast lane 直接把一个小功能拆给多个低成本 WorkerCLI 并行执行，再由 ReviewerCLI 做 90 分门禁。
+
+先确认系统和 Coupon 目标项目可执行：
+
+```bash
+pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
+```
 
 ```bash
 pnpm dionysus fastlane plan \

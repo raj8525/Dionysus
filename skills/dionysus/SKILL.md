@@ -28,6 +28,7 @@ Dionysus 是给 Codex 用的 Agent Team 执行系统。目标不是让 Agent 自
 cd /Volumes/MacMiniSSD/code/Dionysus
 git status --short --branch
 pnpm -s dionysus system doctor --brief
+pnpm -s dionysus system readiness --target-root "/Volumes/MacMiniSSD/code/Coupon"
 pnpm -s dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
 ```
 
@@ -38,7 +39,7 @@ cd /Volumes/MacMiniSSD/code/Coupon
 git status --short --branch
 ```
 
-如果目标项目不 clean，先识别来源，不要混入本轮工作。
+如果 readiness 返回 `blocked`，先处理 `blockers`，不要启动 WorkerCLI。常见 blockers 包括目标项目不 clean、Worker 仍是 mock、真实 CLI 不可用、目标项目缺少 `AGENTS.md` / `docs/PLAN.md` / `docs/specs/` / `features_test/`。
 
 ## Fast Lane 目标创建
 

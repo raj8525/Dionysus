@@ -1,11 +1,13 @@
-import { spawn } from "node:child_process";
-import { mkdirSync, openSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { existsSync, mkdirSync, openSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
 import { buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
+import { buildCodexReadinessSummary } from "./dionysus-readiness.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
@@ -14,6 +16,7 @@ import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus
 import type { AgentRole, CliType, CodexOutboxEvent } from "@dionysus/core";
 
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
+const execFileAsync = promisify(execFile);
 
 interface E2ECampaignRecord {
   id: string;
@@ -59,6 +62,23 @@ async function main(): Promise<void> {
       goalStatus
     };
     return print(hasFlag(args, "--brief") ? compactDoctorResult(result) : result);
+  }
+
+  if (domain === "system" && action === "readiness") {
+    const targetRoot = requiredFlag(args, "--target-root");
+    const [health, cliProbe, configs, target] = await Promise.all([
+      request("/health") as Promise<Record<string, unknown>>,
+      request("/api/cli/probe", "POST") as Promise<Array<Record<string, unknown>>>,
+      request("/api/agent-cli-configs") as Promise<Array<Record<string, unknown>>>,
+      inspectReadinessTarget(targetRoot)
+    ]);
+    return print(buildCodexReadinessSummary({
+      targetRoot,
+      health,
+      cliProbe,
+      configs,
+      target
+    }));
   }
 
   if (domain === "system" && action === "worker" && args[0] === "start") {
@@ -601,6 +621,38 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function inspectReadinessTarget(targetRoot: string): Promise<{
+  gitClean: boolean;
+  changes: string[];
+  hasAgentsMd: boolean;
+  hasPlan: boolean;
+  hasSpecs: boolean;
+  hasFeaturesTest: boolean;
+}> {
+  let changes: string[] = [];
+  try {
+    const { stdout } = await execFileAsync("git", ["status", "--porcelain"], {
+      cwd: targetRoot,
+      maxBuffer: 1024 * 1024
+    });
+    changes = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter(Boolean);
+  } catch (error) {
+    changes = [`git status failed: ${error instanceof Error ? error.message : String(error)}`];
+  }
+
+  return {
+    gitClean: changes.length === 0,
+    changes,
+    hasAgentsMd: existsSync(join(targetRoot, "AGENTS.md")),
+    hasPlan: existsSync(join(targetRoot, "docs", "PLAN.md")),
+    hasSpecs: existsSync(join(targetRoot, "docs", "specs")),
+    hasFeaturesTest: existsSync(join(targetRoot, "features_test"))
+  };
+}
+
 async function runE2ECase(input: {
   page: import("playwright").Page;
   targetUrl: string;
@@ -750,6 +802,7 @@ function usage(): void {
   pnpm goal:create -- --title "..." --description "..." --target-root "/path/to/project"
   tsx tools/dionysus.ts system doctor
   tsx tools/dionysus.ts system doctor --brief
+  tsx tools/dionysus.ts system readiness --target-root "/path/to/project"
   tsx tools/dionysus.ts system worker start
   tsx tools/dionysus.ts agent probe
   tsx tools/dionysus.ts agent validate-model --cli opencode --model "minimax/MiniMax-M2.7"

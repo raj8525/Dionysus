@@ -43,6 +43,7 @@ Codex 日常操作 Dionysus 优先使用统一 CLI，避免手写 `curl`：
 ```bash
 pnpm dionysus system doctor
 pnpm dionysus system doctor --brief
+pnpm dionysus system readiness --target-root "/Volumes/MacMiniSSD/code/Coupon"
 pnpm dionysus system runtime start
 pnpm dionysus system runtime status
 pnpm dionysus system runtime stop
@@ -161,6 +162,14 @@ DIONYSUS_ALLOW_PROTECTED_FILES=
 ## Fast Lane
 
 默认推进真实 Coupon 功能时，Codex 优先使用 fast lane，而不是完整 Master 状态机：
+
+启动 fast lane 前先运行 readiness，确认 Dionysus Runtime、四类 Agent CLI 配置、目标项目 git 状态和 SDD/TDD 文件入口都满足基本条件：
+
+```bash
+pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
+```
+
+如果返回 `blocked`，先处理 `blockers`，不要继续创建 Worker 任务。
 
 ```bash
 pnpm dionysus fastlane start \
