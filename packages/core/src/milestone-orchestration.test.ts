@@ -24,6 +24,32 @@ describe("milestone orchestration", () => {
     expect(
       detectMilestoneCandidate({
         goalTitle: "Coupon",
+        integrationStatus: "passed",
+        patchStatus: "applied",
+        changedFiles: ["apps/admin-api/internal/handler/real_db_smoke_test.go"],
+        testStatus: "passed"
+      })
+    ).toMatchObject({
+      shouldCreate: false,
+      candidateReason: "Milestone gate is not satisfied: missing user-facing frontend changes."
+    });
+
+    expect(
+      detectMilestoneCandidate({
+        goalTitle: "Coupon",
+        integrationStatus: "passed",
+        patchStatus: "applied",
+        changedFiles: ["apps/admin-web/src/pages/hotels.vue"],
+        testStatus: "passed"
+      })
+    ).toMatchObject({
+      shouldCreate: false,
+      candidateReason: "Milestone gate is not satisfied: missing backend/API/database changes."
+    });
+
+    expect(
+      detectMilestoneCandidate({
+        goalTitle: "Coupon",
         integrationStatus: "queued",
         patchStatus: "applied",
         changedFiles: ["apps/admin-web/src/pages/hotels.vue"],

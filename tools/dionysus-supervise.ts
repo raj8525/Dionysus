@@ -83,6 +83,14 @@ export function summarizeSupervisionStep(input: SupervisionStepInput): Supervisi
     };
   }
 
+  if (runCycleSummary.status === "working" && !hasActiveDionysusWork(agentSummary)) {
+    return {
+      status: "blocked",
+      shouldContinue: false,
+      reason: `no active Dionysus work: ${String(agentSummary.nextAction ?? "Master must create the next task batch or close the goal")}`
+    };
+  }
+
   return {
     status: "working",
     shouldContinue: true,
@@ -96,4 +104,15 @@ function nestedRecord(value: unknown): Record<string, unknown> {
 
 function firstAction(value: unknown): string | undefined {
   return Array.isArray(value) ? value.map(String)[0] : undefined;
+}
+
+function hasActiveDionysusWork(agentSummary: Record<string, unknown>): boolean {
+  return numeric(agentSummary.queuedTasks) > 0
+    || numeric(agentSummary.runningTasks) > 0
+    || numeric(agentSummary.runningRuns) > 0
+    || numeric(agentSummary.workingAgents) > 0;
+}
+
+function numeric(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

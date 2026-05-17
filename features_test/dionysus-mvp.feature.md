@@ -326,9 +326,18 @@ And integration 必须标记为 `failed`
 Given integration queue 已通过
 And patch 已应用
 And 测试状态为 passed
+And patch 同时包含最终用户可见前端变更和后端 / API / 数据库变更
 When Codex 或 Master 触发 milestone detection
 Then Dionysus 必须创建 milestone candidate
 And milestone 不得跳过 Codex E2E
+
+Given integration queue 已通过
+And patch 已应用
+And 测试状态为 passed
+But patch 只包含后端 smoke、测试、文档或基础设施变更
+When Codex 或 Master 触发 milestone detection
+Then Dionysus 不得创建 milestone candidate
+And 该结果只能记录为 engineering checkpoint
 
 ## 场景 10：E2E campaign 必须覆盖浏览器级验收
 

@@ -114,7 +114,7 @@ POST /api/milestones/:id/codex-verdict
 POST /api/milestones/:id/notifications
 ```
 
-`detect-milestones` 只接受已经通过 integration、patch 已 applied、测试状态 passed 且存在变更文件的结果。创建出的 milestone 必须进入 `candidate`，之后必须经过 E2E。
+`detect-milestones` 只接受已经通过 integration、patch 已 applied、测试状态 passed，且同时包含最终用户可见前端变更与后端 / API / 数据库变更的结果。后端-only、测试-only、文档-only、基础设施-only 或纯前端静态改动只能作为 engineering checkpoint，不得创建 milestone。创建出的 milestone 必须进入 `candidate`，之后必须经过浏览器级 E2E。
 
 `codex-verdict` 必须遵守 milestone 状态机：`passed` 只能从 `e2e_running` 进入；如果 Codex 或 Master 试图从 `candidate` 或 `e2e_required` 直接标记 `passed`，API 必须返回 `409 INVALID_MILESTONE_TRANSITION`。
 

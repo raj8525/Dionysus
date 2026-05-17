@@ -63,7 +63,8 @@ export function summarizeAgentControlStatus(input: AgentControlStatusInput): Age
       queuedTasks,
       runningRuns,
       workingAgents,
-      unboundRecentRuns
+      unboundRecentRuns,
+      runningTasks
     })
   };
 }
@@ -76,6 +77,7 @@ function nextAction(input: {
   runtimeReady: boolean;
   inconsistentRuntime: boolean;
   queuedTasks: number;
+  runningTasks: number;
   runningRuns: number;
   workingAgents: number;
   unboundRecentRuns: number;
@@ -91,6 +93,9 @@ function nextAction(input: {
   }
   if (input.queuedTasks > 0 && input.workingAgents === 0) {
     return "有 queued task 但暂无 working Agent，确认 Worker Runtime 是否正在消费队列";
+  }
+  if (input.queuedTasks === 0 && input.runningTasks === 0 && input.runningRuns === 0 && input.workingAgents === 0) {
+    return "没有 queued/running task，Master 必须创建下一批任务或显式结束目标";
   }
   return "继续运行 goal run-cycle 或等待 Worker 消费队列";
 }

@@ -31,11 +31,14 @@ export interface E2ECampaignDraft {
 }
 
 export function detectMilestoneCandidate(input: MilestoneDetectionInput): MilestoneCandidateDraft {
+  const hasFrontend = input.changedFiles.some(isUserFacingFrontendFile);
+  const hasBackend = input.changedFiles.some(isBackendOrDatabaseFile);
   const ready =
     input.integrationStatus === "passed" &&
     input.patchStatus === "applied" &&
     input.testStatus === "passed" &&
-    input.changedFiles.length > 0;
+    hasFrontend &&
+    hasBackend;
 
   const changedSummary = `${input.changedFiles.length} changed files`;
   return {
@@ -43,11 +46,38 @@ export function detectMilestoneCandidate(input: MilestoneDetectionInput): Milest
     name: `${input.goalTitle} milestone: ${changedSummary} ready for Codex E2E`,
     description: ready
       ? `Integration passed with ${changedSummary}. Codex must run browser E2E before this milestone can be marked done.`
-      : `Not ready for milestone. integration=${input.integrationStatus}, patch=${input.patchStatus}, tests=${input.testStatus}.`,
-    candidateReason: ready
-      ? `Patch applied, tests passed, and user-facing or backend changes exist: ${input.changedFiles.join(", ")}`
-      : "Milestone gate is not satisfied."
+      : `Not ready for milestone. integration=${input.integrationStatus}, patch=${input.patchStatus}, tests=${input.testStatus}, frontend=${hasFrontend}, backend=${hasBackend}.`,
+    candidateReason: milestoneCandidateReason({ ready, hasFrontend, hasBackend, changedFiles: input.changedFiles })
   };
+}
+
+function milestoneCandidateReason(input: {
+  ready: boolean;
+  hasFrontend: boolean;
+  hasBackend: boolean;
+  changedFiles: string[];
+}): string {
+  if (input.ready) {
+    return `Patch applied, tests passed, and a full user-facing frontend-to-backend feature exists: ${input.changedFiles.join(", ")}`;
+  }
+  if (!input.hasFrontend) {
+    return "Milestone gate is not satisfied: missing user-facing frontend changes.";
+  }
+  if (!input.hasBackend) {
+    return "Milestone gate is not satisfied: missing backend/API/database changes.";
+  }
+  return "Milestone gate is not satisfied.";
+}
+
+function isUserFacingFrontendFile(filePath: string): boolean {
+  return /(^|\/)apps\/[^/]*(web|frontend|admin-web|client)[^/]*\/src\/.+\.(vue|tsx|jsx|ts|js|css|scss)$/.test(filePath)
+    || /(^|\/)apps\/[^/]*(web|frontend|admin-web|client)[^/]*\/html\/.+\.html$/.test(filePath);
+}
+
+function isBackendOrDatabaseFile(filePath: string): boolean {
+  return /(^|\/)apps\/[^/]*(api|server|backend)[^/]*\//.test(filePath)
+    || /(^|\/)packages\/[^/]*(api|server|backend|db|database)[^/]*\//.test(filePath)
+    || /(^|\/)(migrations|db|database|sql)\//.test(filePath);
 }
 
 export function buildE2ECampaignDraft(input: {

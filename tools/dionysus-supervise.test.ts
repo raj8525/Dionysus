@@ -27,12 +27,33 @@ describe("goal supervision step summary", () => {
 
   it("continues when runtime is ready and work is active", () => {
     expect(summarizeSupervisionStep({
-      agentStatus: { summary: { runtime: "ready", nextAction: "continue" } },
+      agentStatus: { summary: { runtime: "ready", queuedTasks: 1, runningTasks: 0, workingAgents: 0, nextAction: "continue" } },
       runCycle: { summary: { status: "working" } }
     })).toEqual({
       status: "working",
       shouldContinue: true,
       reason: "runtime ready; continuing supervision"
+    });
+  });
+
+  it("stops when run-cycle says working but no tasks or agents are active", () => {
+    expect(summarizeSupervisionStep({
+      agentStatus: {
+        summary: {
+          runtime: "ready",
+          queuedTasks: 0,
+          runningTasks: 0,
+          runningRuns: 0,
+          workingAgents: 0,
+          blockedTasks: 1,
+          nextAction: "没有 queued/running task，Master 必须创建下一批任务或显式结束目标"
+        }
+      },
+      runCycle: { summary: { status: "working" } }
+    })).toEqual({
+      status: "blocked",
+      shouldContinue: false,
+      reason: "no active Dionysus work: 没有 queued/running task，Master 必须创建下一批任务或显式结束目标"
     });
   });
 
