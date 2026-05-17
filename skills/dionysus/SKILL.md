@@ -272,6 +272,16 @@ pnpm -s dionysus integration list --goal-id "<goal-id>"
 pnpm -s dionysus run logs --run-id "<run-id>"
 ```
 
+需要让 Dionysus 连续推进时使用 `goal supervise`。如果目标项目有已确认且不属于本轮的脏路径，必须把同一组 allow 参数传进去，避免 readiness 通过但 run-cycle/master-step 又被同一脏路径误阻塞：
+
+```bash
+pnpm -s dionysus goal supervise \
+  --goal-id "<goal-id>" \
+  --iterations 5 \
+  --interval-seconds 30 \
+  --allow-dirty-path "apps/admin-web/src/pages/login.vue"
+```
+
 对目标项目运行匹配范围的测试。前端到后端完整用户功能才算 milestone；milestone 必须写入：
 
 ```bash

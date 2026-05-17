@@ -61,9 +61,13 @@ describe("target preflight", () => {
     expect(findUnmanagedGitChanges({
       changes: [
         "?? apps/admin-api/internal/handler/real_db_smoke_test.go",
+        " M apps/admin-web/src/pages/hotels/panel.vue",
         " M apps/web/src/App.tsx"
       ],
-      managedPaths: ["apps/admin-api/internal/handler/real_db_smoke_test.go"]
+      managedPaths: [
+        "apps/admin-api/internal/handler/real_db_smoke_test.go",
+        "apps/admin-web/src/pages/hotels/"
+      ]
     })).toEqual([" M apps/web/src/App.tsx"]);
   });
 });

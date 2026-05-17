@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import amqp from "amqplib";
+import type { Channel, ConsumeMessage } from "amqplib";
 import dotenv from "dotenv";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -55,10 +56,10 @@ export async function consumeJson(
     try {
       const message = JSON.parse(raw.content.toString("utf8")) as QueueMessage;
       await handler(message);
-      channel.ack(raw);
+      safelyAck(channel, raw, queue);
     } catch (error) {
       console.error(error);
-      channel.nack(raw, false, false);
+      safelyNack(channel, raw, queue);
     }
   });
   return {
@@ -96,6 +97,43 @@ export async function checkRabbitMqHealth(): Promise<{
   } finally {
     await connection?.close().catch(() => undefined);
   }
+}
+
+type SettlementChannel = Pick<Channel, "ack" | "nack">;
+
+export function safelyAck(channel: SettlementChannel, raw: ConsumeMessage, queue: string): boolean {
+  try {
+    channel.ack(raw);
+    return true;
+  } catch (error) {
+    if (!isChannelClosingError(error)) {
+      throw error;
+    }
+    console.warn(`ignored RabbitMQ ack on closing channel for ${queue}: ${errorMessage(error)}`);
+    return false;
+  }
+}
+
+export function safelyNack(channel: SettlementChannel, raw: ConsumeMessage, queue: string): boolean {
+  try {
+    channel.nack(raw, false, false);
+    return true;
+  } catch (error) {
+    if (!isChannelClosingError(error)) {
+      throw error;
+    }
+    console.warn(`ignored RabbitMQ nack on closing channel for ${queue}: ${errorMessage(error)}`);
+    return false;
+  }
+}
+
+function isChannelClosingError(error: unknown): boolean {
+  const message = errorMessage(error);
+  return message.includes("Channel closed") || message.includes("Channel closing");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function requiredMqUrl(): string {

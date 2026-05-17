@@ -8,6 +8,7 @@ export interface GitPreflightResult {
   status: "passed" | "blocked";
   clean: boolean;
   changes: string[];
+  allowedChanges?: string[];
 }
 
 export interface TargetPreflightResult {
@@ -39,8 +40,7 @@ export function findUnmanagedGitChanges(input: {
   changes: string[];
   managedPaths: string[];
 }): string[] {
-  const managed = new Set(input.managedPaths);
-  return input.changes.filter((change) => !managed.has(parseGitStatusPath(change)));
+  return input.changes.filter((change) => !isManagedPath(parseGitStatusPath(change), input.managedPaths));
 }
 
 export function buildTargetPreflight(input: {
@@ -61,10 +61,37 @@ export function buildTargetPreflight(input: {
   };
 }
 
-export async function checkGitPreflight(targetRoot: string): Promise<GitPreflightResult> {
+export async function checkGitPreflight(
+  targetRoot: string,
+  options: { allowedDirtyPaths?: string[] } = {}
+): Promise<GitPreflightResult> {
   const result = await execFileAsync("git", ["status", "--porcelain"], {
     cwd: targetRoot,
     maxBuffer: 1024 * 1024
   });
-  return parseGitStatusPorcelain(result.stdout);
+  const parsed = parseGitStatusPorcelain(result.stdout);
+  const allowedDirtyPaths = options.allowedDirtyPaths ?? [];
+  if (!allowedDirtyPaths.length || parsed.clean) {
+    return parsed;
+  }
+
+  const unmanagedChanges = findUnmanagedGitChanges({
+    changes: parsed.changes,
+    managedPaths: allowedDirtyPaths
+  });
+  const allowedChanges = parsed.changes.filter((change) => !unmanagedChanges.includes(change));
+  return {
+    status: unmanagedChanges.length ? "blocked" : "passed",
+    clean: unmanagedChanges.length === 0,
+    changes: unmanagedChanges,
+    allowedChanges
+  };
+}
+
+function isManagedPath(changedPath: string, managedPaths: string[]): boolean {
+  const normalizedChangedPath = changedPath.replace(/^\.?\//, "");
+  return managedPaths.some((managedPath) => {
+    const normalizedManagedPath = managedPath.replace(/^\.?\//, "").replace(/\/$/, "");
+    return normalizedChangedPath === normalizedManagedPath || normalizedChangedPath.startsWith(`${normalizedManagedPath}/`);
+  });
 }

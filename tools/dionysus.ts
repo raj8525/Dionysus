@@ -361,7 +361,8 @@ async function main(): Promise<void> {
       runE2E: hasFlag(args, "--run-e2e"),
       e2eMode: (readFlag(args, "--mode") ?? "strict") as "strict" | "render-only",
       acceptance: readRepeatedFlag(args, "--acceptance"),
-      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e"
+      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e",
+      allowedDirtyPaths: readRepeatedFlag(args, "--allow-dirty-path")
     }));
   }
 
@@ -374,7 +375,8 @@ async function main(): Promise<void> {
       runE2E: hasFlag(args, "--run-e2e"),
       e2eMode: (readFlag(args, "--mode") ?? "strict") as "strict" | "render-only",
       acceptance: readRepeatedFlag(args, "--acceptance"),
-      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e"
+      screenshotDir: readFlag(args, "--screenshot-dir") ?? ".dionysus/e2e",
+      allowedDirtyPaths: readRepeatedFlag(args, "--allow-dirty-path")
     }));
   }
 
@@ -589,9 +591,11 @@ async function runGoalCycle(input: {
   e2eMode: "strict" | "render-only";
   acceptance: string[];
   screenshotDir: string;
+  allowedDirtyPaths: string[];
 }): Promise<Record<string, unknown>> {
-  const preflight = await request(`/api/goals/${input.goalId}/preflight`, "POST") as Record<string, unknown>;
-  const masterStep = await request(`/api/goals/${input.goalId}/master-step`, "POST") as Record<string, unknown>;
+  const cycleBody = { allowedDirtyPaths: input.allowedDirtyPaths };
+  const preflight = await request(`/api/goals/${input.goalId}/preflight`, "POST", cycleBody) as Record<string, unknown>;
+  const masterStep = await request(`/api/goals/${input.goalId}/master-step`, "POST", cycleBody) as Record<string, unknown>;
   const milestoneDetection = await request(`/api/goals/${input.goalId}/detect-milestones`, "POST") as Record<string, unknown>;
   let milestones = await request(`/api/milestones?goalId=${input.goalId}`) as Array<Record<string, unknown>>;
   const campaigns: Array<Record<string, unknown>> = [];
@@ -681,6 +685,7 @@ async function superviseGoal(input: {
   e2eMode: "strict" | "render-only";
   acceptance: string[];
   screenshotDir: string;
+  allowedDirtyPaths: string[];
 }): Promise<Record<string, unknown>> {
   const steps: Array<Record<string, unknown>> = [];
   const maxIterations = Math.max(1, Math.min(input.iterations, 50));
@@ -944,8 +949,8 @@ function usage(): void {
   tsx tools/dionysus.ts goal master-step --goal-id "..."
   tsx tools/dionysus.ts goal release-ready --goal-id "..."
   tsx tools/dionysus.ts goal detect-milestones --goal-id "..."
-  tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict
-  tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30
+  tsx tools/dionysus.ts goal run-cycle --goal-id "..." --target-url "http://localhost:23101" --run-e2e --mode strict [--allow-dirty-path "path/to/existing-change"]
+  tsx tools/dionysus.ts goal supervise --goal-id "..." --iterations 5 --interval-seconds 30 [--allow-dirty-path "path/to/existing-change"]
   tsx tools/dionysus.ts integration list --goal-id "..."
   tsx tools/dionysus.ts integration evidence --integration-id "..." --final-user-evidence "admin 登录后完成新增租户" --persistence-evidence "刷新后租户仍从 PostgreSQL 返回"
   tsx tools/dionysus.ts integration retry --integration-id "..."

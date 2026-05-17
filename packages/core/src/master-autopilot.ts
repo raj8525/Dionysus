@@ -2,6 +2,7 @@ import type { TargetPreflightResult } from "./target-preflight.js";
 
 export type MasterStepAction =
   | "bootstrap_tasks"
+  | "skip_fast_lane"
   | "queue_preflight_remediation"
   | "release_queued_integrations"
   | "blocked_dirty_worktree"
@@ -13,10 +14,18 @@ export interface MasterStepDecision {
 }
 
 export function decideMasterStep(input: {
+  goalStatus?: string;
   bootstrapTaskCount: number;
   queuedIntegrationCount: number;
   preflight: TargetPreflightResult;
 }): MasterStepDecision {
+  if (input.goalStatus === "fast_lane") {
+    return {
+      action: "skip_fast_lane",
+      reason: "fast lane goals are driven by Codex-directed worker/reviewer tasks, not by the full Master task tree"
+    };
+  }
+
   if (input.bootstrapTaskCount === 0) {
     return {
       action: "bootstrap_tasks",

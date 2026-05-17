@@ -772,12 +772,13 @@ export async function buildServer() {
 
   app.post("/api/goals/:id/master-step", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const allowedDirtyPaths = readAllowedDirtyPaths(request.body);
     const goal = await repo.getGoal(id);
     if (!goal) {
       return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
     }
     const [git, gates, tasks, queuedIntegrations] = await Promise.all([
-      checkGitPreflight(goal.targetRoot),
+      checkGitPreflight(goal.targetRoot, { allowedDirtyPaths }),
       checkSpecTestGate(goal.targetRoot),
       repo.listTasks(id),
       repo.listQueuedIntegrations(id)
@@ -786,6 +787,7 @@ export async function buildServer() {
     const preflight = buildTargetPreflight({ git, gates });
     const bootstrapTaskCount = countBootstrapTasks(tasks);
     const decision = decideMasterStep({
+      goalStatus: goal.status,
       bootstrapTaskCount,
       queuedIntegrationCount: queuedIntegrations.length,
       preflight
@@ -1101,12 +1103,13 @@ export async function buildServer() {
 
   app.post("/api/goals/:id/preflight", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const allowedDirtyPaths = readAllowedDirtyPaths(request.body);
     const goal = await repo.getGoal(id);
     if (!goal) {
       return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
     }
     const [git, gates] = await Promise.all([
-      checkGitPreflight(goal.targetRoot),
+      checkGitPreflight(goal.targetRoot, { allowedDirtyPaths }),
       checkSpecTestGate(goal.targetRoot)
     ]);
     await repo.saveGateChecks({ goalId: id, checks: gates });
@@ -1346,6 +1349,14 @@ async function postJson(url: string, body: Record<string, string>): Promise<{ ok
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function readAllowedDirtyPaths(body: unknown): string[] {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return [];
+  const value = (body as { allowedDirtyPaths?: unknown }).allowedDirtyPaths;
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.length > 0)
+    : [];
 }
 
 async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTask: Record<string, unknown>): Promise<void> {

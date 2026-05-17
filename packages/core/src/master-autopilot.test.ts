@@ -3,6 +3,18 @@ import { decideMasterStep } from "./master-autopilot.js";
 import type { TargetPreflightResult } from "./target-preflight.js";
 
 describe("master autopilot", () => {
+  it("skips full Master task tree for Codex-directed fast lane goals", () => {
+    expect(decideMasterStep({
+      goalStatus: "fast_lane",
+      bootstrapTaskCount: 0,
+      queuedIntegrationCount: 0,
+      preflight: preflight()
+    })).toEqual({
+      action: "skip_fast_lane",
+      reason: "fast lane goals are driven by Codex-directed worker/reviewer tasks, not by the full Master task tree"
+    });
+  });
+
   it("bootstraps task tree before any other work", () => {
     expect(decideMasterStep({ bootstrapTaskCount: 0, queuedIntegrationCount: 0, preflight: preflight() })).toEqual({
       action: "bootstrap_tasks",
