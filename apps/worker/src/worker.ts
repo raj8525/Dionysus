@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { AgentRole, CliType, Goal, RolePromptTask } from "@dionysus/core";
 import {
@@ -23,7 +24,8 @@ import {
   parseCliUsageReceipt,
   resolveAgentRunConfig,
   shouldDispatchAfterIntegration,
-  queueForRole
+  queueForRole,
+  validateAgentRunIsolation
 } from "@dionysus/core";
 import { createCliAdapter, MockAdapter } from "@dionysus/cli-adapters";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
@@ -82,7 +84,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     });
     await repo.recordTaskEvent(message.task_id, "workspace.created", {
       workspacePath: workspace.workspacePath,
-      source: taskTargetRoot
+      source: "hidden"
     });
     const prompt = buildRolePrompt({
       role: "worker",
@@ -90,6 +92,18 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       goal: taskContext.goal,
       workspacePath: workspace.workspacePath
     });
+    const isolationDecision = await validateWorkspaceAgentIsolation({
+      taskId: message.task_id,
+      role: "worker",
+      cliType: runConfig.cliType,
+      prompt,
+      cwd: workspace.workspacePath,
+      targetRoot: taskTargetRoot,
+      workspacePath: workspace.workspacePath
+    });
+    if (!isolationDecision.allowed) {
+      return;
+    }
     runId = await repo.createTaskRun({
       taskId: message.task_id,
       cliType: runConfig.cliType,
@@ -237,7 +251,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     workspacePath = workspace.workspacePath;
     await repo.recordTaskEvent(message.task_id, "workspace.created", {
       workspacePath: workspace.workspacePath,
-      source: taskTargetRoot,
+      source: "hidden",
       role
     });
   }
@@ -256,6 +270,18 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
       cliModel: workerCliModel
     }
   });
+  const isolationDecision = await validateWorkspaceAgentIsolation({
+    taskId: message.task_id,
+    role,
+    cliType: runConfig.cliType,
+    prompt,
+    cwd,
+    targetRoot: taskTargetRoot,
+    workspacePath
+  });
+  if (!isolationDecision.allowed) {
+    return;
+  }
   const roleAdapter = runConfig.cliType === "mock"
     ? new MockAdapter()
     : createCliAdapter({ cliType: runConfig.cliType, model: runConfig.cliModel, timeoutMs: agentRunTimeoutMs });
@@ -358,6 +384,47 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     await repo.recordTaskEvent(message.task_id, "dispatch.waiting_for_review", {
       reason: dispatchDecision.reason
     });
+  }
+}
+
+async function validateWorkspaceAgentIsolation(input: {
+  taskId: string;
+  role: AgentRole;
+  cliType: CliType;
+  prompt: string;
+  cwd: string;
+  targetRoot: string;
+  workspacePath?: string;
+}): Promise<{ allowed: boolean; reasons: string[] }> {
+  const workspaceMarker = input.workspacePath ? await readWorkspaceMarker(input.workspacePath) : undefined;
+  const decision = validateAgentRunIsolation({
+    role: input.role,
+    cliType: input.cliType,
+    prompt: input.prompt,
+    cwd: input.cwd,
+    targetRoot: input.targetRoot,
+    workspacePath: input.workspacePath,
+    workspaceMarker
+  });
+  if (decision.allowed) {
+    return decision;
+  }
+
+  const reason = `Dionysus isolation blocked ${input.role} ${input.cliType} run: ${decision.reasons.join("; ")}`;
+  await repo.recordTaskEvent(input.taskId, "agent_run_isolation_blocked", {
+    role: input.role,
+    cliType: input.cliType,
+    reasons: decision.reasons
+  });
+  await repo.markTaskBlocked({ taskId: input.taskId, reason });
+  return decision;
+}
+
+async function readWorkspaceMarker(workspacePath: string): Promise<string | undefined> {
+  try {
+    return await readFile(join(workspacePath, ".dionysus-workspace"), "utf8");
+  } catch {
+    return undefined;
   }
 }
 

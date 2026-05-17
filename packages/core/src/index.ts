@@ -24,3 +24,4 @@ export * from "./agent-cli-usage.js";
 export * from "./cli-usage-receipt.js";
 export * from "./task-review.js";
 export * from "./agent-assignment.js";
+export * from "./agent-run-isolation.js";
