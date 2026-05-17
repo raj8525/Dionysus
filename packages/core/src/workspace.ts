@@ -28,7 +28,11 @@ export async function createIsolatedWorkspace(input: {
   if (result.exitCode !== 0) {
     throw new Error(`Failed to create git workspace: ${result.stderr}`);
   }
-  await writeFile(join(workspacePath, ".dionysus-workspace"), `task_id=${input.taskId}\nsource=${input.targetRoot}\n`);
+  const removeRemote = await runCommand("git", ["remote", "remove", "origin"], workspacePath, 120_000);
+  if (removeRemote.exitCode !== 0) {
+    throw new Error(`Failed to scrub workspace git remote: ${removeRemote.stderr}`);
+  }
+  await writeFile(join(workspacePath, ".dionysus-workspace"), `task_id=${input.taskId}\nsource=hidden\n`);
   return { workspacePath, taskSlug };
 }
 

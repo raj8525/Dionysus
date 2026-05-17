@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -54,9 +54,13 @@ describe("workspace patch creation", () => {
         taskId: "task-123"
       });
       const patch = await createPatch({ workspacePath: workspace.workspacePath });
+      const marker = await readFile(join(workspace.workspacePath, ".dionysus-workspace"), "utf8");
+      const remote = await execFileAsync("git", ["remote", "-v"], { cwd: workspace.workspacePath });
 
       expect(patch.changedFiles).toEqual([]);
       expect(patch.patchText).toBe("");
+      expect(marker).not.toContain(source);
+      expect(remote.stdout).toBe("");
     } finally {
       await rm(source, { recursive: true, force: true });
       await rm(workspaces, { recursive: true, force: true });
