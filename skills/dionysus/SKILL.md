@@ -104,6 +104,22 @@ pnpm -s dionysus fastlane coupon-module-start \
 
 `--data-only` 适用于已有页面/API 基本成立但缺少真实数据库测试数据的场景。Codex 审查 Worker patch 后，直接运行 migration、验证 PostgreSQL/API、记录 release；不要让 Dionysus 自动扩张成接口或页面改造。
 
+应用数据基座 Worker 产物时，不要手写 shell。先做受限 plan，再 apply：
+
+```bash
+pnpm -s dionysus coupon seed plan \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --migration "migrations/026_hotel_store_create_fields.sql" \
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+
+pnpm -s dionysus coupon seed apply \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --migration "migrations/026_hotel_store_create_fields.sql" \
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+```
+
+`coupon seed plan/apply` 只接受 `migrations/*.sql`，拒绝路径穿越和危险 SQL，并固定通过 Coupon 项目 Docker PostgreSQL 执行。Codex 仍需最终核验 API / 页面 / E2E 后再提交。
+
 分阶段入队规则：
 
 - `coupon-module-start` 只立即入队“数据基座”Worker。

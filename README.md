@@ -199,6 +199,22 @@ pnpm dionysus fastlane coupon-module-start \
 - PostgreSQL 验证同时提供 psql 直连和 `docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon ...` 两种方式。
 - migration 必须幂等，重复执行不会重复插入或改变预期统计。
 
+Codex 接受数据基座 patch 后，不要手写 shell 执行 migration。先用 Dionysus 的受限 seed 入口做路径与危险 SQL 检查，再应用到目标项目 PostgreSQL：
+
+```bash
+pnpm dionysus coupon seed plan \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --migration "migrations/026_hotel_store_create_fields.sql" \
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+
+pnpm dionysus coupon seed apply \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --migration "migrations/026_hotel_store_create_fields.sql" \
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+```
+
+`coupon seed apply` 只接受目标项目 `migrations/*.sql`，拒绝路径穿越和 `DROP`、`TRUNCATE`、`DELETE`、`ALTER TABLE DROP` 等危险 SQL，并固定通过目标项目 `docker compose` 内的 PostgreSQL 执行。它是 Codex 应用 Dionysus 数据基座 Worker 产物的默认入口。
+
 ```bash
 pnpm dionysus fastlane plan \
   --title "库存流水查询闭环" \

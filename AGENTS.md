@@ -222,6 +222,22 @@ pnpm dionysus fastlane coupon-module-plan \
 
 `--data-only` 只创建“数据基座 Worker + 数据基座 ReviewerCLI”，不会创建 API Worker 或 Vue Worker。适用场景是已有页面/API 基本成立，但主 PostgreSQL 缺少完整虚拟数据、状态枚举或验收样本。Codex 审查通过后可以直接运行 migration、验证数据库和 API，再记录 release。
 
+Codex 应用数据基座 Worker 产物时，必须优先使用受限 seed 入口，而不是手写 `docker compose ... < migration.sql`：
+
+```bash
+pnpm dionysus coupon seed plan \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --migration "migrations/026_hotel_store_create_fields.sql" \
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+
+pnpm dionysus coupon seed apply \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --migration "migrations/026_hotel_store_create_fields.sql" \
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+```
+
+`coupon seed plan/apply` 只允许目标项目 `migrations/*.sql`，会拒绝路径穿越和危险 SQL，并固定通过目标项目 Docker PostgreSQL 执行。这样 Dionysus 可以生成测试数据，Codex 负责最终安全应用和验收。
+
 该模板固定生成 3 个 Worker 和 1 个 Reviewer：
 
 - 数据基座：先补 `migrations/`、完整虚拟数据、契约和 `features_test/`。
