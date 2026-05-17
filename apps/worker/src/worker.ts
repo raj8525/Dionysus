@@ -24,6 +24,7 @@ import {
   parseCliUsageReceipt,
   resolveAgentRunConfig,
   shouldDispatchAfterIntegration,
+  decideTargetMutationHandling,
   queueForRole,
   validateAgentRunIsolation
 } from "@dionysus/core";
@@ -119,6 +120,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       return;
     }
     const activeRunId = runId;
+    const targetMutationBaselineAt = new Date();
     const targetStatusBefore = await readGitStatus(taskTargetRoot);
 
     let logSequence = 1;
@@ -143,15 +145,25 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     }
     const targetMutation = await detectTargetRootMutation(taskTargetRoot, targetStatusBefore);
     if (targetMutation.mutated) {
-      const reason = `Agent wrote directly into targetRoot ${taskTargetRoot}; this violates isolated workspace rules.\nBefore:\n${targetMutation.before || "(clean)"}\nAfter:\n${targetMutation.after || "(clean)"}`;
-      await repo.appendRunLog(runId, "stderr", reason, 98);
-      await repo.recordTaskEvent(message.task_id, "target_root_mutation_detected", {
+      const handling = await decideTargetMutationHandlingForGoal({
+        goalId: message.goal_id,
+        currentTaskId: message.task_id,
+        runStartedAt: targetMutationBaselineAt
+      });
+      await repo.appendRunLog(
+        runId,
+        "stderr",
+        `Target root changed during run (${handling.severity}): ${handling.reason}.\nBefore:\n${targetMutation.before || "(clean)"}\nAfter:\n${targetMutation.after || "(clean)"}`,
+        98
+      );
+      await repo.recordTaskEvent(message.task_id, handling.eventType, {
         targetRoot: taskTargetRoot,
         before: targetMutation.before,
-        after: targetMutation.after
+        after: targetMutation.after,
+        goalId: message.goal_id,
+        reason: handling.reason,
+        severity: handling.severity
       });
-      await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 1 });
-      return;
     }
 
     let queuedPatchId: string | null = null;
@@ -301,6 +313,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     return;
   }
   const activeRunId = runId;
+  const targetMutationBaselineAt = new Date();
   const targetStatusBefore = await readGitStatus(taskTargetRoot);
   let logSequence = 1;
   let streamedLogs = false;
@@ -323,16 +336,26 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   }
   const targetMutation = await detectTargetRootMutation(taskTargetRoot, targetStatusBefore);
   if (targetMutation.mutated) {
-    const reason = `Agent wrote directly into targetRoot ${taskTargetRoot}; this violates isolated workspace rules.\nBefore:\n${targetMutation.before || "(clean)"}\nAfter:\n${targetMutation.after || "(clean)"}`;
-    await repo.appendRunLog(runId, "stderr", reason, 98);
-    await repo.recordTaskEvent(message.task_id, "target_root_mutation_detected", {
+    const handling = await decideTargetMutationHandlingForGoal({
+      goalId: message.goal_id,
+      currentTaskId: message.task_id,
+      runStartedAt: targetMutationBaselineAt
+    });
+    await repo.appendRunLog(
+      runId,
+      "stderr",
+      `Target root changed during run (${handling.severity}): ${handling.reason}.\nBefore:\n${targetMutation.before || "(clean)"}\nAfter:\n${targetMutation.after || "(clean)"}`,
+      98
+    );
+    await repo.recordTaskEvent(message.task_id, handling.eventType, {
       targetRoot: taskTargetRoot,
       before: targetMutation.before,
       after: targetMutation.after,
-      role
+      goalId: message.goal_id,
+      role,
+      reason: handling.reason,
+      severity: handling.severity
     });
-    await repo.completeTaskRun({ taskId: message.task_id, runId, exitCode: 1 });
-    return;
   }
   await repo.recordTaskEvent(message.task_id, result.exitCode === 0 ? `${roleName}.completed` : `${roleName}.failed`, {
     messageId: message.message_id,
@@ -447,6 +470,30 @@ async function detectTargetRootMutation(
     before,
     after
   };
+}
+
+async function decideTargetMutationHandlingForGoal(input: {
+  goalId?: string;
+  currentTaskId: string;
+  runStartedAt: Date;
+}) {
+  if (!input.goalId) {
+    return decideTargetMutationHandling({
+      currentTaskId: input.currentTaskId,
+      runStartedAt: input.runStartedAt,
+      integrations: []
+    });
+  }
+  const integrations = await repo.listIntegrations(input.goalId);
+  return decideTargetMutationHandling({
+    currentTaskId: input.currentTaskId,
+    runStartedAt: input.runStartedAt,
+    integrations: integrations.map((integration) => ({
+      taskId: typeof integration.taskId === "string" ? integration.taskId : undefined,
+      status: String(integration.status),
+      updatedAt: String(integration.updatedAt)
+    }))
+  });
 }
 
 function normalizeGitStatus(status: string): string {

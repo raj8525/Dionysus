@@ -191,6 +191,16 @@ pnpm dionysus codex ack --event-id "<event-id>"
 
 `release_ready` 的 ack 必须强制检查 `release_records.codex_outbox_event_id = <event-id>` 是否存在。不存在时 `POST /api/codex/outbox/:id/ack` 必须返回 `409 CODEX_OUTBOX_ACK_BLOCKED`，提示 Codex 先执行 `release record`。只有显式传入 `{ "force": true }` 时才允许人工破例 ack。
 
+## Target Mutation Guard
+
+Agent Runtime 必须在隔离工作区运行 Worker / RuleWriter / TestWriter。目标项目 worktree 在 Agent 执行期间发生变化时，不得再直接判定当前 Agent 失败，因为同一时间可能有 Codex、另一个 Agent、或已通过 integration 正在写入无关模块。
+
+处理规则：
+
+- 如果变化可由同一 goal 中另一个 `passed` integration 解释，记录 `target_root_mutation_explained_by_integration`，继续当前任务。
+- 如果变化无法解释，记录 `target_root_mutation_observed` warning，继续当前任务。
+- 最终是否允许提交由 patch apply、review、测试和 release gate 判断；release gate 必须阻止未归属文件混入提交。
+
 ## Release Records
 
 ```text
