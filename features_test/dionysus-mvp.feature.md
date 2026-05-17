@@ -337,6 +337,7 @@ Given Codex 运行 `pnpm dionysus fastlane coupon-module-start`
 When Dionysus 创建 Coupon 模块任务树
 Then 只有数据基座 Worker 可以立即入队
 And 只读 API 和 Vue 只读首页 Worker 必须保持 `created`
+And 如果 Codex 或脚本提前调用 `task enqueue`，API 必须返回 `COUPON_DATA_FIRST_GATE_BLOCKED`
 When 数据基座 Worker 已完成且 Codex approve
 Then `fastlane status` 必须提示入队只读 API 和 Vue 只读首页 Worker
 And ReviewerCLI 必须等全部 Worker 完成后才能启动

@@ -25,6 +25,7 @@ import {
   queueForRole,
   evaluateReviewerApprovalGate,
   evaluateTaskReviewRejectionPolicy,
+  evaluateCouponDataFirstEnqueueGate,
   shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
   taskReviewStatusForVerdict
@@ -514,6 +515,15 @@ export async function buildServer() {
     }
     const task = await repo.createTask(parsed.data);
     if (parsed.data.queue) {
+      const goalTasks = await repo.listTasks(parsed.data.goalId);
+      const gate = evaluateCouponDataFirstEnqueueGate({
+        task: { ...parsed.data, id: task.id, status: task.status },
+        goalTasks
+      });
+      if (!gate.allowed) {
+        await repo.recordTaskEvent(task.id, "task.enqueue_blocked", { ...gate });
+        return reply.code(201).send({ ...task, enqueueBlocked: gate });
+      }
       await repo.markTaskQueued(task.id);
       await publishJson(queueForRole(parsed.data.roleRequired), {
         message_id: randomUUID(),
@@ -555,6 +565,18 @@ export async function buildServer() {
     const roleRequired = String(task.role_required);
     if (!["master", "rule_writer", "test_writer", "worker"].includes(roleRequired)) {
       return reply.code(409).send({ error: "INVALID_TASK_ROLE", roleRequired });
+    }
+    const goalTasks = await repo.listTasks(String(task.goal_id));
+    const gate = evaluateCouponDataFirstEnqueueGate({ task, goalTasks });
+    if (!gate.allowed) {
+      await repo.recordTaskEvent(id, "task.enqueue_blocked", { ...gate });
+      return reply.code(409).send({
+        error: gate.error,
+        reason: gate.reason,
+        id,
+        status,
+        roleRequired
+      });
     }
     await repo.markTaskQueued(id);
     await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {

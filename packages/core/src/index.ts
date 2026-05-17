@@ -26,3 +26,4 @@ export * from "./task-review.js";
 export * from "./agent-assignment.js";
 export * from "./agent-run-isolation.js";
 export * from "./target-mutation.js";
+export * from "./coupon-data-first-gate.js";
