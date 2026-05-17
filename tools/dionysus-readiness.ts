@@ -24,6 +24,7 @@ export interface ReadinessTargetInput {
   changes: string[];
   allowedDirtyChanges?: string[];
   blockingChanges?: string[];
+  suggestedDirtyAllowances?: string[];
   hasAgentsMd: boolean;
   hasPlan: boolean;
   hasSpecs: boolean;
@@ -131,6 +132,7 @@ export function buildCodexReadinessSummary(input: {
   const allowedDirtyPaths = input.allowedDirtyPaths ?? [];
   const allowedDirtyChanges = input.target.changes.filter((change) => isAllowedDirtyChange(change, allowedDirtyPaths));
   const blockingChanges = input.target.changes.filter((change) => !isAllowedDirtyChange(change, allowedDirtyPaths));
+  const suggestedDirtyAllowances = uniquePaths(blockingChanges.map(extractChangedPath));
   if (!input.target.gitClean && allowedDirtyPaths.length === 0) {
     blockers.push(`目标项目工作区不干净：${input.target.changes.length} 个改动`);
   } else if (blockingChanges.length > 0) {
@@ -151,7 +153,8 @@ export function buildCodexReadinessSummary(input: {
     target: {
       ...input.target,
       allowedDirtyChanges,
-      blockingChanges
+      blockingChanges,
+      suggestedDirtyAllowances
     },
     nextAction: status === "ready"
       ? "可以启动 fast lane：先选择一个完整模块读路径目标，再拆 1-4 个 WorkerCLI 任务。"
@@ -164,6 +167,7 @@ export function buildCodexReadinessSummary(input: {
       ]
       : [
         `cd ${input.targetRoot} && git status --short`,
+        ...buildDirtyAllowanceCommands(input.targetRoot, allowedDirtyPaths, suggestedDirtyAllowances),
         "cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus system doctor --brief",
         "cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus agent config list"
       ]
@@ -185,6 +189,24 @@ function extractChangedPath(change: string): string {
   const withoutStatus = change.length > 3 ? change.slice(3).trim() : change.trim();
   const renamedTarget = withoutStatus.split(" -> ").pop() ?? withoutStatus;
   return renamedTarget.replace(/^\.?\//, "");
+}
+
+function uniquePaths(paths: string[]): string[] {
+  return [...new Set(paths.filter(Boolean))];
+}
+
+function buildDirtyAllowanceCommands(targetRoot: string, allowedDirtyPaths: string[], suggestedDirtyAllowances: string[]): string[] {
+  const combinedAllowances = uniquePaths([...allowedDirtyPaths, ...suggestedDirtyAllowances]);
+  if (combinedAllowances.length === 0) {
+    return [];
+  }
+
+  const allowFlags = combinedAllowances
+    .map((path) => `--allow-dirty-path ${JSON.stringify(path)}`)
+    .join(" ");
+  return [
+    `确认这些改动属于用户或其他 Agent 且不在本轮文件范围内后，可重跑：cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus system readiness --target-root ${JSON.stringify(targetRoot)} ${allowFlags}`
+  ];
 }
 
 function roleLabel(role: string): string {

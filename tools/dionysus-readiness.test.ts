@@ -124,7 +124,54 @@ describe("Codex readiness summary", () => {
     expect(blocked.status).toBe("blocked");
     expect(blocked.target.allowedDirtyChanges).toEqual([" M apps/admin-web/src/pages/login.vue"]);
     expect(blocked.target.blockingChanges).toEqual([" M apps/admin-web/src/pages/hotels.vue"]);
+    expect(blocked.target.suggestedDirtyAllowances).toEqual(["apps/admin-web/src/pages/hotels.vue"]);
     expect(blocked.blockers).toContain("目标项目存在未允许的工作区改动：1 个");
+    expect(blocked.nextCommands.join("\n")).toContain("--allow-dirty-path \"apps/admin-web/src/pages/hotels.vue\"");
+    expect(blocked.nextCommands.join("\n")).toContain("--allow-dirty-path \"apps/admin-web/src/pages/login.vue\"");
+  });
+
+  it("allows explicitly acknowledged untracked directories and suggests directory allowances", () => {
+    const baseInput = {
+      targetRoot: "/repo/Coupon",
+      health: {
+        ok: true,
+        database: { ok: true },
+        rabbitmq: { ok: true },
+        worker: { ok: true }
+      },
+      cliProbe: [
+        { cliType: "opencode", available: true },
+        { cliType: "gemini_cli", available: true },
+        { cliType: "claude_code", available: true }
+      ],
+      configs: [
+        { role: "master", cliType: "claude_code", enabled: true },
+        { role: "rule_writer", cliType: "gemini_cli", enabled: true },
+        { role: "test_writer", cliType: "opencode", cliModel: "minimax-cn-coding-plan/MiniMax-M2.7", enabled: true },
+        { role: "worker", cliType: "opencode", cliModel: "minimax-cn-coding-plan/MiniMax-M2.7", enabled: true }
+      ],
+      target: {
+        gitClean: false,
+        changes: ["?? docs/data/"],
+        hasAgentsMd: true,
+        hasPlan: true,
+        hasSpecs: true,
+        hasFeaturesTest: true
+      }
+    };
+
+    const blocked = buildCodexReadinessSummary(baseInput);
+    expect(blocked.status).toBe("blocked");
+    expect(blocked.target.suggestedDirtyAllowances).toEqual(["docs/data/"]);
+    expect(blocked.nextCommands.join("\n")).toContain("--allow-dirty-path \"docs/data/\"");
+
+    const allowed = buildCodexReadinessSummary({
+      ...baseInput,
+      allowedDirtyPaths: ["docs/data/"]
+    });
+    expect(allowed.status).toBe("ready");
+    expect(allowed.target.allowedDirtyChanges).toEqual(["?? docs/data/"]);
+    expect(allowed.target.blockingChanges).toEqual([]);
   });
 
   it("throws before fastlane start when readiness is blocked", () => {

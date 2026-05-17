@@ -50,6 +50,16 @@ pnpm -s dionysus system readiness \
 ```
 
 只允许已经识别归属的路径；不要用目录级允许掩盖不明改动。
+如果 `git status --short` 显示的是未跟踪目录，例如 `?? docs/data/`，必须允许目录本身：
+
+```bash
+pnpm -s dionysus system readiness \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --allow-dirty-path "apps/admin-web/src/pages/login.vue" \
+  --allow-dirty-path "docs/data/"
+```
+
+不要把 `docs/data/regions.json` 当成 `?? docs/data/` 的等价 allow；Git 对未跟踪目录只暴露目录行，Dionysus 会在 readiness 的 `suggestedDirtyAllowances` 中给出应该确认的目录路径。
 
 ## Fast Lane 目标创建
 
@@ -148,7 +158,9 @@ pnpm -s dionysus fastlane start \
 Coupon 管理后台固定补充规则：
 
 - 模块开发坚持“数据先行、先读后写”：先补数据库表结构和完整虚拟数据，再做只读接口和页面读取，最后才做写路径。
-- `hotels.vue` 已经完成，不再参考 `apps/admin-web/html/hotels.html` 重写。
+- 当前 `hotels.vue` 实际承载的是集团租户/租户管理，不是真正的酒店门店管理；后续应迁移为 `tenants` 模块，再新增真正的 `hotels` 门店管理模块。
+- 迁移前不得破坏现有 `hotels.vue` 的成熟交互：左侧点击租户必须更新右侧详情，数据仍来自 `/api/admin/tenants`。
+- 真正的酒店管理模块应围绕租户下的门店和部门建模，优先读取 `tenant_stores`、`tenant_departments` 或后续标准化后的门店/部门表。
 - 其他页面迁移 Vue 时参考 `apps/admin-web/html/` 对应模板，但必须重写为动态 Vue 页面。
 - Worker prompt 必须显式写清：禁止 `v-html`、raw HTML import、长字符串整页模板；必须有响应式数据、接口调用、loading、error、empty state 和真实用户交互。
 - `hotels.vue` 只允许在明确需要时做接口、路由或小范围交互增量，不允许重新套模板。
