@@ -17,13 +17,7 @@ export async function applyPatchToTarget(input: {
   patchText: string;
   verificationCommands?: string[];
 }): Promise<PatchApplyResult> {
-  const dirty = await runGit(input.targetRoot, ["status", "--porcelain"]);
-  if (dirty.exitCode !== 0) {
-    return { status: "failed", changedFiles: [], reason: dirty.stderr };
-  }
-  if (dirty.stdout.trim().length > 0) {
-    return { status: "blocked", changedFiles: [], reason: "target git worktree is dirty" };
-  }
+  const patchChangedFiles = changedFilesFromPatch(input.patchText);
 
   const patchFile = await writeTempPatch(input.patchText);
   try {
@@ -43,22 +37,25 @@ export async function applyPatchToTarget(input: {
       return { status: "failed", changedFiles: [], reason: verification };
     }
 
-    const names = await runGit(input.targetRoot, ["status", "--porcelain"]);
     return {
       status: "applied",
-      changedFiles: changedFilesFromPorcelain(names.stdout)
+      changedFiles: patchChangedFiles
     };
   } finally {
     await rm(join(patchFile, ".."), { recursive: true, force: true });
   }
 }
 
-function changedFilesFromPorcelain(stdout: string): string[] {
-  return stdout
-    .split(/\r?\n/)
-    .map((line) => line.slice(3).trim())
-    .filter(Boolean)
-    .map((path) => path.replace(/^"|"$/g, ""));
+function changedFilesFromPatch(patchText: string): string[] {
+  const files = new Set<string>();
+  for (const line of patchText.split(/\r?\n/)) {
+    if (!line.startsWith("diff --git ")) continue;
+    const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (match?.[2]) {
+      files.add(match[2].replace(/^"|"$/g, ""));
+    }
+  }
+  return Array.from(files).sort();
 }
 
 async function runVerificationCommands(cwd: string, commands: string[]): Promise<string | null> {

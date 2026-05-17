@@ -68,18 +68,58 @@ describe("integration patch applier", () => {
     }
   });
 
-  it("rejects patch application when target has uncommitted changes", async () => {
+  it("applies a patch when target has unrelated uncommitted changes and reports only patch files", async () => {
     const root = await initRepo();
     try {
       await writeFile(join(root, "local.txt"), "do not overwrite\n");
+      const patch = [
+        "diff --git a/README.md b/README.md",
+        "index 5a60f7d..61e9f52 100644",
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        ""
+      ].join("\n");
 
       const result = await applyPatchToTarget({
         targetRoot: root,
-        patchText: "diff --git a/README.md b/README.md\n"
+        patchText: patch
       });
 
-      expect(result.status).toBe("blocked");
-      expect(result.reason).toContain("dirty");
+      expect(result.status).toBe("applied");
+      expect(result.changedFiles).toEqual(["README.md"]);
+      const status = await execFileAsync("git", ["status", "--porcelain"], { cwd: root });
+      expect(status.stdout).toContain("README.md");
+      expect(status.stdout).toContain("local.txt");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when patch overlaps with conflicting uncommitted changes", async () => {
+    const root = await initRepo();
+    try {
+      await writeFile(join(root, "README.md"), "local edit\n");
+      const patch = [
+        "diff --git a/README.md b/README.md",
+        "index 5a60f7d..61e9f52 100644",
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        ""
+      ].join("\n");
+
+      const result = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch
+      });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBeTruthy();
     } finally {
       await rm(root, { recursive: true, force: true });
     }

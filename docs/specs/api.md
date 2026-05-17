@@ -201,6 +201,14 @@ Agent Runtime 必须在隔离工作区运行 Worker / RuleWriter / TestWriter。
 - 如果变化无法解释，记录 `target_root_mutation_observed` warning，继续当前任务。
 - 最终是否允许提交由 patch apply、review、测试和 release gate 判断；release gate 必须阻止未归属文件混入提交。
 
+## Integration Apply
+
+Integration applier 不得因为目标项目存在无关 dirty 文件而整体阻塞。它必须直接执行 `git apply --check`，由 Git 判断 patch 是否与当前工作区冲突：
+
+- patch 与现有 dirty 文件无关时，允许应用。
+- patch 与 dirty 文件冲突时，返回 failed 并保留 Git 的失败原因。
+- integration 的 `changedFiles` 必须只记录当前 patch 触达的文件，不能把目标项目里已有的其他 dirty 文件归入当前任务。
+
 ## Release Records
 
 ```text
