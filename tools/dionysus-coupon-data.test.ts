@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildCouponSeedSystemEventRequest,
   buildCouponSeedApplyPlan,
   findDestructiveSql
 } from "./dionysus-coupon-data.js";
@@ -75,6 +76,58 @@ describe("dionysus Coupon data tools", () => {
 
   it("ignores destructive-looking words in SQL comments", () => {
     expect(findDestructiveSql("-- delete from tenant_stores;\nselect 1;")).toEqual([]);
+  });
+
+  it("builds a PostgreSQL system event payload from seed apply evidence", () => {
+    const event = buildCouponSeedSystemEventRequest({
+      goalId: "18adb562-7ed3-45ae-b99a-b9a76dd2a928",
+      result: {
+        status: "applied",
+        plan: {
+          status: "ready",
+          targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+          migrationPath: "migrations/026_hotel_store_create_fields.sql",
+          absoluteMigrationPath: "/Volumes/MacMiniSSD/code/Coupon/migrations/026_hotel_store_create_fields.sql",
+          destructiveFindings: [],
+          applyCommand: "docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon -v ON_ERROR_STOP=1 < migrations/026_hotel_store_create_fields.sql",
+          verifyCommands: [
+            "docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon -tAc \"SELECT COUNT(*) FROM tenant_stores;\""
+          ],
+          safetyChecks: ["blocked destructive SQL patterns were not found"]
+        },
+        apply: {
+          command: "docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon -v ON_ERROR_STOP=1 < migrations/026_hotel_store_create_fields.sql",
+          exitCode: 0,
+          stdout: "COMMIT\n",
+          stderr: "NOTICE: already exists\n"
+        },
+        verification: [{
+          command: "docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon -tAc \"SELECT COUNT(*) FROM tenant_stores;\"",
+          exitCode: 0,
+          stdout: "19\n",
+          stderr: ""
+        }]
+      }
+    });
+
+    expect(event).toEqual({
+      eventType: "coupon.seed_applied",
+      payload: {
+        goalId: "18adb562-7ed3-45ae-b99a-b9a76dd2a928",
+        targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+        migrationPath: "migrations/026_hotel_store_create_fields.sql",
+        status: "applied",
+        applyExitCode: 0,
+        applyCommand: "docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon -v ON_ERROR_STOP=1 < migrations/026_hotel_store_create_fields.sql",
+        verification: [{
+          command: "docker compose -f docker-compose.yml exec -T postgres psql -U coupon -d coupon -tAc \"SELECT COUNT(*) FROM tenant_stores;\"",
+          exitCode: 0,
+          stdout: "19\n",
+          stderr: ""
+        }],
+        safetyChecks: ["blocked destructive SQL patterns were not found"]
+      }
+    });
   });
 });
 

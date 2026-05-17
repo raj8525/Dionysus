@@ -6,7 +6,7 @@ import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
-import { applyCouponSeed, buildCouponSeedApplyPlan } from "./dionysus-coupon-data.js";
+import { applyCouponSeed, buildCouponSeedApplyPlan, buildCouponSeedSystemEventRequest } from "./dionysus-coupon-data.js";
 import {
   buildCouponDataFirstFastLanePlan,
   buildFastLanePlan,
@@ -316,7 +316,20 @@ async function main(): Promise<void> {
       return print(buildCouponSeedApplyPlan(input));
     }
     if (seedAction === "apply") {
-      return print(await applyCouponSeed(input));
+      const result = await applyCouponSeed(input);
+      const goalId = readFlag(args, "--goal-id");
+      const recordEvent = hasFlag(args, "--record-event") || Boolean(goalId);
+      const eventRequest = recordEvent
+        ? buildCouponSeedSystemEventRequest({ goalId, result })
+        : undefined;
+      const recordedEvent = eventRequest
+        ? await request("/api/system-events", "POST", eventRequest)
+        : undefined;
+      return print({
+        ...result,
+        eventRequest,
+        recordedEvent
+      });
     }
   }
 
@@ -914,7 +927,7 @@ function usage(): void {
   tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane status --goal-id "..."
   tsx tools/dionysus.ts coupon seed plan --target-root "/Volumes/MacMiniSSD/code/Coupon" --migration "migrations/026_hotel_store_create_fields.sql" --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
-  tsx tools/dionysus.ts coupon seed apply --target-root "/Volumes/MacMiniSSD/code/Coupon" --migration "migrations/026_hotel_store_create_fields.sql" --verify-sql "SELECT COUNT(*) FROM tenant_stores;" [--dry-run]
+  tsx tools/dionysus.ts coupon seed apply --target-root "/Volumes/MacMiniSSD/code/Coupon" --migration "migrations/026_hotel_store_create_fields.sql" --verify-sql "SELECT COUNT(*) FROM tenant_stores;" [--goal-id "..."] [--record-event] [--dry-run]
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
   tsx tools/dionysus.ts release list --goal-id "..."
   tsx tools/dionysus.ts run logs --run-id "..."

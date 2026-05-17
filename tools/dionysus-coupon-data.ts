@@ -27,6 +27,11 @@ export interface CouponSeedApplyResult {
   verification: ProcessResult[];
 }
 
+export interface CouponSeedSystemEventRequest {
+  eventType: "coupon.seed_applied" | "coupon.seed_apply_failed" | "coupon.seed_apply_dry_run";
+  payload: Record<string, unknown>;
+}
+
 export interface ProcessResult {
   command: string;
   exitCode: number | null;
@@ -138,6 +143,31 @@ export function findDestructiveSql(sql: string): string[] {
   return destructivePatterns
     .filter(({ pattern }) => pattern.test(withoutLineComments))
     .map(({ label }) => label);
+}
+
+export function buildCouponSeedSystemEventRequest(input: {
+  goalId?: string;
+  result: CouponSeedApplyResult;
+}): CouponSeedSystemEventRequest {
+  const applyExitCode = input.result.apply?.exitCode;
+  const eventType = input.result.status === "dry_run"
+    ? "coupon.seed_apply_dry_run"
+    : applyExitCode === 0
+      ? "coupon.seed_applied"
+      : "coupon.seed_apply_failed";
+  return {
+    eventType,
+    payload: {
+      ...(input.goalId ? { goalId: input.goalId } : {}),
+      targetRoot: input.result.plan.targetRoot,
+      migrationPath: input.result.plan.migrationPath,
+      status: input.result.status,
+      applyExitCode: applyExitCode ?? null,
+      applyCommand: input.result.plan.applyCommand,
+      verification: input.result.verification,
+      safetyChecks: input.result.plan.safetyChecks
+    }
+  };
 }
 
 function dockerVerifyCommand(sqlText: string): string {

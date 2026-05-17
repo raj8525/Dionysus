@@ -165,6 +165,11 @@ const releaseRecordSchema = z.object({
   summary: z.string().default("")
 });
 
+const systemEventCreateSchema = z.object({
+  eventType: z.string().regex(/^[a-z][a-z0-9_.-]{2,80}$/),
+  payload: z.record(z.string(), z.unknown()).default({})
+});
+
 export async function buildServer() {
   const dbConfig = loadDatabaseConfig();
   const pool = createPool(dbConfig);
@@ -450,6 +455,15 @@ export async function buildServer() {
     const query = request.query as { prefix?: string; limit?: string };
     const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "30", 10) || 30, 1), 100);
     return repo.listSystemEvents({ eventPrefix: query.prefix, limit });
+  });
+
+  app.post("/api/system-events", async (request, reply) => {
+    const parsed = systemEventCreateSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_SYSTEM_EVENT", details: parsed.error.flatten() });
+    }
+    await repo.recordSystemEvent(parsed.data.eventType, parsed.data.payload);
+    return reply.code(201).send(parsed.data);
   });
 
   app.get("/api/codex/outbox", async (request) => {

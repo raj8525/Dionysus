@@ -210,10 +210,13 @@ pnpm dionysus coupon seed plan \
 pnpm dionysus coupon seed apply \
   --target-root /Volumes/MacMiniSSD/code/Coupon \
   --migration "migrations/026_hotel_store_create_fields.sql" \
-  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;" \
+  --record-event
 ```
 
 `coupon seed apply` 只接受目标项目 `migrations/*.sql`，拒绝路径穿越和 `DROP`、`TRUNCATE`、`DELETE`、`ALTER TABLE DROP` 等危险 SQL，并固定通过目标项目 `docker compose` 内的 PostgreSQL 执行。它是 Codex 应用 Dionysus 数据基座 Worker 产物的默认入口。
+
+如果本轮已有 Dionysus goal，传入 `--goal-id <goal-id>`；CLI 会自动把 `coupon.seed_applied`、`coupon.seed_apply_failed` 或 `coupon.seed_apply_dry_run` 写入 Dionysus PostgreSQL `system_events`。没有 goal 但仍需留证据时使用 `--record-event`。
 
 ```bash
 pnpm dionysus fastlane plan \

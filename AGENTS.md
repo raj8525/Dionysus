@@ -233,10 +233,13 @@ pnpm dionysus coupon seed plan \
 pnpm dionysus coupon seed apply \
   --target-root /Volumes/MacMiniSSD/code/Coupon \
   --migration "migrations/026_hotel_store_create_fields.sql" \
-  --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
+  --verify-sql "SELECT COUNT(*) FROM tenant_stores;" \
+  --record-event
 ```
 
 `coupon seed plan/apply` 只允许目标项目 `migrations/*.sql`，会拒绝路径穿越和危险 SQL，并固定通过目标项目 Docker PostgreSQL 执行。这样 Dionysus 可以生成测试数据，Codex 负责最终安全应用和验收。
+
+传入 `--goal-id <goal-id>` 时会自动把 seed apply 结果写入 Dionysus PostgreSQL `system_events`；没有 goal 但需要留证据时使用 `--record-event`。不要只保留终端输出。
 
 该模板固定生成 3 个 Worker 和 1 个 Reviewer：
 
