@@ -22,21 +22,22 @@ export function buildRolePrompt(input: {
 }): string {
   const roleBlock = roleInstructions[input.role];
   const goal = input.goal;
+  const promptContext = buildPromptPathContext(input);
   return [
     `你是 Dionysus Agent Team 的 ${roleLabel(input.role)}。`,
     "",
     "## 目标上下文",
     `Goal ID: ${goal?.id ?? "unknown"}`,
     `Goal Title: ${goal?.title ?? "unknown"}`,
-    `Target Root: ${goal?.targetRoot ?? "unknown"}`,
-    `Workspace Root: ${input.workspacePath ?? "not allocated"}`,
-    `Goal Description:\n${goal?.description ?? "unknown"}`,
+    `Target Root: ${promptContext.targetRootLine}`,
+    `Workspace Root: ${promptContext.workspaceLine}`,
+    `Goal Description:\n${promptContext.goalDescription}`,
     "",
     "## 当前任务",
     `Task ID: ${input.task.id}`,
     `Task Title: ${input.task.title}`,
     `Task Role: ${input.task.roleRequired}`,
-    `Task Description:\n${input.task.description}`,
+    `Task Description:\n${promptContext.taskDescription}`,
     "",
     "## 角色规则",
     roleBlock,
@@ -57,6 +58,48 @@ export function buildRolePrompt(input: {
     "4. 风险与阻塞",
     "5. 下一步 owner"
   ].join("\n");
+}
+
+function buildPromptPathContext(input: {
+  role: AgentRole;
+  task: RolePromptTask;
+  goal?: RolePromptGoal | null;
+  workspacePath?: string;
+}): {
+  targetRootLine: string;
+  workspaceLine: string;
+  goalDescription: string;
+  taskDescription: string;
+} {
+  const targetRoot = input.goal?.targetRoot ?? "unknown";
+  const workspacePath = input.workspacePath ?? "not allocated";
+  const shouldHideTargetRoot = input.role !== "master" && Boolean(input.workspacePath);
+  const goalDescription = input.goal?.description ?? "unknown";
+  const taskDescription = input.task.description;
+  if (!shouldHideTargetRoot) {
+    return {
+      targetRootLine: targetRoot,
+      workspaceLine: workspacePath,
+      goalDescription,
+      taskDescription
+    };
+  }
+
+  return {
+    targetRootLine: "hidden from this role; use Workspace Root only",
+    workspaceLine: workspacePath,
+    goalDescription: rewriteTargetRootReferences(goalDescription, targetRoot, workspacePath),
+    taskDescription: [
+      rewriteTargetRootReferences(taskDescription, targetRoot, workspacePath),
+      "",
+      `Dionysus 已将目标项目复制到 Workspace Root。你只能读取和修改 Workspace Root 下的文件；如果任务文字中出现目标项目原始路径，必须视为 ${workspacePath}。`
+    ].join("\n")
+  };
+}
+
+function rewriteTargetRootReferences(text: string, targetRoot: string, workspacePath: string): string {
+  if (!targetRoot || targetRoot === "unknown") return text;
+  return text.split(targetRoot).join(workspacePath);
 }
 
 function roleLabel(role: AgentRole): string {

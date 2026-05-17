@@ -86,8 +86,31 @@ describe("role prompt builder", () => {
     });
 
     expect(prompt).toContain("Workspace Root: /tmp/dionysus-workspaces/Coupon-worker-task");
+    expect(prompt).toContain("Target Root: hidden from this role; use Workspace Root only");
     expect(prompt).toContain("当前 CLI 的工作目录就是隔离 workspace");
     expect(prompt).toContain("禁止直接写入 Target Root 绝对路径");
     expect(prompt).toContain("所有文件修改必须使用相对路径");
+    expect(prompt).not.toContain("Target Root: /Volumes/MacMiniSSD/code/Coupon");
+  });
+
+  it("rewrites target root references for non-master workspace tasks", () => {
+    const prompt = buildRolePrompt({
+      role: "test_writer",
+      goal: {
+        ...goal,
+        description: "以 /Volumes/MacMiniSSD/code/Coupon 作为目标项目。"
+      },
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-test-task",
+      task: {
+        id: "test-task",
+        title: "编写 E2E",
+        description: "读取 /Volumes/MacMiniSSD/code/Coupon/apps/admin-web/src/pages/hotels.vue 后写测试。",
+        roleRequired: "test_writer"
+      }
+    });
+
+    expect(prompt).toContain("/tmp/dionysus-workspaces/Coupon-test-task/apps/admin-web/src/pages/hotels.vue");
+    expect(prompt).toContain("必须视为 /tmp/dionysus-workspaces/Coupon-test-task");
+    expect(prompt).not.toContain("/Volumes/MacMiniSSD/code/Coupon");
   });
 });
