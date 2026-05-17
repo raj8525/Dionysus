@@ -114,7 +114,7 @@ POST /api/milestones/:id/codex-verdict
 POST /api/milestones/:id/notifications
 ```
 
-`detect-milestones` 只接受已经通过 integration、patch 已 applied、测试状态 passed，且同时包含最终用户可见前端变更与后端 / API / 数据库变更的结果。后端-only、测试-only、文档-only、基础设施-only 或纯前端静态改动只能作为 engineering checkpoint，不得创建 milestone。创建出的 milestone 必须进入 `candidate`，之后必须经过浏览器级 E2E。
+`detect-milestones` 只接受已经通过 integration、patch 已 applied、测试状态 passed，且同时包含最终用户可见前端变更与后端 / API / 数据库变更的结果。这里的 milestone 必须是最终用户可在浏览器中完成的完整功能模块，不得把后端-only、测试-only、文档-only、基础设施-only、纯前端静态改动、mock 数据演示或 render-only 检查作为 milestone。未达到完整前后端闭环的结果只能作为 engineering checkpoint。创建出的 milestone 必须进入 `candidate`，之后必须经过浏览器级 E2E。
 
 `codex-verdict` 必须遵守 milestone 状态机：`passed` 只能从 `e2e_running` 进入；如果 Codex 或 Master 试图从 `candidate` 或 `e2e_required` 直接标记 `passed`，API 必须返回 `409 INVALID_MILESTONE_TRANSITION`。
 
@@ -126,7 +126,7 @@ GET /api/e2e/campaigns/:id/cases
 POST /api/e2e/cases/:id/result
 ```
 
-E2E campaign 由 Dionysus 生成用例草案，由 Codex 执行浏览器级测试并提交 verdict。
+E2E campaign 由 Dionysus 生成用例草案，由 Codex 执行最终用户视角的浏览器级测试并提交 verdict。milestone verdict 不接受 render-only 结果；render-only 只能用于工程 checkpoint 诊断。
 
 每条 E2E case 必须可记录执行结果：`passed`、`failed`、`blocked`、`skipped`，同时保存失败原因与证据 JSON。Campaign 状态必须由 case 状态自动汇总，不能靠人工口头判断。
 

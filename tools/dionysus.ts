@@ -336,6 +336,9 @@ async function runE2ECampaign(input: {
   mode: "strict" | "render-only";
   screenshotDir: string;
 }): Promise<Record<string, unknown>> {
+  if (input.mode === "render-only") {
+    throw new Error("render-only is not valid for milestone E2E campaigns; run strict final-user browser flows or record this as an engineering checkpoint.");
+  }
   const campaigns = await request("/api/e2e/campaigns") as E2ECampaignRecord[];
   const campaign = campaigns.find((candidate) => candidate.id === input.campaignId);
   if (!campaign) {
@@ -540,7 +543,7 @@ async function runE2ECase(input: {
   if (!actionable && input.mode === "strict") {
     return {
       status: "blocked",
-      failureReason: `caseType=${input.testCase.caseType} requires product-specific browser actions; rerun with --mode render-only only for static/document milestones, or record explicit case-result after Codex executes the workflow.`,
+      failureReason: `caseType=${input.testCase.caseType} requires product-specific final-user browser actions; Codex must execute the workflow and record explicit case-result before milestone verdict.`,
       evidence: {
         mode: input.mode,
         caseType: input.testCase.caseType,

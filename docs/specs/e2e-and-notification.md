@@ -6,12 +6,15 @@ Master 必须在每次 main commit 后判断是否出现里程碑候选。
 
 候选条件：
 
-- 有用户可见页面或 API 闭环。
+- 必须是最终用户能在浏览器中亲自体验的完整功能模块。
+- 必须有用户可见页面和后端 / API / 数据库闭环，不能只有页面、接口、测试、文档或基础设施。
 - 数据真实进入数据库。
 - 页面刷新后状态仍存在。
 - 至少有正向流程和关键异常流程。
 - main 测试通过。
 - 无 critical / blocker 任务。
+
+不符合以上条件的进展只能记为 engineering checkpoint。例如后端 smoke、测试补齐、CLI 修复、文档更新、静态页面、单页渲染、mock 数据演示，都不得创建 milestone，也不得触发用户通知。
 
 ## Codex E2E
 
@@ -27,8 +30,8 @@ pnpm dionysus e2e run-campaign --campaign-id "<campaign-id>" --mode strict
 
 执行模式：
 
-- `strict`：只自动执行通用浏览器检查，如 smoke、刷新持久性、控制台错误和截图。涉及业务输入、登录、提交、异常流的用例必须由 Codex 明确执行并逐条写入结果；系统不得伪造通过。
-- `render-only`：只验证页面可以渲染、body 有内容、无新增 console error，并保存截图。仅适用于静态页面、文档或演示型里程碑，证据中必须写明 caveat。
+- `strict`：执行最终用户视角的浏览器测试，至少覆盖 smoke、主路径、关键异常路径、刷新持久性、控制台错误和截图。涉及登录、业务输入、提交、异常流的用例必须由 Codex 明确执行并逐条写入结果；系统不得伪造通过。
+- `render-only`：只能用于工程 checkpoint 诊断，不能用于 milestone verdict，不能触发用户通知。
 
 E2E 结论：
 
