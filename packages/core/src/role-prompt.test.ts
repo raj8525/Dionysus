@@ -27,6 +27,7 @@ describe("role prompt builder", () => {
     expect(prompt).toContain("Codex 执行浏览器级 E2E");
     expect(prompt).toContain("部分里程碑");
     expect(prompt).toContain("真实数据库持久化");
+    expect(prompt).toContain('DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}');
   });
 
   it("separates RuleWriter, TestWriter and Worker responsibilities", () => {
@@ -70,6 +71,7 @@ describe("role prompt builder", () => {
     expect(workerPrompt).toContain("gate-check 已通过");
     expect(workerPrompt).toContain("产出 patch");
     expect(workerPrompt).toContain("最小可验证交付物");
+    expect(workerPrompt).toContain("最后一行必须单独输出完成标记");
   });
 
   it("forces Worker to write only inside the isolated workspace", () => {

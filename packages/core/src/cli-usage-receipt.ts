@@ -4,9 +4,10 @@ export interface CliUsageReceipt {
 }
 
 const usageLinePattern = /^DIONYSUS_USAGE_JSON=(.+)$/m;
+const doneLinePattern = /^DIONYSUS_DONE_JSON=(.+)$/m;
 
 export function parseCliUsageReceipt(text: string): CliUsageReceipt | null {
-  const match = usageLinePattern.exec(text);
+  const match = usageLinePattern.exec(text) ?? doneLinePattern.exec(text);
   if (!match) return null;
 
   try {

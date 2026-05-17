@@ -629,7 +629,7 @@ export function App() {
                 <StatusCard icon={<AlertTriangle />} label="Failed" value={String(agentCliUsage.totals.failedCalls)} tone={agentCliUsage.totals.failedCalls ? "bad" : "neutral"} />
               </div>
               <p className="usageNote">
-                Model Calls 优先使用 CLI 输出的 DIONYSUS_USAGE_JSON 真实回执；缺少回执时，非 mock CLI run 按 1 次估算。
+                Model Calls 优先使用 CLI 输出的 DIONYSUS_DONE_JSON / DIONYSUS_USAGE_JSON 真实回执；缺少回执时，非 mock CLI run 按 1 次估算。
               </p>
               <div className="cliUsagePanel">
                 <div className="subsectionTitle">

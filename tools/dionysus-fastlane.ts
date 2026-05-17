@@ -311,7 +311,7 @@ function buildWorkerDescription(input: {
     "- Preserve SDD/TDD evidence: update docs/specs or features_test when behavior or contract changes.",
     "- Produce the smallest reviewable patch for the assigned file/function boundary.",
     "- Report changed files, test commands, test results, risks, and next suggested owner.",
-    "- If a real CLI can report model usage, print one line: DIONYSUS_USAGE_JSON={\"modelCalls\":1}.",
+    "- Final line must be exactly: DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}.",
     "",
     "Output bar:",
     "- A patch or clear blocked reason.",

@@ -98,6 +98,18 @@ pnpm dionysus codex reconcile
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
+## CLI 完成标记
+
+所有真实 CLI Agent 的最终输出最后一行必须包含：
+
+```text
+DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}
+```
+
+Dionysus CLI Adapter 会在 stdout/stderr 中检测该标记；一旦检测到，会等待短暂 grace period 后主动终止 CLI 进程组，并把本次 run 视为正常完成。这样可以避免 OpenCode / MiniMax 已经输出最终报告却继续停留在“是否继续”的会话状态，拖慢后续 task review、ReviewerCLI 和 Codex E2E。
+
+`modelCalls` 会同时作为模型调用计数回执；旧的 `DIONYSUS_USAGE_JSON` 仍兼容，但新任务优先使用 `DIONYSUS_DONE_JSON`。
+
 `e2e run-campaign` 有两种模式：
 
 - `strict`：只自动通过通用 smoke / persistence；需要真实产品操作的 happy_path / negative_path 会标记 blocked，防止伪验收。

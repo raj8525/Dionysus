@@ -4,6 +4,7 @@ import { resolveOpenCodeModel } from "./opencode-model.js";
 import type { AgentRunInput, AgentRunResult, CliAdapter } from "./types.js";
 
 const MAX_OUTPUT_BYTES = 1024 * 1024 * 20;
+const COMPLETION_MARKER_PATTERN = /^DIONYSUS_DONE_JSON=(\{.*\})$/m;
 
 export interface TemplateCliAdapterOptions {
   cliType: Exclude<CliType, "mock">;
@@ -34,7 +35,8 @@ export class TemplateCliAdapter implements CliAdapter {
         cliType: this.options.cliType,
         cliModel: cliModel ?? null,
         command,
-        argsPreview: args.map((arg) => (arg === input.prompt ? "<prompt>" : arg))
+        argsPreview: args.map((arg) => (arg === input.prompt ? "<prompt>" : arg)),
+        completionMarkerDetected: result.completionMarkerDetected ?? false
       }
     };
   }
@@ -151,11 +153,14 @@ async function run(
   stdout: string;
   stderr: string;
   exitCode: number;
+  completionMarkerDetected?: boolean;
 }> {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let completionMarkerDetected = false;
+    let completionTimer: NodeJS.Timeout | undefined;
 
     const child = spawn(command, args, {
       cwd,
@@ -172,13 +177,15 @@ async function run(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (completionTimer) clearTimeout(completionTimer);
       if (extraStderr) {
         onOutput?.("stderr", extraStderr);
       }
       resolve({
         stdout,
         stderr: `${stderr}${extraStderr}`,
-        exitCode
+        exitCode,
+        completionMarkerDetected
       });
     };
 
@@ -202,13 +209,29 @@ async function run(
     }, timeoutMs);
     timer.unref();
 
+    const maybeFinishAfterCompletionMarker = (): void => {
+      if (settled || completionMarkerDetected) return;
+      const marker = parseDionysusCompletionMarker(`${stdout}\n${stderr}`);
+      if (!marker) return;
+      completionMarkerDetected = true;
+      const graceMs = completionGraceMs();
+      completionTimer = setTimeout(() => {
+        killProcessGroup("SIGTERM");
+        setTimeout(() => killProcessGroup("SIGKILL"), 1_000).unref();
+        finish(0, `\nDionysus completion marker detected; terminated CLI process group after ${graceMs}ms grace period.`);
+      }, graceMs);
+      completionTimer.unref();
+    };
+
     child.stdout?.on("data", (chunk: Buffer) => {
       onOutput?.("stdout", chunk.toString());
       stdout = append(stdout, chunk);
+      maybeFinishAfterCompletionMarker();
     });
     child.stderr?.on("data", (chunk: Buffer) => {
       onOutput?.("stderr", chunk.toString());
       stderr = append(stderr, chunk);
+      maybeFinishAfterCompletionMarker();
     });
     child.on("error", (error) => {
       finish(1, stderr ? `\n${error.message}` : error.message);
@@ -221,4 +244,23 @@ async function run(
       finish(code ?? 1);
     });
   });
+}
+
+export function parseDionysusCompletionMarker(text: string): Record<string, unknown> | null {
+  const match = COMPLETION_MARKER_PATTERN.exec(text);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]) as Record<string, unknown>;
+    const status = parsed.status;
+    if (status !== "done") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function completionGraceMs(): number {
+  const raw = Number(process.env.DIONYSUS_CLI_COMPLETION_GRACE_MS);
+  if (!Number.isFinite(raw) || raw < 0) return 1_500;
+  return Math.min(10_000, Math.floor(raw));
 }

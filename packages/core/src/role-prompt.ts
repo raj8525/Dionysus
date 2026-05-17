@@ -66,7 +66,10 @@ export function buildRolePrompt(input: {
     "2. 已完成动作",
     "3. 产出证据",
     "4. 风险与阻塞",
-    "5. 下一步 owner"
+    "5. 下一步 owner",
+    "",
+    "最后一行必须单独输出完成标记，用于 Dionysus 主动结束 CLI 进程：",
+    "DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}"
   ].filter((line) => line !== undefined).join("\n");
 }
 

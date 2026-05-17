@@ -2,7 +2,7 @@ import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createCliAdapter } from "./template-adapter.js";
+import { createCliAdapter, parseDionysusCompletionMarker } from "./template-adapter.js";
 
 const touchedEnv: string[] = [];
 
@@ -118,6 +118,32 @@ describe("real CLI adapters", () => {
     expect(result.stderr).toContain("timed out");
   });
 
+  it("terminates a CLI run after the Dionysus completion marker", async () => {
+    const command = await completionMarkerThenHangCliCommand();
+    setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);
+    setEnv("DIONYSUS_CLI_COMPLETION_GRACE_MS", "10");
+
+    const result = await createCliAdapter({ cliType: "claude_code", timeoutMs: 5_000 }).run({
+      taskId: "task-done-marker",
+      cwd: process.cwd(),
+      prompt: "完成后输出标记"
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}');
+    expect(result.stderr).toContain("completion marker detected");
+    expect(result.structuredResult?.completionMarkerDetected).toBe(true);
+  });
+
+  it("parses only valid done completion markers", () => {
+    expect(parseDionysusCompletionMarker('DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}')).toEqual({
+      status: "done",
+      modelCalls: 1
+    });
+    expect(parseDionysusCompletionMarker('DIONYSUS_DONE_JSON={"status":"blocked"}')).toBeNull();
+    expect(parseDionysusCompletionMarker("DIONYSUS_DONE_JSON={bad")).toBeNull();
+  });
+
   it("streams stdout and stderr chunks while the process is running", async () => {
     const command = await streamingCliCommand();
     setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);
@@ -158,6 +184,19 @@ async function hangingCliCommand(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-hang-"));
   const file = join(dir, "hanging-cli.mjs");
   await writeFile(file, "#!/usr/bin/env node\nsetInterval(() => {}, 1000)\n");
+  await chmod(file, 0o755);
+  return file;
+}
+
+async function completionMarkerThenHangCliCommand(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-done-"));
+  const file = join(dir, "done-then-hang-cli.mjs");
+  await writeFile(file, [
+    "#!/usr/bin/env node",
+    "process.stdout.write('final report\\n')",
+    "process.stdout.write('DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}\\n')",
+    "setInterval(() => {}, 1000)"
+  ].join("\n"));
   await chmod(file, 0o755);
   return file;
 }
