@@ -36,6 +36,14 @@ const createGoalSchema = z.object({
   targetRoot: z.string().min(1)
 });
 
+const cancelGoalSchema = z.object({
+  reason: z.string().min(1).default("cancelled by Codex")
+});
+
+const fastLaneGoalSchema = z.object({
+  reason: z.string().min(1).default("started by Codex fast lane")
+});
+
 const createTaskSchema = z.object({
   goalId: z.string().uuid(),
   title: z.string().min(1),
@@ -199,6 +207,32 @@ export async function buildServer() {
     }
     const goal = await repo.createGoal(parsed.data);
     return reply.code(201).send(goal);
+  });
+
+  app.post("/api/goals/:id/cancel", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = cancelGoalSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_GOAL_CANCEL_INPUT", details: parsed.error.flatten() });
+    }
+    const goal = await repo.cancelGoal({ goalId: id, reason: parsed.data.reason });
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND_OR_ALREADY_CLOSED" });
+    }
+    return reply.code(202).send(goal);
+  });
+
+  app.post("/api/goals/:id/fast-lane", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = fastLaneGoalSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_GOAL_FAST_LANE_INPUT", details: parsed.error.flatten() });
+    }
+    const goal = await repo.markGoalFastLane({ goalId: id, reason: parsed.data.reason });
+    if (!goal) {
+      return reply.code(404).send({ error: "GOAL_NOT_FOUND_OR_ALREADY_CLOSED" });
+    }
+    return reply.code(202).send(goal);
   });
 
   app.get("/api/goals", async (request) => {

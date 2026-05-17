@@ -12,6 +12,7 @@ const goalTransitions: Record<GoalStatus, GoalStatus[]> = {
   implementation_phase: ["integration_review", "blocked", "failed", "cancelled"],
   integration_review: ["codex_review", "implementation_phase", "blocked", "failed", "cancelled"],
   codex_review: ["done", "implementation_phase", "blocked", "failed", "cancelled"],
+  fast_lane: ["codex_review", "done", "blocked", "failed", "cancelled"],
   done: [],
   blocked: ["planning", "spec_phase", "test_phase", "implementation_phase", "cancelled"],
   failed: [],

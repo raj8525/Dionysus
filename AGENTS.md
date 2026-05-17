@@ -54,7 +54,11 @@ pnpm dionysus agent config set --role worker --cli opencode --model "minimax/Min
 pnpm dionysus agent status --goal-id "<goal-id>"
 pnpm dionysus agent usage --goal-id "<goal-id>"
 pnpm dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"
+pnpm dionysus fastlane plan --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
+pnpm dionysus fastlane start --title "库存流水查询闭环" --description "让最终用户在库存页看到真实库存流水" --target-root /Volumes/MacMiniSSD/code/Coupon --worker "后端::实现 API 和测试" --worker "前端::接入 Vue 页面"
 pnpm dionysus goal list --limit 10
+pnpm dionysus goal cancel --goal-id "<goal-id>" --reason "smoke done"
+pnpm dionysus goal fast-lane --goal-id "<goal-id>" --reason "Codex controls this goal directly"
 pnpm dionysus release record --goal-id "<goal-id>" --target-root "/path/to/project" --branch main --commit-sha "<sha>" --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
 pnpm dionysus release list --goal-id "<goal-id>"
 pnpm dionysus run logs --run-id "<run-id>"
@@ -136,6 +140,35 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 `pnpm dionysus goal supervise --goal-id "<goal-id>"` 是连续推进入口。每轮必须复用同一套 Agent 实例和 CLI usage 统计口径；如果它返回 blocker 或 e2e_required，先处理 `codex_outbox`，不要只看前端或任务列表猜测状态。
 
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`，并等待 API `/health` 可访问后才返回。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
+
+## Fast Lane
+
+默认推进真实 Coupon 功能时，Codex 优先使用 fast lane，而不是完整 Master 状态机：
+
+```bash
+pnpm dionysus fastlane start \
+  --title "库存流水查询闭环" \
+  --description "让最终用户在库存页看到真实库存流水" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --worker "后端 API::补 GET /api/admin/inventory/transactions 与 handler 测试" \
+  --worker "前端展示::在 inventory.vue 展示真实库存流水" \
+  --reviewer "ReviewerCLI 90分门禁::检查契约、测试、UI、真实数据与可合并性"
+```
+
+规则：
+
+- `fastlane start` 会创建一个 `fast_lane` goal，并把每个 `--worker` 转成已入队 Worker 任务。
+- `fast_lane` goal 不会被 Master Control 自动扫描，避免完整 Master 状态机重复拆任务。
+- Reviewer 任务默认只创建不入队，避免没有 Worker 产物时假审核。
+- Worker 产出 patch 并完成 integration 后，再用 `pnpm dionysus task enqueue --task-id "<reviewer-task-id>"` 启动 Reviewer。
+- 如已有集成产物需要立即审核，可显式加 `--queue-reviewers`。
+- 过程监控固定使用：
+
+```bash
+pnpm dionysus agent status --goal-id "<goal-id>"
+pnpm dionysus agent usage --goal-id "<goal-id>"
+pnpm dionysus codex heartbeat --limit 5
+```
 
 ## 目标项目配置
 

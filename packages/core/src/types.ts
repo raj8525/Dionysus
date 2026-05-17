@@ -88,6 +88,7 @@ export type GoalStatus =
   | "implementation_phase"
   | "integration_review"
   | "codex_review"
+  | "fast_lane"
   | "done"
   | "blocked"
   | "failed"

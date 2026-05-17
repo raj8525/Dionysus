@@ -50,6 +50,20 @@ describe("dionysus CLI API command resolver", () => {
     });
   });
 
+  it("maps goal cancel to the goal cancel API", () => {
+    expect(resolveApiCommand(["goal", "cancel", "--goal-id", "goal-123"])).toEqual({
+      path: "/api/goals/goal-123/cancel",
+      method: "POST"
+    });
+  });
+
+  it("maps goal fast-lane to the goal fast lane API", () => {
+    expect(resolveApiCommand(["goal", "fast-lane", "--goal-id", "goal-123"])).toEqual({
+      path: "/api/goals/goal-123/fast-lane",
+      method: "POST"
+    });
+  });
+
   it("maps integration list to the integration API", () => {
     expect(resolveApiCommand(["integration", "list", "--goal-id", "goal-123"])).toEqual({
       path: "/api/integrations?goalId=goal-123",

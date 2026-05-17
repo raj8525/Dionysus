@@ -5,6 +5,7 @@ import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
+import { buildFastLanePlan, parseFastLaneItem } from "./dionysus-fastlane.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
@@ -163,6 +164,49 @@ async function main(): Promise<void> {
     const role = readFlag(args, "--role");
     const query = role ? `?role=${encodeURIComponent(role)}` : "";
     return print(await request(`/api/agents${query}`));
+  }
+
+  if (domain === "fastlane" && action === "plan") {
+    return print(buildFastLanePlan({
+      title: requiredFlag(args, "--title"),
+      description: requiredFlag(args, "--description"),
+      targetRoot: requiredFlag(args, "--target-root"),
+      workers: readRepeatedFlag(args, "--worker").map(parseFastLaneItem),
+      reviewers: readRepeatedFlag(args, "--reviewer").map(parseFastLaneItem),
+      queueReviewers: hasFlag(args, "--queue-reviewers")
+    }));
+  }
+
+  if (domain === "fastlane" && action === "start") {
+    const plan = buildFastLanePlan({
+      title: requiredFlag(args, "--title"),
+      description: requiredFlag(args, "--description"),
+      targetRoot: requiredFlag(args, "--target-root"),
+      workers: readRepeatedFlag(args, "--worker").map(parseFastLaneItem),
+      reviewers: readRepeatedFlag(args, "--reviewer").map(parseFastLaneItem),
+      queueReviewers: hasFlag(args, "--queue-reviewers")
+    });
+    const createdGoal = await request("/api/goals", "POST", plan.goal) as { id: string };
+    const goal = await request(`/api/goals/${createdGoal.id}/fast-lane`, "POST", {
+      reason: "created by dionysus fastlane start"
+    }) as { id: string };
+    const tasks = [];
+    for (const task of plan.tasks) {
+      tasks.push(await request("/api/tasks", "POST", {
+        goalId: goal.id,
+        title: task.title,
+        description: task.description,
+        roleRequired: task.roleRequired,
+        priority: task.priority,
+        queue: task.queue
+      }));
+    }
+    return print({
+      goal,
+      tasks,
+      reviewerTasks: tasks.filter((task) => String((task as Record<string, unknown>).status) === "created"),
+      nextCommands: plan.nextCommands.map((command) => command.replaceAll("<goal-id>", goal.id))
+    });
   }
 
   if (domain === "release" && action === "record") {
@@ -327,6 +371,18 @@ async function main(): Promise<void> {
       }),
       events
     });
+  }
+
+  if (domain === "goal" && action === "cancel") {
+    return print(await request(`/api/goals/${requiredFlag(args, "--goal-id")}/cancel`, "POST", {
+      reason: readFlag(args, "--reason") ?? "cancelled by Codex"
+    }));
+  }
+
+  if (domain === "goal" && action === "fast-lane") {
+    return print(await request(`/api/goals/${requiredFlag(args, "--goal-id")}/fast-lane`, "POST", {
+      reason: readFlag(args, "--reason") ?? "marked as Codex fast lane"
+    }));
   }
 
   const apiCommand = resolveApiCommand([domain, action, ...args].filter((value): value is string => Boolean(value)));
@@ -690,11 +746,15 @@ function usage(): void {
   tsx tools/dionysus.ts agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
+  tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面"
+  tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers]
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."
   tsx tools/dionysus.ts release list --goal-id "..."
   tsx tools/dionysus.ts run logs --run-id "..."
   tsx tools/dionysus.ts goal list --limit 10
   tsx tools/dionysus.ts goal status --goal-id "..."
+  tsx tools/dionysus.ts goal cancel --goal-id "..." --reason "..."
+  tsx tools/dionysus.ts goal fast-lane --goal-id "..." --reason "..."
   tsx tools/dionysus.ts goal intake --goal-id "..."
   tsx tools/dionysus.ts goal bootstrap --goal-id "..."
   tsx tools/dionysus.ts goal preflight --goal-id "..."

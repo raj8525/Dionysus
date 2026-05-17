@@ -40,16 +40,30 @@ git status --short --branch
 
 如果目标项目不 clean，先识别来源，不要混入本轮工作。
 
-## 创建目标
+## Fast Lane 目标创建
 
 ```bash
-pnpm -s dionysus goal create \
+pnpm -s dionysus fastlane plan \
   --title "简短目标" \
   --description "最终用户价值、范围、非目标、验收标准" \
-  --target-root "/Volumes/MacMiniSSD/code/Coupon"
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --worker "后端::明确文件范围、验收标准、测试命令" \
+  --worker "前端::明确文件范围、验收标准、测试命令"
 ```
 
-记录返回的 `goal-id`。
+确认拆分后启动：
+
+```bash
+pnpm -s dionysus fastlane start \
+  --title "简短目标" \
+  --description "最终用户价值、范围、非目标、验收标准" \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --worker "后端::明确文件范围、验收标准、测试命令" \
+  --worker "前端::明确文件范围、验收标准、测试命令" \
+  --reviewer "ReviewerCLI 90分门禁::检查契约、测试、UI、真实数据与可合并性"
+```
+
+记录返回的 `goal-id`。`fastlane start` 会创建 `fast_lane` goal、入队 Worker 任务，并创建但默认不入队 Reviewer 任务。`fast_lane` goal 会被 Master Control 排除，防止完整 Master 状态机重复拆任务。
 
 ## 并行 WorkerCLI
 
@@ -61,7 +75,7 @@ pnpm -s dionysus goal create \
 - 必须运行哪些测试。
 - 禁止事项，例如不得整页注入 HTML、不得改成熟页面布局。
 
-创建 Worker 任务：
+优先用 `fastlane start --worker` 创建 Worker。只有需要人工追加任务时才单独创建：
 
 ```bash
 pnpm -s dionysus task create \
@@ -79,14 +93,16 @@ pnpm -s dionysus task create \
 
 ## ReviewerCLI 门禁
 
-为每个 Worker 产物创建 reviewer 任务，或让 Codex 读取 run / patch 后发起 reviewer：
+Reviewer 任务默认由 `fastlane start` 创建但不入队，避免没有 Worker 产物时假审核。Worker patch 产出并完成 integration 后，再入队 reviewer：
 
 ```bash
-pnpm -s dionysus task create \
-  --goal-id "<goal-id>" \
-  --role worker \
-  --title "Reviewer: review WorkerA patch" \
-  --description "按正确性、契约、测试、可维护性、UI一致性打分；低于90分必须给出返工清单"
+pnpm -s dionysus task enqueue --task-id "<reviewer-task-id>"
+```
+
+如果已有普通 goal 需要切入 fast lane，先手动标记：
+
+```bash
+pnpm -s dionysus goal fast-lane --goal-id "<goal-id>" --reason "Codex controls this goal directly"
 ```
 
 Reviewer 低于 90 分：不要应用 patch，创建迭代 Worker 任务。

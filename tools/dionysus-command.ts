@@ -30,6 +30,22 @@ export function resolveApiCommand(args: string[]): ApiCommand | undefined {
     };
   }
 
+  if (domain === "goal" && action === "cancel") {
+    const goalId = requiredFlag(args, "--goal-id");
+    return {
+      path: `/api/goals/${encodeURIComponent(goalId)}/cancel`,
+      method: "POST"
+    };
+  }
+
+  if (domain === "goal" && action === "fast-lane") {
+    const goalId = requiredFlag(args, "--goal-id");
+    return {
+      path: `/api/goals/${encodeURIComponent(goalId)}/fast-lane`,
+      method: "POST"
+    };
+  }
+
   if (domain === "goal" && action && goalPostActions[action]) {
     const goalId = requiredFlag(args, "--goal-id");
     return {

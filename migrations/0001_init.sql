@@ -27,6 +27,7 @@ create table if not exists __SCHEMA__.goals (
       'implementation_phase',
       'integration_review',
       'codex_review',
+      'fast_lane',
       'done',
       'blocked',
       'failed',

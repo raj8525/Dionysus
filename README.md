@@ -103,6 +103,58 @@ pnpm goal:create -- \
   --target-root /Volumes/MacMiniSSD/code/Coupon
 ```
 
+## Codex Fast Lane
+
+为了节省成本并提升速度，Codex 可以用 fast lane 直接把一个小功能拆给多个低成本 WorkerCLI 并行执行，再由 ReviewerCLI 做 90 分门禁。
+
+```bash
+pnpm dionysus fastlane plan \
+  --title "库存流水查询闭环" \
+  --description "让最终用户在库存页看到真实库存流水" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --worker "后端 API::补 GET /api/admin/inventory/transactions 与 handler 测试" \
+  --worker "前端展示::在 inventory.vue 展示真实库存流水"
+```
+
+确认拆分后启动：
+
+```bash
+pnpm dionysus fastlane start \
+  --title "库存流水查询闭环" \
+  --description "让最终用户在库存页看到真实库存流水" \
+  --target-root /Volumes/MacMiniSSD/code/Coupon \
+  --worker "后端 API::补 GET /api/admin/inventory/transactions 与 handler 测试" \
+  --worker "前端展示::在 inventory.vue 展示真实库存流水" \
+  --reviewer "ReviewerCLI 90分门禁::检查契约、测试、UI、真实数据与可合并性"
+```
+
+`fastlane start` 会：
+
+- 创建 Dionysus goal，并立即标记为 `fast_lane`。
+- 将 `--worker` 转为已入队 Worker 任务。
+- 创建 Reviewer 任务但默认不入队，避免没有 Worker 产物时假审核。
+- 返回 `agent status`、`agent usage`、`codex heartbeat` 等下一步命令。
+- `fast_lane` goal 会被 Master Control 自动扫描排除，避免复杂 Master 状态机为同一目标重复拆任务。
+
+监控调用成本：
+
+```bash
+pnpm dionysus agent usage --goal-id "<goal-id>"
+pnpm dionysus agent usage --target-root /Volumes/MacMiniSSD/code/Coupon
+```
+
+手动标记已有目标为 fast lane：
+
+```bash
+pnpm dionysus goal fast-lane --goal-id "<goal-id>" --reason "Codex controls this goal directly"
+```
+
+取消试验目标：
+
+```bash
+pnpm dionysus goal cancel --goal-id "<goal-id>" --reason "smoke done"
+```
+
 ## 查看已有目标
 
 ```bash

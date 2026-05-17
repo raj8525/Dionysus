@@ -96,12 +96,83 @@ export class DionysusRepository {
     const result = await this.pool.query(
       `select id, title, description, target_root, status, created_at, updated_at
        from ${this.table("goals")}
-       where status not in ('done', 'failed', 'cancelled')
+       where status not in ('done', 'failed', 'cancelled', 'fast_lane')
        order by updated_at desc, created_at desc
        limit $1`,
       [limit]
     );
     return result.rows.map(mapGoal);
+  }
+
+  async markGoalFastLane(input: { goalId: string; reason?: string }): Promise<Goal | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `update ${this.table("goals")}
+         set status = 'fast_lane', updated_at = now()
+         where id = $1 and status not in ('done', 'failed', 'cancelled')
+         returning id, title, description, target_root, status, created_at, updated_at`,
+        [input.goalId]
+      );
+      if (!result.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [randomUUID(), "goal.fast_lane_started", JSON.stringify({
+          goalId: input.goalId,
+          reason: input.reason ?? "started by Codex fast lane"
+        })]
+      );
+      await client.query("commit");
+      return mapGoal(result.rows[0]);
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async cancelGoal(input: { goalId: string; reason: string }): Promise<Goal | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `update ${this.table("goals")}
+         set status = 'cancelled', updated_at = now()
+         where id = $1 and status not in ('done', 'failed', 'cancelled')
+         returning id, title, description, target_root, status, created_at, updated_at`,
+        [input.goalId]
+      );
+      if (!result.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
+      await client.query(
+        `update ${this.table("tasks")}
+         set status = 'cancelled',
+             blocked_reason = $2,
+             updated_at = now()
+         where goal_id = $1 and status in ('created', 'queued', 'running', 'failed', 'blocked', 'needs_review')`,
+        [input.goalId, input.reason]
+      );
+      await client.query(
+        `insert into ${this.table("system_events")} (id, event_type, payload_json)
+         values ($1, $2, $3)`,
+        [randomUUID(), "goal.cancelled", JSON.stringify({ goalId: input.goalId, reason: input.reason })]
+      );
+      await client.query("commit");
+      return mapGoal(result.rows[0]);
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async healthCheck(): Promise<{ ok: boolean; schema: string; databaseTime: string }> {
