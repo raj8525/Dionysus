@@ -139,9 +139,11 @@ pnpm dionysus fastlane plan \
   --title "库存流水查询闭环" \
   --description "让最终用户在库存页看到真实库存流水" \
   --target-root /Volumes/MacMiniSSD/code/Coupon \
-  --worker "后端 API::补 GET /api/admin/inventory/transactions 与 handler 测试" \
-  --worker "前端展示::在 inventory.vue 展示真实库存流水"
+  --worker "后端 API::允许修改路径: apps/admin-api/internal/handler/inventory_inbound_handler.go, apps/admin-api/internal/handler/inventory_inbound_handler_test.go。补 GET /api/admin/inventory/transactions 与 handler 测试" \
+  --worker "前端展示::允许修改路径: apps/admin-web/src/pages/inventory.vue。展示真实库存流水"
 ```
+
+Worker 任务描述中的允许修改范围会被写入 patch 记录；Integration Worker 会在 `git apply` 前校验 `changedFiles`，超范围 patch 直接 blocked。
 
 确认拆分后启动：
 
@@ -219,7 +221,7 @@ curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/gate-check
 curl -X POST http://127.0.0.1:23100/api/goals/<goal-id>/preflight
 curl -X POST http://127.0.0.1:23100/api/patches \
   -H 'content-type: application/json' \
-  --data '{"goalId":"<goal-id>","taskId":"<task-id>","patchText":"diff ...","changedFiles":["README.md"]}'
+  --data '{"goalId":"<goal-id>","taskId":"<task-id>","patchText":"diff ...","changedFiles":["README.md"],"allowedFiles":["README.md"]}'
 ```
 
 `preflight` 会返回：

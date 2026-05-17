@@ -112,7 +112,8 @@ const createPatchSchema = z.object({
   goalId: z.string().uuid(),
   taskId: z.string().uuid(),
   patchText: z.string(),
-  changedFiles: z.array(z.string())
+  changedFiles: z.array(z.string()),
+  allowedFiles: z.array(z.string()).default([])
 });
 
 const cancelTaskSchema = z.object({
@@ -770,7 +771,8 @@ export async function buildServer() {
         goalId: id,
         taskId: task.id,
         patchText: buildAddFilesPatch(files),
-        changedFiles: files.map((file) => file.path)
+        changedFiles: files.map((file) => file.path),
+        allowedFiles: files.map((file) => file.path)
       });
       const integrationPublished = git.clean;
       if (integrationPublished) {
@@ -1087,7 +1089,8 @@ export async function buildServer() {
       goalId: id,
       taskId: task.id,
       patchText: buildAddFilesPatch(files),
-      changedFiles: files.map((file) => file.path)
+      changedFiles: files.map((file) => file.path),
+      allowedFiles: files.map((file) => file.path)
     });
     const integrationPublished = git.clean;
     if (integrationPublished) {

@@ -203,4 +203,60 @@ describe("integration patch applier", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("blocks patches that touch files outside the task allowed file scope", async () => {
+    const root = await initRepo();
+    try {
+      await execFileAsync("mkdir", ["-p", "apps/admin-web/src/pages"], { cwd: root });
+      await writeFile(join(root, "apps/admin-web/src/pages/inventory.vue"), "inventory before\n");
+      await execFileAsync("git", ["add", "."], { cwd: root });
+      await execFileAsync(
+        "git",
+        ["-c", "user.email=dionysus@example.local", "-c", "user.name=Dionysus", "commit", "-m", "add pages"],
+        { cwd: root }
+      );
+
+      const patch = [
+        "diff --git a/apps/admin-web/src/pages/inventory.vue b/apps/admin-web/src/pages/inventory.vue",
+        "index 6cfca50..bd943e3 100644",
+        "--- a/apps/admin-web/src/pages/inventory.vue",
+        "+++ b/apps/admin-web/src/pages/inventory.vue",
+        "@@ -1 +1 @@",
+        "-inventory before",
+        "+inventory after",
+        "diff --git a/README.md b/README.md",
+        "index 5a60f7d..61e9f52 100644",
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        ""
+      ].join("\n");
+
+      const blocked = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch,
+        allowedChangedFiles: ["apps/admin-web/src/pages/inventory.vue"]
+      });
+      const statusAfterBlocked = await execFileAsync("git", ["status", "--porcelain"], { cwd: root });
+
+      expect(blocked.status).toBe("blocked");
+      expect(blocked.changedFiles).toEqual(["README.md", "apps/admin-web/src/pages/inventory.vue"]);
+      expect(blocked.reason).toContain("outside allowed file scope");
+      expect(blocked.reason).toContain("README.md");
+      expect(statusAfterBlocked.stdout.trim()).toBe("");
+
+      const allowed = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch,
+        allowedChangedFiles: ["README.md", "apps/admin-web/src/pages/"]
+      });
+
+      expect(allowed.status).toBe("applied");
+      expect(allowed.changedFiles).toEqual(["README.md", "apps/admin-web/src/pages/inventory.vue"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

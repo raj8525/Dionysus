@@ -144,9 +144,19 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`，并等待 API `/health` 可访问后才返回。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
 
-## Integration 受保护文件门禁
+## Integration 文件范围与受保护文件门禁
 
-Dionysus 不只依赖 prompt 约束 Worker。Integration Worker 会在应用 patch 前检查受保护文件：
+Dionysus 不只依赖 prompt 约束 Worker。每个 Worker 任务必须写清允许修改范围，格式优先使用：
+
+```text
+允许修改路径:
+- apps/admin-web/src/pages/inventory.vue
+- apps/admin-web/src/pages/inventory/
+```
+
+Worker Runtime 会从任务描述中提取 `Allowed files:`、`Allowed paths:`、`允许修改路径:`、`允许修改文件:`、`文件范围:` 或 `只允许修改:`，把结果写入 `patches.allowed_files_json`。Integration Worker 在应用 patch 前先校验 patch 的 `changedFiles` 是否全部落在允许范围内；超范围直接 `blocked`，不会执行 `git apply`。
+
+Integration Worker 还会检查受保护文件：
 
 ```env
 DIONYSUS_PROTECTED_FILES=apps/admin-web/src/pages/hotels.vue

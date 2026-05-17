@@ -69,8 +69,8 @@ pnpm -s dionysus fastlane start \
   --title "简短目标" \
   --description "最终用户价值、范围、非目标、验收标准" \
   --target-root "/Volumes/MacMiniSSD/code/Coupon" \
-  --worker "后端::明确文件范围、验收标准、测试命令" \
-  --worker "前端::明确文件范围、验收标准、测试命令" \
+  --worker "后端::允许修改路径: apps/admin-api/internal/handler/example.go, apps/admin-api/internal/handler/example_test.go。验收标准、测试命令" \
+  --worker "前端::允许修改路径: apps/admin-web/src/pages/example.vue。验收标准、测试命令" \
   --reviewer "ReviewerCLI 90分门禁::检查契约、测试、UI、真实数据与可合并性"
 ```
 
@@ -98,6 +98,16 @@ pnpm -s dionysus fastlane start \
 - 预期产出是什么。
 - 必须运行哪些测试。
 - 禁止事项，例如不得整页注入 HTML、不得改成熟页面布局。
+
+文件范围不是只给 Agent 看的提示词，而是 Dionysus 的硬门禁。Worker Runtime 会从任务描述中提取以下标记，并写入 `patches.allowed_files_json`：
+
+```text
+允许修改路径:
+- apps/admin-web/src/pages/inventory.vue
+- apps/admin-web/src/pages/inventory/
+```
+
+也支持 `Allowed files:`、`Allowed paths:`、`file scope:`、`允许修改文件:`、`文件范围:`、`只允许修改:`。Integration Worker 会在 `git apply` 前校验 patch 的 `changedFiles`，任何文件不在允许范围内都会直接 `blocked`，不会修改目标项目。创建 Worker 时不要省略文件范围。
 
 Coupon 管理后台固定补充规则：
 

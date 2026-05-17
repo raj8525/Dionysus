@@ -172,17 +172,19 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     if (result.exitCode === 0 && message.goal_id) {
       const patch = await createWorkspacePatch({ workspacePath: workspace.workspacePath });
       if (patch.patchText.trim().length > 0) {
+        const allowedFiles = parseAllowedFileScope(taskContext.task.description);
         const queuedPatch = await repo.createPatch({
           goalId: message.goal_id,
           taskId: message.task_id,
           patchText: patch.patchText,
-          changedFiles: patch.changedFiles
+          changedFiles: patch.changedFiles,
+          allowedFiles
         });
         queuedPatchId = queuedPatch.id;
         await repo.appendRunLog(
           runId,
           "stdout",
-          `Dionysus patch queued: ${queuedPatch.id}\nchanged_files=${patch.changedFiles.join(",")}`,
+          `Dionysus patch queued: ${queuedPatch.id}\nchanged_files=${patch.changedFiles.join(",")}\nallowed_files=${allowedFiles.join(",")}`,
           3
         );
       } else {
@@ -369,17 +371,19 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   if (result.exitCode === 0 && role !== "master" && workspacePath && message.goal_id) {
     const patch = await createWorkspacePatch({ workspacePath });
     if (patch.patchText.trim().length > 0) {
+      const allowedFiles = parseAllowedFileScope(taskContext.task.description);
       const queuedPatch = await repo.createPatch({
         goalId: message.goal_id,
         taskId: message.task_id,
         patchText: patch.patchText,
-        changedFiles: patch.changedFiles
+        changedFiles: patch.changedFiles,
+        allowedFiles
       });
       queuedPatchId = queuedPatch.id;
       await repo.appendRunLog(
         runId,
         "stdout",
-        `Dionysus governance patch queued: ${queuedPatch.id}\nchanged_files=${patch.changedFiles.join(",")}`,
+        `Dionysus governance patch queued: ${queuedPatch.id}\nchanged_files=${patch.changedFiles.join(",")}\nallowed_files=${allowedFiles.join(",")}`,
         3
       );
     } else {
@@ -529,6 +533,7 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
     targetRoot: targetRootForGoal(goal, targetRoot),
     patchText: integration.patchText,
     verificationCommands,
+    allowedChangedFiles: integration.allowedFiles,
     protectedFiles,
     allowProtectedFiles
   });
@@ -540,6 +545,7 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
     result: {
       applyStatus: result.status,
       changedFiles: result.changedFiles,
+      allowedFiles: integration.allowedFiles,
       reason: result.reason,
       testStatus: result.status === "applied" ? (verificationCommands.length ? "passed" : "missing") : "blocked",
       verificationCommands
@@ -720,7 +726,8 @@ async function runMasterStepForGoal(goal: Goal, message: QueueMessage): Promise<
       goalId: goal.id,
       taskId: task.id,
       patchText: buildAddFilesPatch(files),
-      changedFiles: files.map((file) => file.path)
+      changedFiles: files.map((file) => file.path),
+      allowedFiles: files.map((file) => file.path)
     });
     const integrationPublished = git.clean;
     if (integrationPublished) {
@@ -834,6 +841,54 @@ function readCommandList(value: string | undefined): string[] {
     .split(/\r?\n|&&/)
     .map((command) => command.trim())
     .filter(Boolean);
+}
+
+function parseAllowedFileScope(description: string): string[] {
+  const lines = description.split(/\r?\n/);
+  const allowed = new Set<string>();
+  let collecting = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const markerMatch = /^(?:allowed files|allowed paths|file scope|允许修改路径|允许修改文件|文件范围|只允许修改)\s*[:：]\s*(.*)$/i.exec(trimmed);
+    if (markerMatch) {
+      collecting = true;
+      addScopeItems(markerMatch[1] ?? "", allowed);
+      continue;
+    }
+
+    if (collecting) {
+      if (!trimmed) {
+        collecting = false;
+        continue;
+      }
+      if (/^[-*]\s+/.test(trimmed)) {
+        addScopeItems(trimmed.replace(/^[-*]\s+/, ""), allowed);
+        continue;
+      }
+      if (/^(?:[A-Za-z0-9_.-]+\/|\.\/|\/)/.test(trimmed)) {
+        addScopeItems(trimmed, allowed);
+        continue;
+      }
+      collecting = false;
+    }
+  }
+
+  return Array.from(allowed).sort();
+}
+
+function addScopeItems(value: string, allowed: Set<string>): void {
+  for (const item of value.split(/[,，、]/)) {
+    const normalized = item
+      .trim()
+      .replace(/^`|`$/g, "")
+      .replace(/^["']|["']$/g, "")
+      .replace(/\\/g, "/")
+      .replace(/^\.\/+/, "");
+    if (normalized) {
+      allowed.add(normalized);
+    }
+  }
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number): number {

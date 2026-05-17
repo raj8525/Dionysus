@@ -16,10 +16,23 @@ export async function applyPatchToTarget(input: {
   targetRoot: string;
   patchText: string;
   verificationCommands?: string[];
+  allowedChangedFiles?: string[];
   protectedFiles?: string[];
   allowProtectedFiles?: string[];
 }): Promise<PatchApplyResult> {
   const patchChangedFiles = changedFilesFromPatch(input.patchText);
+  const scopeViolation = findAllowedScopeViolation({
+    changedFiles: patchChangedFiles,
+    allowedChangedFiles: input.allowedChangedFiles ?? []
+  });
+  if (scopeViolation.length > 0) {
+    return {
+      status: "blocked",
+      changedFiles: patchChangedFiles,
+      reason: `patch touches files outside allowed file scope: ${scopeViolation.join(", ")}`
+    };
+  }
+
   const protectedViolation = findProtectedFileViolation({
     changedFiles: patchChangedFiles,
     protectedFiles: input.protectedFiles ?? [],
@@ -70,6 +83,18 @@ function changedFilesFromPatch(patchText: string): string[] {
     }
   }
   return Array.from(files).sort();
+}
+
+function findAllowedScopeViolation(input: {
+  changedFiles: string[];
+  allowedChangedFiles: string[];
+}): string[] {
+  const allowedRules = normalizeRules(input.allowedChangedFiles);
+  if (allowedRules.length === 0) return [];
+
+  return input.changedFiles
+    .map(normalizePath)
+    .filter((file) => !matchesAnyRule(file, allowedRules));
 }
 
 function findProtectedFileViolation(input: {

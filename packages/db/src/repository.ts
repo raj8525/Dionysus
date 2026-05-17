@@ -1570,6 +1570,7 @@ export class DionysusRepository {
     taskId: string;
     patchText: string;
     changedFiles: string[];
+    allowedFiles?: string[];
   }): Promise<{ id: string; status: string; queueId: string }> {
     const id = randomUUID();
     const queueId = randomUUID();
@@ -1578,10 +1579,17 @@ export class DionysusRepository {
       await client.query("begin");
       const result = await client.query(
         `insert into ${this.table("patches")}
-          (id, goal_id, task_id, patch_text, changed_files_json, status)
-         values ($1, $2, $3, $4, $5, 'queued')
+          (id, goal_id, task_id, patch_text, changed_files_json, allowed_files_json, status)
+         values ($1, $2, $3, $4, $5, $6, 'queued')
          returning id, status`,
-        [id, input.goalId, input.taskId, input.patchText, JSON.stringify(input.changedFiles)]
+        [
+          id,
+          input.goalId,
+          input.taskId,
+          input.patchText,
+          JSON.stringify(input.changedFiles),
+          JSON.stringify(input.allowedFiles ?? [])
+        ]
       );
       await client.query(
         `insert into ${this.table("integration_queue")}
@@ -1592,7 +1600,12 @@ export class DionysusRepository {
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
          values ($1, $2, $3, $4)`,
-        [randomUUID(), input.taskId, "patch.queued", JSON.stringify({ patchId: id, queueId })]
+        [
+          randomUUID(),
+          input.taskId,
+          "patch.queued",
+          JSON.stringify({ patchId: id, queueId, allowedFiles: input.allowedFiles ?? [] })
+        ]
       );
       await client.query("commit");
       return { id: String(result.rows[0].id), status: String(result.rows[0].status), queueId };
@@ -1611,9 +1624,10 @@ export class DionysusRepository {
     taskId: string;
     patchText: string;
     changedFiles: string[];
+    allowedFiles: string[];
   } | null> {
     const result = await this.pool.query(
-      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.patch_text, p.changed_files_json
+      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.patch_text, p.changed_files_json, p.allowed_files_json
        from ${this.table("integration_queue")} iq
        join ${this.table("patches")} p on p.id = iq.patch_id
        where iq.task_id = $1
@@ -1631,7 +1645,8 @@ export class DionysusRepository {
       goalId: String(row.goal_id),
       taskId: String(row.task_id),
       patchText: String(row.patch_text),
-      changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : []
+      changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : [],
+      allowedFiles: Array.isArray(row.allowed_files_json) ? row.allowed_files_json.map(String) : []
     };
   }
 
@@ -1741,9 +1756,10 @@ export class DionysusRepository {
     taskId: string;
     goalId: string;
     changedFiles: string[];
+    allowedFiles: string[];
   }>> {
     const result = await this.pool.query(
-      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.changed_files_json
+      `select iq.id, iq.patch_id, iq.goal_id, iq.task_id, p.changed_files_json, p.allowed_files_json
        from ${this.table("integration_queue")} iq
        join ${this.table("patches")} p on p.id = iq.patch_id
        where iq.goal_id = $1
@@ -1757,7 +1773,8 @@ export class DionysusRepository {
       patchId: String(row.patch_id),
       goalId: String(row.goal_id),
       taskId: String(row.task_id),
-      changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : []
+      changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : [],
+      allowedFiles: Array.isArray(row.allowed_files_json) ? row.allowed_files_json.map(String) : []
     }));
   }
 
@@ -1775,6 +1792,7 @@ export class DionysusRepository {
               iq.created_at,
               iq.updated_at,
               p.changed_files_json,
+              p.allowed_files_json,
               p.status as patch_status
        from ${this.table("integration_queue")} iq
        join ${this.table("patches")} p on p.id = iq.patch_id
@@ -1791,6 +1809,7 @@ export class DionysusRepository {
       status: String(row.status),
       patchStatus: String(row.patch_status),
       changedFiles: Array.isArray(row.changed_files_json) ? row.changed_files_json.map(String) : [],
+      allowedFiles: Array.isArray(row.allowed_files_json) ? row.allowed_files_json.map(String) : [],
       result: row.result_json ?? {},
       createdAt: new Date(row.created_at).toISOString(),
       updatedAt: new Date(row.updated_at).toISOString()
