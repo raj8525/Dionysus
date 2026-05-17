@@ -14,15 +14,23 @@ export interface RolePromptGoal {
   targetRoot: string;
 }
 
+export interface RolePromptTaskEvent {
+  eventType: string;
+  payload: Record<string, unknown>;
+  createdAt?: string;
+}
+
 export function buildRolePrompt(input: {
   role: AgentRole;
   task: RolePromptTask;
   goal?: RolePromptGoal | null;
   workspacePath?: string;
+  taskEvents?: RolePromptTaskEvent[];
 }): string {
   const roleBlock = roleInstructions[input.role];
   const goal = input.goal;
   const promptContext = buildPromptPathContext(input);
+  const reviewFeedbackBlock = buildReviewFeedbackBlock(input.taskEvents ?? []);
   return [
     `你是 Dionysus Agent Team 的 ${roleLabel(input.role)}。`,
     "",
@@ -39,6 +47,8 @@ export function buildRolePrompt(input: {
     `Task Role: ${input.task.roleRequired}`,
     `Task Description:\n${promptContext.taskDescription}`,
     "",
+    reviewFeedbackBlock,
+    reviewFeedbackBlock ? "" : undefined,
     "## 角色规则",
     roleBlock,
     "",
@@ -57,7 +67,7 @@ export function buildRolePrompt(input: {
     "3. 产出证据",
     "4. 风险与阻塞",
     "5. 下一步 owner"
-  ].join("\n");
+  ].filter((line) => line !== undefined).join("\n");
 }
 
 function buildPromptPathContext(input: {
@@ -100,6 +110,26 @@ function buildPromptPathContext(input: {
 function rewriteTargetRootReferences(text: string, targetRoot: string, workspacePath: string): string {
   if (!targetRoot || targetRoot === "unknown") return text;
   return text.split(targetRoot).join(workspacePath);
+}
+
+function buildReviewFeedbackBlock(events: RolePromptTaskEvent[]): string {
+  const rejectionEvents = events
+    .filter((event) => event.eventType === "task.review_reject")
+    .slice(-3);
+  if (rejectionEvents.length === 0) return "";
+
+  return [
+    "## 上次审查反馈",
+    "你正在重做被 Codex/Reviewer 打回的任务。必须逐条修复以下反馈；如果无法修复，返回 blocker，不得重复输出旧结论。",
+    ...rejectionEvents.map((event, index) => {
+      const reason = typeof event.payload.reason === "string" ? event.payload.reason : JSON.stringify(event.payload);
+      const score = event.payload.reviewScore === null || event.payload.reviewScore === undefined
+        ? ""
+        : ` score=${String(event.payload.reviewScore)}`;
+      const createdAt = event.createdAt ? ` at=${event.createdAt}` : "";
+      return `${index + 1}. reason=${reason}${score}${createdAt}`;
+    })
+  ].join("\n");
 }
 
 function roleLabel(role: AgentRole): string {

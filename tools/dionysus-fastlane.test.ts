@@ -4,6 +4,8 @@ import {
   buildCouponDataFirstFastLanePlan,
   buildFastLanePlan,
   buildFastLaneStatus,
+  isFastLaneReviewerTask,
+  isFastLaneWorkerTask,
   parseFastLaneItem
 } from "./dionysus-fastlane.js";
 
@@ -57,6 +59,21 @@ describe("dionysus fast lane planner", () => {
 
     expect(plan.tasks.filter((task) => task.lane === "reviewer")).toHaveLength(1);
     expect(plan.tasks.find((task) => task.lane === "reviewer")?.queue).toBe(true);
+  });
+
+  it("classifies fast lane workers and reviewers by title, not created status", () => {
+    expect(isFastLaneWorkerTask({
+      title: "FastLane Worker 2: 租户管理 只读 API",
+      status: "created"
+    })).toBe(true);
+    expect(isFastLaneReviewerTask({
+      title: "FastLane Worker 2: 租户管理 只读 API",
+      status: "created"
+    })).toBe(false);
+    expect(isFastLaneReviewerTask({
+      title: "FastLane Reviewer 1: 租户管理 ReviewerCLI 90 分质量门禁",
+      status: "created"
+    })).toBe(true);
   });
 
   it("rejects empty worker sets", () => {

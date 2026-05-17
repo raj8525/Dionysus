@@ -804,6 +804,27 @@ export class DionysusRepository {
     return Number(result.rows[0]?.rejection_count ?? 0);
   }
 
+  async listRecentTaskEvents(taskId: string, limit = 10): Promise<Array<{
+    eventType: string;
+    payload: Record<string, unknown>;
+    createdAt: string;
+  }>> {
+    const normalizedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+    const result = await this.pool.query(
+      `select event_type, payload_json, created_at
+       from ${this.table("task_events")}
+       where task_id = $1
+       order by created_at desc
+       limit $2`,
+      [taskId, normalizedLimit]
+    );
+    return result.rows.reverse().map((row) => ({
+      eventType: String(row.event_type),
+      payload: normalizeJsonObject(row.payload_json),
+      createdAt: new Date(row.created_at).toISOString()
+    }));
+  }
+
   async createTaskRun(input: {
     taskId: string;
     cliType: CliType;
@@ -2319,6 +2340,11 @@ function mapReleaseRecord(row: Record<string, unknown>): ReleaseRecord {
 function normalizeJsonArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function normalizeJsonObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
 }
 
 function normalizeVerification(value: unknown): ReleaseVerificationRecord[] {

@@ -68,6 +68,14 @@ export interface FastLaneStatusSummary {
   reviewerTasks: Array<Record<string, unknown>>;
 }
 
+export function isFastLaneReviewerTask(task: Record<string, unknown>): boolean {
+  return String(task.title ?? "").startsWith("FastLane Reviewer");
+}
+
+export function isFastLaneWorkerTask(task: Record<string, unknown>): boolean {
+  return String(task.title ?? "").startsWith("FastLane Worker");
+}
+
 export function parseFastLaneItem(value: string): FastLaneItemInput {
   const [rawTitle, ...descriptionParts] = value.split("::");
   const title = rawTitle.trim();

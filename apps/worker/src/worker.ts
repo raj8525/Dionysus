@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import type { AgentRole, CliType, Goal, RolePromptTask } from "@dionysus/core";
+import type { AgentRole, CliType, Goal, RolePromptTask, RolePromptTaskEvent } from "@dionysus/core";
 import {
   applyPatchToTarget,
   buildAddFilesPatch,
@@ -93,6 +93,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       role: "worker",
       task: taskContext.task,
       goal: taskContext.goal,
+      taskEvents: taskContext.taskEvents,
       workspacePath: workspace.workspacePath
     });
     const isolationDecision = await validateWorkspaceAgentIsolation({
@@ -275,6 +276,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     role,
     task: taskContext.task,
     goal: taskContext.goal,
+    taskEvents: taskContext.taskEvents,
     workspacePath
   });
   const roleConfig = await repo.getAgentCliConfig(role);
@@ -812,7 +814,7 @@ function countBootstrapTasks(tasks: Array<Record<string, unknown>>): number {
   ).length;
 }
 
-async function loadTaskContext(taskId: string): Promise<{ task: RolePromptTask; goal: Goal | null }> {
+async function loadTaskContext(taskId: string): Promise<{ task: RolePromptTask; goal: Goal | null; taskEvents: RolePromptTaskEvent[] }> {
   const row = await repo.getTask(taskId);
   if (!row) {
     throw new Error(`task not found: ${taskId}`);
@@ -825,7 +827,8 @@ async function loadTaskContext(taskId: string): Promise<{ task: RolePromptTask; 
       description: String(row.description),
       roleRequired: row.role_required as AgentRole
     },
-    goal: await repo.getGoal(goalId)
+    goal: await repo.getGoal(goalId),
+    taskEvents: await repo.listRecentTaskEvents(taskId, 10)
   };
 }
 

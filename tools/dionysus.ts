@@ -6,7 +6,13 @@ import { resolveApiCommand } from "./dionysus-command.js";
 import { summarizeRunCycle } from "./dionysus-cycle.js";
 import { compactDoctorResult } from "./dionysus-doctor.js";
 import { buildAgentConfigSavePlan } from "./dionysus-agent-config.js";
-import { buildCouponDataFirstFastLanePlan, buildFastLanePlan, buildFastLaneStatus, parseFastLaneItem } from "./dionysus-fastlane.js";
+import {
+  buildCouponDataFirstFastLanePlan,
+  buildFastLanePlan,
+  buildFastLaneStatus,
+  isFastLaneReviewerTask,
+  parseFastLaneItem
+} from "./dionysus-fastlane.js";
 import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./dionysus-readiness.js";
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
@@ -235,7 +241,7 @@ async function main(): Promise<void> {
     return print({
       goal,
       tasks,
-      reviewerTasks: tasks.filter((task) => String((task as Record<string, unknown>).status) === "created"),
+      reviewerTasks: tasks.filter((task) => isFastLaneReviewerTask(task as Record<string, unknown>)),
       readiness,
       nextCommands: plan.nextCommands.map((command) => command.replaceAll("<goal-id>", goal.id))
     });
@@ -278,7 +284,7 @@ async function main(): Promise<void> {
     return print({
       goal,
       tasks,
-      reviewerTasks: tasks.filter((task) => String((task as Record<string, unknown>).status) === "created"),
+      reviewerTasks: tasks.filter((task) => isFastLaneReviewerTask(task as Record<string, unknown>)),
       readiness,
       nextCommands: plan.nextCommands.map((command) => command.replaceAll("<goal-id>", goal.id))
     });

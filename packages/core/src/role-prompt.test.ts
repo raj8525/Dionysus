@@ -113,4 +113,33 @@ describe("role prompt builder", () => {
     expect(prompt).toContain("必须视为 /tmp/dionysus-workspaces/Coupon-test-task");
     expect(prompt).not.toContain("/Volumes/MacMiniSSD/code/Coupon");
   });
+
+  it("includes recent rejection feedback when a task is rerun after review reject", () => {
+    const prompt = buildRolePrompt({
+      role: "worker",
+      goal,
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-worker-task",
+      task: {
+        id: "worker-task",
+        title: "补齐数据基座",
+        description: "补充文档和测试证据",
+        roleRequired: "worker"
+      },
+      taskEvents: [
+        {
+          eventType: "task.review_reject",
+          createdAt: "2026-05-17T08:00:00.000Z",
+          payload: {
+            verdict: "reject",
+            reason: "只输出分析，没有修改文件或 patch。",
+            reviewScore: null
+          }
+        }
+      ]
+    });
+
+    expect(prompt).toContain("## 上次审查反馈");
+    expect(prompt).toContain("必须逐条修复以下反馈");
+    expect(prompt).toContain("只输出分析，没有修改文件或 patch。");
+  });
 });
