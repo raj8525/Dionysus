@@ -503,10 +503,10 @@ Integration Worker 必须支持受保护文件硬门禁，避免 WorkerCLI 或 R
 Coupon 当前默认保护：
 
 ```env
-DIONYSUS_PROTECTED_FILES=apps/admin-web/src/pages/hotels.vue
+DIONYSUS_PROTECTED_FILES=apps/admin-web/src/pages/tenants.vue&&apps/admin-web/src/pages/hotels.vue
 ```
 
-原因：`hotels.vue` 已是成熟页面，后续任务只能在明确授权时做小范围增量，不能被页面迁移或 Worker 泛化改写破坏。
+原因：`tenants.vue` 是成熟集团租户管理页，`hotels.vue` 是真实酒店门店/部门页；后续任务只能在明确授权时做小范围增量，不能被页面迁移或 Worker 泛化改写破坏。
 
 失败的 integration 必须可重试，避免因为旧环境变量、临时 CLI 故障或验证命令修复后重建整条任务链：
 

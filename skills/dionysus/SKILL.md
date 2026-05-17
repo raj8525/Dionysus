@@ -69,11 +69,10 @@ Coupon 真实模块优先使用专用数据先行模板，除非任务不是 Cou
 pnpm -s dionysus fastlane coupon-module-plan \
   --module "租户管理" \
   --title "租户管理只读闭环" \
-  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --description "让最终用户在租户管理页看到数据库中的完整集团租户事实数据" \
   --target-root "/Volumes/MacMiniSSD/code/Coupon" \
-  --page "apps/admin-web/src/pages/hotels.vue" \
-  --api "/api/admin/tenants" \
-  --html-template "apps/admin-web/html/hotels.html"
+  --page "apps/admin-web/src/pages/tenants.vue" \
+  --api "/api/admin/tenants"
 ```
 
 确认计划后启动：
@@ -82,11 +81,10 @@ pnpm -s dionysus fastlane coupon-module-plan \
 pnpm -s dionysus fastlane coupon-module-start \
   --module "租户管理" \
   --title "租户管理只读闭环" \
-  --description "让最终用户在酒店租户首页看到数据库中的完整租户事实数据" \
+  --description "让最终用户在租户管理页看到数据库中的完整集团租户事实数据" \
   --target-root "/Volumes/MacMiniSSD/code/Coupon" \
-  --page "apps/admin-web/src/pages/hotels.vue" \
-  --api "/api/admin/tenants" \
-  --html-template "apps/admin-web/html/hotels.html"
+  --page "apps/admin-web/src/pages/tenants.vue" \
+  --api "/api/admin/tenants"
 ```
 
 `coupon-module-start` 和普通 `fastlane start` 一样会先执行 readiness，支持 `--allow-dirty-path` 和 `--dry-run`。本模板默认禁止写路径，写接口只能在只读闭环验收后作为下一轮模块里程碑。
@@ -158,12 +156,12 @@ pnpm -s dionysus fastlane start \
 Coupon 管理后台固定补充规则：
 
 - 模块开发坚持“数据先行、先读后写”：先补数据库表结构和完整虚拟数据，再做只读接口和页面读取，最后才做写路径。
-- 当前 `hotels.vue` 实际承载的是集团租户/租户管理，不是真正的酒店门店管理；后续应迁移为 `tenants` 模块，再新增真正的 `hotels` 门店管理模块。
-- 迁移前不得破坏现有 `hotels.vue` 的成熟交互：左侧点击租户必须更新右侧详情，数据仍来自 `/api/admin/tenants`。
-- 真正的酒店管理模块应围绕租户下的门店和部门建模，优先读取 `tenant_stores`、`tenant_departments` 或后续标准化后的门店/部门表。
+- 当前 `tenants.vue` 承载集团租户/租户管理，数据来自 `/api/admin/tenants`，不得退回旧 `/hotels` 租户语义。
+- 当前 `hotels.vue` 承载真实酒店门店/部门管理，数据来自 `/api/admin/hotels`，优先读取 `tenant_stores`、`tenant_departments` 或后续标准化后的门店/部门表。
+- 两个成熟页面都不得整页重写；只允许在明确任务范围内做接口、字段、路由或小范围交互增量。
 - 其他页面迁移 Vue 时参考 `apps/admin-web/html/` 对应模板，但必须重写为动态 Vue 页面。
 - Worker prompt 必须显式写清：禁止 `v-html`、raw HTML import、长字符串整页模板；必须有响应式数据、接口调用、loading、error、empty state 和真实用户交互。
-- `hotels.vue` 只允许在明确需要时做接口、路由或小范围交互增量，不允许重新套模板。
+- `tenants.vue` / `hotels.vue` 只允许在明确需要时做接口、路由或小范围交互增量，不允许重新套模板。
 
 优先用 `fastlane start --worker` 创建 Worker。只有需要人工追加任务时才单独创建：
 

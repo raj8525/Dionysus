@@ -137,11 +137,10 @@ describe("dionysus fast lane planner", () => {
     const plan = buildCouponDataFirstFastLanePlan({
       module: "租户管理",
       title: "租户管理只读闭环",
-      description: "让最终用户在酒店租户首页看到数据库中的完整租户事实数据",
+      description: "让最终用户在租户管理页看到数据库中的完整集团租户事实数据",
       targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
-      pagePath: "apps/admin-web/src/pages/hotels.vue",
-      apiPath: "/api/admin/tenants",
-      htmlTemplatePath: "apps/admin-web/html/hotels.html"
+      pagePath: "apps/admin-web/src/pages/tenants.vue",
+      apiPath: "/api/admin/tenants"
     });
 
     expect(plan.goal.title).toBe("租户管理只读闭环");
@@ -153,10 +152,27 @@ describe("dionysus fast lane planner", () => {
     expect(plan.tasks[1].description).toContain("/api/admin/tenants");
     expect(plan.tasks[2].description).toContain("Vue 页面必须读取真实接口数据");
     expect(plan.tasks[2].description).toContain("禁止 v-html");
-    expect(plan.tasks[2].description).toContain("hotels.vue 已经是成熟页面");
+    expect(plan.tasks[2].description).toContain("tenants.vue 是成熟的集团租户管理页");
     expect(plan.tasks[3].description).toContain("90 分质量门禁");
     expect(plan.tasks[3].description).toContain("写路径不得进入本轮范围");
     expect(plan.nextCommands.join("\n")).toContain("fastlane status");
+  });
+
+  it("builds a Coupon hotel-store module plan without tenant-page semantics", () => {
+    const plan = buildCouponDataFirstFastLanePlan({
+      module: "酒店管理",
+      title: "酒店门店只读闭环",
+      description: "让最终用户在酒店管理页看到数据库中的门店和部门事实数据",
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      pagePath: "apps/admin-web/src/pages/hotels.vue",
+      apiPath: "/api/admin/hotels",
+      htmlTemplatePath: "apps/admin-web/html/hotels.html"
+    });
+
+    expect(plan.tasks[1].description).toContain("/api/admin/hotels");
+    expect(plan.tasks[2].description).toContain("hotels.vue 当前管理真实酒店门店和部门");
+    expect(plan.tasks[2].description).toContain("不得退回集团租户列表语义");
+    expect(plan.tasks[2].description).not.toContain("左侧租户点击切换右侧详情");
   });
 
   it("tells Codex to enqueue read-path workers only after the data foundation worker is done", () => {

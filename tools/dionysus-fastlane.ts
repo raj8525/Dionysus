@@ -155,9 +155,7 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
   const pagePath = requireNonEmpty(input.pagePath, "coupon page path is required");
   const apiPath = requireNonEmpty(input.apiPath, "coupon API path is required");
   const htmlTemplatePath = input.htmlTemplatePath?.trim();
-  const hotelsGuard = pagePath.endsWith("hotels.vue")
-    ? "特别注意：hotels.vue 已经是成熟页面，只允许做数据字段、接口读取或小范围交互增量；不得按 hotels.html 重写布局，不得破坏左侧租户点击切换右侧详情。"
-    : "参考 HTML 模板时只能理解信息架构和视觉风格，必须重写为 Vue 响应式数据和组件结构，不得注入整页 HTML。";
+  const maturePageGuard = buildCouponPageGuard(pagePath, htmlTemplatePath);
 
   const workers: FastLaneItemInput[] = [
     {
@@ -213,7 +211,7 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
         "- 禁止 v-html、raw HTML import、长字符串整页模板、把 HTML 文件直接塞进 Vue。",
         "- 必须实现 loading、error、empty state、刷新后数据仍一致的行为。",
         "- 必须保留既有成熟交互；如果是列表详情页，点击左侧列表必须更新右侧详情。",
-        `- ${hotelsGuard}`,
+        `- ${maturePageGuard}`,
         "- 输出浏览器验收步骤、截图路径或 Playwright/E2E 命令。"
       ].join("\n")
     }
@@ -261,6 +259,19 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
       `pnpm dionysus agent usage --target-root ${targetRoot}`
     ]
   };
+}
+
+export function buildCouponPageGuard(pagePath: string, htmlTemplatePath?: string): string {
+  if (pagePath.endsWith("tenants.vue")) {
+    return "特别注意：tenants.vue 是成熟的集团租户管理页，只允许做数据字段、接口读取或小范围交互增量；不得按 hotels.html 或其他 HTML 模板重写布局，不得破坏左侧租户点击切换右侧详情。";
+  }
+  if (pagePath.endsWith("hotels.vue")) {
+    return "特别注意：hotels.vue 当前管理真实酒店门店和部门，只允许围绕 tenant_stores / tenant_departments、/api/admin/hotels 和门店部门交互做增量；不得退回集团租户列表语义，不得复制旧租户页。";
+  }
+  if (htmlTemplatePath) {
+    return "参考 HTML 模板时只能理解信息架构和视觉风格，必须重写为 Vue 响应式数据和组件结构，不得注入整页 HTML。";
+  }
+  return "按现有 Vue 页面和项目风格执行；必须重写为 Vue 响应式数据和组件结构，不得注入整页 HTML。";
 }
 
 function buildWorkerDescription(input: {
