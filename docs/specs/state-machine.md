@@ -60,6 +60,8 @@ cancelled
 - Watchdog 将 `running` task 重试或阻塞时，必须同时把该 task 下未完成的 `task_runs` 收口为 `failed`，避免 Dashboard 长期显示幽灵 running。
 - Task 被 `cancelled`、`done` 或 `blocked` 后，如果之前启动的 CLI run 延迟返回，run 收口不得把 task 重新改回 `needs_review` 或 `failed`。已关闭 run 的重复完成回调必须记录 `task.run_completion_ignored`，避免取消任务复活并污染 Codex Outbox。
 - Codex Outbox reconcile 必须自动关闭两类陈旧 blocker：目标已 `done/cancelled` 的 blocker，以及 payload 中 `taskId` 指向已 `done/cancelled` task 的 blocker。
+- 当 Codex 写入 `status=passed` 且 `pushed=true` 的 release record，并且 goal 当前或变更后处于 `done` 时，Dionysus 必须执行 release 收口：残留非终态 task 进入 `cancelled`，活跃 task run 收口，`queued/running` integration 进入 `cancelled`，对应待处理 patch 进入 `rejected`。该操作必须写入 `goal.release_cleanup_applied`，并且不得重新打开 `done/failed/cancelled` 目标。
+- 已关闭的 fast lane goal 只代表历史审计记录，不得继续暴露 worker/reviewer/integration 残留计数作为可执行工作。
 - Agent run 成功但产生 patch 时，不得立即放行下一优先级 task；必须记录 `dispatch.waiting_for_integration`，等待 integration `passed` 且 patch `applied` 后仍需进入 task review；review approve 后才能 dispatch 下一 task。
 - integration `blocked` 或 `failed` 时必须写入 `codex_outbox` blocker，由 Codex 处理，不能继续放行 Worker。
 - Milestone 不能跳过 `e2e_required` 直接进入 `passed`。

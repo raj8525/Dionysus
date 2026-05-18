@@ -221,6 +221,16 @@ POST /api/releases
 
 `release record` 同时是 goal 状态闭环的事实源：当记录为 `status=passed` 且 `pushed=true` 时，API 必须自动把仍处于活动状态的 goal 更新为 `done`；当记录为 `status=failed` 或 `status=blocked` 时，API 必须分别把仍处于活动状态的 goal 更新为 `failed` 或 `blocked`。已经处于 `done`、`failed`、`cancelled` 的终态 goal 不得被 release record 重新打开或覆盖。
 
+当 `release record` 为 `status=passed` 且 `pushed=true`，并且 goal 当前或变更后处于 `done` 时，API 必须执行 release 收口：
+
+- 将该 goal 下所有非 `done/cancelled` 的残留 task 标记为 `cancelled`，原因写明已被该 release commit 取代。
+- 将这些 task 下仍在 `running` 的 task run 收口为 `failed`，`exit_code` 使用 `130`，并释放空闲 Agent。
+- 将该 goal 下仍在 `queued/running` 的 integration 标记为 `cancelled`，并将对应 `created/queued` patch 标记为 `rejected`。
+- 写入 `task.release_superseded`、`integration.release_superseded` 和 `goal.release_cleanup_applied` 事件。
+- `fastlane status` 对 `done/failed/cancelled` 目标不得再把残留 worker、reviewer 或 integration 计数展示为可执行工作。
+
+这条规则允许 Codex 对已经人工完成验证、提交并推送的目标做最终裁决，避免旧 Worker / Reviewer / integration 记录继续误导后续调度。
+
 创建请求：
 
 ```json

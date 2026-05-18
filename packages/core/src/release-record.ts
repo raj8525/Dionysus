@@ -19,3 +19,20 @@ export function deriveGoalStatusAfterRelease(input: {
 
   return "blocked";
 }
+
+export function shouldCloseOutstandingWorkAfterRelease(input: {
+  currentStatus: GoalStatus;
+  nextStatus: GoalStatus | null;
+  releaseStatus: ReleaseRecordStatus;
+  pushed: boolean;
+}): boolean {
+  if (input.releaseStatus !== "passed" || !input.pushed) {
+    return false;
+  }
+
+  if (input.currentStatus === "cancelled" || input.currentStatus === "failed") {
+    return false;
+  }
+
+  return input.currentStatus === "done" || input.nextStatus === "done";
+}

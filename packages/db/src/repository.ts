@@ -5,6 +5,7 @@ import {
   deriveTaskStatusAfterRunCompletion,
   normalizeAgentCliConfig,
   selectAgentForRun,
+  shouldCloseOutstandingWorkAfterRelease,
   shouldReconcileCodexOutboxForGoalStatus,
   shouldReconcileCodexOutboxForTaskStatus
 } from "@dionysus/core";
@@ -534,9 +535,10 @@ export class DionysusRepository {
          for update`,
         [input.goalId]
       );
-      const nextGoalStatus = goalResult.rowCount
+      const currentGoalStatus = goalResult.rowCount ? goalResult.rows[0].status as Goal["status"] : null;
+      const nextGoalStatus = currentGoalStatus
         ? deriveGoalStatusAfterRelease({
-          currentStatus: goalResult.rows[0].status as Goal["status"],
+          currentStatus: currentGoalStatus,
           releaseStatus: input.status,
           pushed: input.pushed
         })
@@ -559,6 +561,18 @@ export class DionysusRepository {
             goalStatus: nextGoalStatus
           })]
         );
+      }
+      if (currentGoalStatus && shouldCloseOutstandingWorkAfterRelease({
+        currentStatus: currentGoalStatus,
+        nextStatus: nextGoalStatus,
+        releaseStatus: input.status,
+        pushed: input.pushed
+      })) {
+        await this.closeOutstandingGoalWorkAfterRelease(client, {
+          goalId: input.goalId,
+          releaseRecordId: String(result.rows[0].id),
+          commitSha: input.commitSha
+        });
       }
       await client.query("commit");
       return mapReleaseRecord(result.rows[0]);
@@ -2354,6 +2368,117 @@ export class DionysusRepository {
         [agentId]
       );
     }
+  }
+
+  private async closeOutstandingGoalWorkAfterRelease(
+    client: pg.PoolClient,
+    input: { goalId: string; releaseRecordId: string; commitSha: string }
+  ): Promise<void> {
+    const reason = `superseded by pushed passing release ${input.commitSha}`;
+    const taskResult = await client.query(
+      `update ${this.table("tasks")}
+       set status = 'cancelled',
+           blocked_reason = $2,
+           updated_at = now()
+       where goal_id = $1
+         and status not in ('done', 'cancelled')
+       returning id, title, status`,
+      [input.goalId, reason]
+    );
+    for (const row of taskResult.rows) {
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [
+          randomUUID(),
+          row.id,
+          "task.release_superseded",
+          JSON.stringify({
+            goalId: input.goalId,
+            releaseRecordId: input.releaseRecordId,
+            commitSha: input.commitSha,
+            reason
+          })
+        ]
+      );
+    }
+
+    if (taskResult.rows.length > 0) {
+      const taskIds = taskResult.rows.map((row) => String(row.id));
+      const runUpdate = await client.query(
+        `update ${this.table("task_runs")}
+         set status = 'failed',
+             exit_code = coalesce(exit_code, 130),
+             finished_at = coalesce(finished_at, now())
+         where task_id = any($1::uuid[])
+           and status = 'running'
+         returning agent_id`,
+        [taskIds]
+      );
+      await this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows));
+    }
+
+    const integrationResult = await client.query(
+      `update ${this.table("integration_queue")}
+       set status = 'cancelled',
+           result_json = coalesce(result_json, '{}'::jsonb) || $2::jsonb,
+           updated_at = now()
+       where goal_id = $1
+         and status in ('queued', 'running')
+       returning id, patch_id, task_id`,
+      [
+        input.goalId,
+        JSON.stringify({
+          reason,
+          releaseRecordId: input.releaseRecordId,
+          commitSha: input.commitSha
+        })
+      ]
+    );
+    if (integrationResult.rows.length > 0) {
+      await client.query(
+        `update ${this.table("patches")}
+         set status = 'rejected', updated_at = now()
+         where id = any($1::uuid[])
+           and status in ('created', 'queued')`,
+        [integrationResult.rows.map((row) => String(row.patch_id))]
+      );
+      for (const row of integrationResult.rows) {
+        await client.query(
+          `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+           values ($1, $2, $3, $4)`,
+          [
+            randomUUID(),
+            row.task_id,
+            "integration.release_superseded",
+            JSON.stringify({
+              goalId: input.goalId,
+              integrationId: row.id,
+              patchId: row.patch_id,
+              releaseRecordId: input.releaseRecordId,
+              commitSha: input.commitSha,
+              reason
+            })
+          ]
+        );
+      }
+    }
+
+    await client.query(
+      `insert into ${this.table("system_events")} (id, event_type, payload_json)
+       values ($1, $2, $3)`,
+      [
+        randomUUID(),
+        "goal.release_cleanup_applied",
+        JSON.stringify({
+          goalId: input.goalId,
+          releaseRecordId: input.releaseRecordId,
+          commitSha: input.commitSha,
+          cancelledTasks: taskResult.rows.length,
+          cancelledIntegrations: integrationResult.rows.length
+        })
+      ]
+    );
   }
 }
 

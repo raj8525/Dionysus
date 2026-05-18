@@ -247,6 +247,27 @@ describe("dionysus fast lane planner", () => {
     expect(status.nextAction).toBe("fast lane goal 已结束，无需继续调度。");
     expect(status.nextCommands).toEqual([]);
   });
+
+  it("does not expose stale worker or integration counts as actionable work for closed goals", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-released", status: "done" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 数据基座", "needs_review"),
+        task("w2", "FastLane Worker 2: 只读 API", "created"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "created")
+      ],
+      integrations: [
+        { id: "iq1", status: "failed" },
+        { id: "iq2", status: "queued" }
+      ],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("closed");
+    expect(status.counts.workers).toEqual({});
+    expect(status.counts.reviewers).toEqual({});
+    expect(status.counts.integrations).toEqual({});
+  });
 });
 
 function task(id: string, title: string, status: string): Record<string, unknown> {

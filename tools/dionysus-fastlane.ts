@@ -377,7 +377,12 @@ export function buildFastLaneStatus(input: FastLaneStatusInput): FastLaneStatusS
       phase: "closed",
       nextAction: "fast lane goal 已结束，无需继续调度。",
       nextCommands: [],
-      counts,
+      counts: {
+        workers: {},
+        reviewers: {},
+        integrations: {},
+        pendingCodexOutbox: input.pendingCodexOutbox.length
+      },
       workerTasks,
       reviewerTasks
     });
