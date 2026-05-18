@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildE2ECampaignDraft,
   buildMilestoneNotificationDraft,
+  evaluateMilestoneVerdictGate,
   milestoneStatusForCodexVerdict,
   detectMilestoneCandidate
 } from "./milestone-orchestration.js";
@@ -115,5 +116,34 @@ describe("milestone orchestration", () => {
     expect(() => milestoneStatusForCodexVerdict("e2e_required", "passed")).toThrow(/Invalid milestone transition/);
     expect(milestoneStatusForCodexVerdict("e2e_running", "passed")).toBe("passed");
     expect(milestoneStatusForCodexVerdict("e2e_required", "blocked")).toBe("e2e_blocked");
+  });
+
+  it("blocks a passed milestone verdict until every E2E campaign has passed", () => {
+    expect(evaluateMilestoneVerdictGate({
+      currentStatus: "e2e_running",
+      verdict: "passed",
+      e2eCampaignStatuses: []
+    })).toEqual({
+      allowed: false,
+      reason: "Milestone passed verdict requires at least one E2E campaign."
+    });
+
+    expect(evaluateMilestoneVerdictGate({
+      currentStatus: "e2e_running",
+      verdict: "passed",
+      e2eCampaignStatuses: ["passed", "blocked"]
+    })).toEqual({
+      allowed: false,
+      reason: "Milestone passed verdict requires every E2E campaign to be passed; current statuses: passed, blocked."
+    });
+
+    expect(evaluateMilestoneVerdictGate({
+      currentStatus: "e2e_running",
+      verdict: "passed",
+      e2eCampaignStatuses: ["passed"]
+    })).toEqual({
+      allowed: true,
+      nextStatus: "passed"
+    });
   });
 });

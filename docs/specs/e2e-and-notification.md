@@ -42,6 +42,13 @@ failed
 blocked
 ```
 
+里程碑判定门禁：
+
+- `milestone verdict passed` 必须至少存在一个 E2E campaign。
+- 该 milestone 下所有 E2E campaign 的状态必须都是 `passed`，才能把 milestone 标记为 `passed`。
+- 任一 campaign 仍为 `created`、`running`、`failed` 或 `blocked` 时，API 必须拒绝 `passed` verdict。
+- `render-only` 结果不得作为 milestone passed 的证据。
+
 每条 E2E case 都必须落库保存：
 
 - status。

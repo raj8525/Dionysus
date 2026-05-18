@@ -1028,6 +1028,9 @@ export async function buildServer() {
       if (message.includes("Invalid milestone transition")) {
         return reply.code(409).send({ error: "INVALID_MILESTONE_TRANSITION", message });
       }
+      if (message.includes("Milestone passed verdict requires")) {
+        return reply.code(409).send({ error: "MILESTONE_E2E_GATE_BLOCKED", message });
+      }
       if (message.includes("Milestone not found")) {
         return reply.code(404).send({ error: "MILESTONE_NOT_FOUND", message });
       }

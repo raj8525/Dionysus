@@ -536,3 +536,37 @@
 
 - 下一轮 Coupon fast lane 如果某个 Worker 因 Dionysus 集成门禁或 Codex 判断被取消并重跑，Reviewer 不应再被已取消的旧 Worker 卡住。
 - 取消 Worker 必须仍由 Codex 或明确门禁决定；不要把失败任务自动改为 cancelled 来绕过质量门禁。
+
+## 2026-05-18 上下文恢复记录：继续推进 Dionysus 可用性
+
+### 本次恢复后确认
+
+- 已按项目规则重新读取 Dionysus `AGENTS.md`、`MEMORY.md` 和本地 Dionysus Skill。
+- 当前 Dionysus 工作区恢复时为 clean，`main` 与 `origin/main` 同步。
+- 上一轮已完成并推送 `fix(fastlane): ignore cancelled workers for reviewer gate`，runtime 已自愈到新 commit。
+
+### 本轮目标
+
+继续从“真实 Coupon 开发中暴露的问题”出发，优先修 Dionysus 本身的硬缺口，而不是做表面 UI。下一步先重新运行 doctor/readiness/usage 和测试，结合 docs/PLAN 与现有 TODO，选择一个能提高 Codex 控制力、Agent 产出可靠性或发布证据闭环的缺口按 TDD 修复。
+
+## 2026-05-18 Dionysus milestone E2E passed verdict 门禁修复记录
+
+### 完成内容
+
+- 修复里程碑判定漏洞：`recordCodexVerdict({ verdict: "passed" })` 不再只看 milestone 是否处于 `e2e_running`。
+- 新增 `evaluateMilestoneVerdictGate`：`passed` verdict 必须至少存在一个 E2E campaign，且该 milestone 下所有 campaign 状态都必须是 `passed`。
+- 如果任一 campaign 仍是 `created`、`running`、`failed` 或 `blocked`，API 会返回 `409 MILESTONE_E2E_GATE_BLOCKED`，不得把 milestone 标记为 `passed`。
+- `failed` / `blocked` verdict 仍按原状态机进入 `e2e_failed` / `e2e_blocked`。
+- 更新 `docs/specs/e2e-and-notification.md`，明确该门禁属于 E2E 与通知契约。
+
+### TDD 证据
+
+- 红灯：`pnpm exec vitest run packages/core/src/milestone-orchestration.test.ts` 初始失败，原因是 `evaluateMilestoneVerdictGate is not a function`。
+- 绿灯：
+  - `pnpm exec vitest run packages/core/src/milestone-orchestration.test.ts` 通过，5 个测试。
+  - `pnpm typecheck` 通过。
+  - `pnpm test` 通过，50 个测试文件、229 个测试。
+
+### 为什么重要
+
+这条门禁防止 Dionysus 在 happy path / negative path / persistence 仍未通过或被 blocked 时向 Codex/用户宣称里程碑完成，避免重演“看起来有流程，实际上没验收”的问题。

@@ -1,4 +1,5 @@
 import type { MilestoneStatus } from "./types.js";
+import type { E2ECampaignStatus } from "./e2e-results.js";
 import { assertMilestoneTransition } from "./state-machine.js";
 
 export interface MilestoneDetectionInput {
@@ -176,4 +177,32 @@ export function milestoneStatusForCodexVerdict(
     verdict === "passed" ? "passed" : verdict === "failed" ? "e2e_failed" : "e2e_blocked";
   assertMilestoneTransition(currentStatus, nextStatus);
   return nextStatus;
+}
+
+export function evaluateMilestoneVerdictGate(input: {
+  currentStatus: MilestoneStatus;
+  verdict: "passed" | "failed" | "blocked";
+  e2eCampaignStatuses: E2ECampaignStatus[];
+}): {
+  allowed: boolean;
+  nextStatus?: MilestoneStatus;
+  reason?: string;
+} {
+  const nextStatus = milestoneStatusForCodexVerdict(input.currentStatus, input.verdict);
+  if (input.verdict !== "passed") {
+    return { allowed: true, nextStatus };
+  }
+  if (input.e2eCampaignStatuses.length === 0) {
+    return {
+      allowed: false,
+      reason: "Milestone passed verdict requires at least one E2E campaign."
+    };
+  }
+  if (input.e2eCampaignStatuses.some((status) => status !== "passed")) {
+    return {
+      allowed: false,
+      reason: `Milestone passed verdict requires every E2E campaign to be passed; current statuses: ${input.e2eCampaignStatuses.join(", ")}.`
+    };
+  }
+  return { allowed: true, nextStatus };
 }

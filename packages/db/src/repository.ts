@@ -19,6 +19,7 @@ import type {
   CodexOutboxEventType,
   CodexOutboxStatus,
   CliType,
+  E2ECampaignStatus,
   E2ECaseStatus,
   FlowEdge,
   FlowNode,
@@ -43,6 +44,7 @@ import {
   buildE2ECampaignDraft,
   deriveE2ECampaignStatus,
   detectMilestoneCandidate,
+  evaluateMilestoneVerdictGate,
   milestoneStatusForCodexVerdict
 } from "@dionysus/core";
 import type { CliProbeResult } from "@dionysus/cli-adapters";
@@ -1307,7 +1309,20 @@ export class DionysusRepository {
     if (!milestone) {
       throw new Error(`Milestone not found: ${input.milestoneId}`);
     }
-    const nextStatus = milestoneStatusForCodexVerdict(String(milestone.status) as MilestoneStatus, input.verdict);
+    const currentStatus = String(milestone.status) as MilestoneStatus;
+    let nextStatus = milestoneStatusForCodexVerdict(currentStatus, input.verdict);
+    if (input.verdict === "passed") {
+      const campaigns = await this.listE2ECampaigns(input.milestoneId);
+      const gate = evaluateMilestoneVerdictGate({
+        currentStatus,
+        verdict: input.verdict,
+        e2eCampaignStatuses: campaigns.map((campaign) => String(campaign.status) as E2ECampaignStatus)
+      });
+      if (!gate.allowed) {
+        throw new Error(gate.reason);
+      }
+      nextStatus = gate.nextStatus ?? nextStatus;
+    }
     await this.pool.query(
       `update ${this.table("milestones")}
        set status = $1, codex_verdict = $2, codex_verdict_reason = $3, updated_at = now()
