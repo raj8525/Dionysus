@@ -388,7 +388,7 @@ GET /api/usage/agent-cli?targetRoot=/Volumes/MacMiniSSD/code/Coupon
 }
 ```
 
-`byAgentInstance` 优先使用 `task_runs.agent_id` 和 `agents.name`；当历史 run 没有关联真实 agent id 时，必须回退到 `role:<role>`，让 Dashboard 仍能展示 Master / RuleWriter / TestWriter / Worker 的调用统计。
+`byAgentInstance` 必须合并 `agents` 表中的全部内置 Agent 实例；即使某个 Agent 尚未产生任何 `task_runs`，也必须以 `cliCalls=0`、`modelCalls=0` 出现在返回值中，保证 Dashboard 能实时看到 Master、RuleWriter、TestWriter、WorkerA-D 的全貌。已有调用数据时优先使用 `task_runs.agent_id` 和 `agents.name` 聚合；当历史 run 没有关联真实 agent id 时，必须回退到 `role:<role>`，让 Dashboard 仍能展示 Master / RuleWriter / TestWriter / Worker 的调用统计。
 
 新 run 创建时必须在同一数据库事务中 claim 一个对应角色的 enabled Agent 实例：优先选择 `idle` 且最久未更新的 Agent；没有 idle Agent 时才使用非 disabled 的 fallback。claim 成功后必须写入 `task_runs.agent_id`，并把 Agent 状态置为 `working`。run 完成、取消、Watchdog 重试或阻断后，如果该 Agent 没有其他 running run，必须释放回 `idle`。
 

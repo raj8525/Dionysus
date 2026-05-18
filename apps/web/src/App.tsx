@@ -34,6 +34,7 @@ import {
   type AgentCliUsageSummary,
   type AgentRecord,
   type AgentRole,
+  type AgentStatus,
   type CliModelValidationResult,
   type CliProbeResult,
   type CliType,
@@ -643,7 +644,7 @@ export function App() {
                         <div className="usageCardHeader">
                           <div>
                             <strong>{usage.agentName}</strong>
-                            <span>{roleLabels[usage.role]} · {usage.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
+                            <span>{roleLabels[usage.role]} · {usage.agentStatus ? `状态 ${agentStatusLabels[usage.agentStatus]} · ` : ""}{usage.lastRunAt ? `最近 ${new Date(usage.lastRunAt).toLocaleTimeString()}` : "尚无调用"}</span>
                           </div>
                           <b>{cliCallTotalLabel(usage.cliCalls)}</b>
                         </div>
@@ -1261,6 +1262,13 @@ const roleLabels: Record<AgentRole, string> = {
   rule_writer: "RuleWriter",
   test_writer: "TestWriter",
   worker: "Worker"
+};
+
+const agentStatusLabels: Record<AgentStatus, string> = {
+  idle: "空闲",
+  working: "工作中",
+  blocked: "阻塞",
+  disabled: "禁用"
 };
 
 const cliTypes: CliType[] = ["mock", "claude_code", "gemini_cli", "opencode"];

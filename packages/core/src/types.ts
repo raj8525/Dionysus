@@ -42,6 +42,7 @@ export interface AgentInstanceCliUsage {
   agentId?: string;
   agentName: string;
   role: AgentRole;
+  agentStatus?: AgentStatus;
   cliCalls: number;
   modelCalls: number;
   runningCalls: number;

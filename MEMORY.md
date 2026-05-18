@@ -366,3 +366,26 @@
 
 1. 重启 Dionysus runtime，确保 API / Worker 使用包含该调度修复的新代码。
 2. 下一轮 Coupon fast lane 应观察：API/Vue Worker 未全部 done 前，Reviewer 任务只保持 `created`，不会被自动排队。
+
+## 2026-05-18 Dionysus Agent usage 全量展示修复记录
+
+### 完成内容
+
+- 补齐 `/api/usage/agent-cli` 的 Agent 实例基线：返回值会合并 `agents` 表中的全部内置 Agent，即使某个 Agent 尚未产生任何 `task_runs`，也会以 `cliCalls=0`、`modelCalls=0` 出现在 `byAgentInstance` 中。
+- `AgentInstanceCliUsage` 增加 `agentStatus` 字段，Dashboard 的按 Agent 实例卡片会显示空闲、工作中、阻塞或禁用状态。
+- 更新 `docs/specs/api.md`，明确 usage 接口必须展示 Master、RuleWriter、TestWriter、WorkerA-D 的全貌，而不是只展示已经调用过 CLI 的 Agent。
+
+### 测试证据
+
+- 先写失败测试：`packages/core/src/agent-cli-usage.test.ts` 要求无调用的 `Master` / `WorkerB` 也出现在 `byAgentInstance`，初始失败，因为旧实现只返回有 run 的 `WorkerA`。
+- 绿灯验证：
+  - `pnpm exec vitest run packages/core/src/agent-cli-usage.test.ts apps/web/src/agent-usage-display.test.ts` 通过，10 个测试。
+  - `pnpm typecheck` 通过。
+  - `pnpm --filter @dionysus/web build` 通过；仅有 React Flow 依赖的 `"use client"` bundling warning，不阻塞。
+  - `pnpm test` 通过，49 个测试文件、219 个测试。
+
+### 下一步
+
+1. 提交并推送本次 Dionysus usage 可视化修复。
+2. 重启 Dionysus runtime，让 API 使用新代码。
+3. 用 `pnpm dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"` 实测返回中是否包含全部 Agent 实例。

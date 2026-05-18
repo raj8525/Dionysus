@@ -454,9 +454,16 @@ export class DionysusRepository {
        order by run_at asc`,
       params
     );
+    const agents = await this.listAgents();
     return buildAgentCliUsageSummary({
       goalId: input.goalId,
       targetRoot: input.targetRoot,
+      agentBaselines: agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        status: agent.status
+      })),
       rows: result.rows.map((row) => ({
         role: row.role_required as AgentRole,
         agentId: row.agent_id ? String(row.agent_id) : null,

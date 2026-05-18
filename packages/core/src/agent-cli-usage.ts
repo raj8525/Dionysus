@@ -1,4 +1,4 @@
-import type { AgentCliUsageSummary, AgentInstanceCliUsage, AgentRole, CliType } from "./types.js";
+import type { AgentCliUsageSummary, AgentInstanceCliUsage, AgentRole, AgentStatus, CliType } from "./types.js";
 
 export interface AgentCliUsageRow {
   role: AgentRole;
@@ -12,11 +12,19 @@ export interface AgentCliUsageRow {
   runAt?: string | null;
 }
 
+export interface AgentCliUsageBaselineAgent {
+  id: string;
+  name: string;
+  role: AgentRole;
+  status: AgentStatus;
+}
+
 export function buildAgentCliUsageSummary(input: {
   goalId?: string;
   targetRoot?: string;
   generatedAt?: string;
   rows: AgentCliUsageRow[];
+  agentBaselines?: AgentCliUsageBaselineAgent[];
 }): AgentCliUsageSummary {
   const byAgent = new Map<AgentRole, AgentCliUsageSummary["byAgent"][number]>();
   const byAgentInstance = new Map<string, AgentInstanceCliUsage>();
@@ -80,6 +88,10 @@ export function buildAgentCliUsageSummary(input: {
     });
   }
 
+  for (const agent of input.agentBaselines ?? []) {
+    ensureAgentInstanceBaseline(byAgentInstance, agent);
+  }
+
   totals.distinctModels = distinctModels.size;
 
   return {
@@ -95,6 +107,33 @@ export function buildAgentCliUsageSummary(input: {
     }),
     byCli: Array.from(byCli.values()).sort((left, right) => left.cliType.localeCompare(right.cliType))
   };
+}
+
+function ensureAgentInstanceBaseline(
+  byAgentInstance: Map<string, AgentInstanceCliUsage>,
+  agent: AgentCliUsageBaselineAgent
+): void {
+  const agentKey = `agent:${agent.id}`;
+  const existing = byAgentInstance.get(agentKey);
+  if (existing) {
+    existing.agentName = agent.name;
+    existing.agentStatus = agent.status;
+    return;
+  }
+  byAgentInstance.set(agentKey, {
+    agentKey,
+    agentId: agent.id,
+    agentName: agent.name,
+    role: agent.role,
+    agentStatus: agent.status,
+    cliCalls: 0,
+    modelCalls: 0,
+    runningCalls: 0,
+    succeededCalls: 0,
+    failedCalls: 0,
+    lastRunAt: undefined,
+    models: []
+  });
 }
 
 function upsertRoleUsage(

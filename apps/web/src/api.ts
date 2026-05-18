@@ -52,6 +52,7 @@ export interface SystemHealth {
 }
 
 export type AgentRole = "master" | "rule_writer" | "test_writer" | "worker";
+export type AgentStatus = "idle" | "working" | "blocked" | "disabled";
 export type CliType = "mock" | "claude_code" | "gemini_cli" | "opencode";
 
 export interface AgentCliConfig {
@@ -65,7 +66,7 @@ export interface AgentRecord {
   id: string;
   name: string;
   role: AgentRole;
-  status: "idle" | "working" | "blocked" | "disabled";
+  status: AgentStatus;
   cliType: CliType;
   cliModel?: string;
   createdAt: string;
@@ -219,6 +220,7 @@ export interface AgentInstanceCliUsage {
   agentId?: string;
   agentName: string;
   role: AgentRole;
+  agentStatus?: AgentStatus;
   cliCalls: number;
   modelCalls: number;
   runningCalls: number;

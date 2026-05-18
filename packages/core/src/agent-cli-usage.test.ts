@@ -149,4 +149,69 @@ describe("buildAgentCliUsageSummary", () => {
       }
     });
   });
+
+  it("includes every configured agent instance even when it has no CLI runs yet", () => {
+    const summary = buildAgentCliUsageSummary({
+      rows: [
+        {
+          role: "worker",
+          agentId: "worker-a",
+          agentName: "WorkerA",
+          cliType: "opencode",
+          cliModel: "minimax/MiniMax-M2.7",
+          status: "succeeded",
+          modelCalls: 2
+        }
+      ],
+      agentBaselines: [
+        {
+          id: "master",
+          name: "Master",
+          role: "master",
+          status: "idle"
+        },
+        {
+          id: "worker-a",
+          name: "WorkerA",
+          role: "worker",
+          status: "idle"
+        },
+        {
+          id: "worker-b",
+          name: "WorkerB",
+          role: "worker",
+          status: "idle"
+        }
+      ]
+    });
+
+    expect(summary.byAgentInstance).toEqual([
+      expect.objectContaining({
+        agentKey: "agent:master",
+        agentName: "Master",
+        role: "master",
+        agentStatus: "idle",
+        cliCalls: 0,
+        modelCalls: 0,
+        models: []
+      }),
+      expect.objectContaining({
+        agentKey: "agent:worker-a",
+        agentName: "WorkerA",
+        role: "worker",
+        agentStatus: "idle",
+        cliCalls: 1,
+        modelCalls: 2
+      }),
+      expect.objectContaining({
+        agentKey: "agent:worker-b",
+        agentName: "WorkerB",
+        role: "worker",
+        agentStatus: "idle",
+        cliCalls: 0,
+        modelCalls: 0,
+        models: []
+      })
+    ]);
+  });
 });
