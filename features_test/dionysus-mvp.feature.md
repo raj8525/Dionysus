@@ -380,9 +380,18 @@ And campaign 状态必须由所有 case 状态自动汇总
 
 Given Dionysus 已创建 E2E campaign
 When Codex 运行 `pnpm dionysus e2e run-campaign --campaign-id <id> --mode strict`
-Then smoke 和 persistence 用例必须通过 Playwright 打开目标 URL、截图并回写结果
-And 需要业务特定操作的 happy_path / negative_path 在 strict 模式下必须标记 blocked
+Then 只有通用 smoke 用例可以通过 Playwright 打开目标 URL、截图并回写结果
+And 需要业务特定操作的 happy_path / negative_path / persistence 在 strict 模式下必须标记 blocked
 And 系统不得把未执行的业务流程伪造成 passed
+
+## 场景 10.3：render-only 只能作为诊断证据
+
+Given Dionysus 已创建 E2E campaign
+When Codex 运行 `pnpm dionysus e2e run-campaign --campaign-id <id> --mode render-only`
+Then Dionysus 可以记录包含 `mode=render-only` 的浏览器渲染结果
+And 这些结果只能用于工程诊断
+And `milestone verdict passed` 必须拒绝包含 render-only case-result 的 campaign
+And 只有所有 case-result 都是 `mode=strict` 时才能作为 milestone passed 证据
 
 ## 场景 11：里程碑通过后必须通知
 

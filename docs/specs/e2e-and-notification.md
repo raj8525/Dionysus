@@ -47,7 +47,8 @@ blocked
 - `milestone verdict passed` 必须至少存在一个 E2E campaign。
 - 该 milestone 下所有 E2E campaign 的状态必须都是 `passed`，才能把 milestone 标记为 `passed`。
 - 任一 campaign 仍为 `created`、`running`、`failed` 或 `blocked` 时，API 必须拒绝 `passed` verdict。
-- `render-only` 结果不得作为 milestone passed 的证据。
+- 每个 campaign 下所有已通过 case-result 的 `mode` 必须都是 `strict`。
+- `render-only` 结果可以作为工程诊断记录，但不得作为 milestone passed 的证据。
 
 每条 E2E case 都必须落库保存：
 
@@ -58,14 +59,14 @@ blocked
 - targetUrl。
 - 执行模式和 caveat。
 
-`status=passed` 的 case-result 必须包含严格浏览器证据：
+`status=passed` 的 case-result 必须包含浏览器证据：
 
-- `mode="strict"`。
+- `mode="strict"` 或 `mode="render-only"`。
 - 非空 `targetUrl`。
 - 非空 `screenshotPath`。
 - `consoleErrors` 数组，即使为空也必须显式记录。
 
-缺少这些证据时，API 必须拒绝 `passed` 结果，不能把人工口头判断当成 E2E 通过。
+缺少这些证据时，API 必须拒绝 `passed` 结果，不能把人工口头判断当成 E2E 通过。`render-only` 虽然可以记录为 case-result，但 milestone verdict 必须继续要求全部 case-result 使用 `mode="strict"`。
 
 ## 通知
 

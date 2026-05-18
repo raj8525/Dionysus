@@ -1313,10 +1313,14 @@ export class DionysusRepository {
     let nextStatus = milestoneStatusForCodexVerdict(currentStatus, input.verdict);
     if (input.verdict === "passed") {
       const campaigns = await this.listE2ECampaigns(input.milestoneId);
+      const caseResultModes = await this.listE2ECampaignCaseResultModes(input.milestoneId);
       const gate = evaluateMilestoneVerdictGate({
         currentStatus,
         verdict: input.verdict,
-        e2eCampaignStatuses: campaigns.map((campaign) => String(campaign.status) as E2ECampaignStatus)
+        e2eCampaigns: campaigns.map((campaign) => ({
+          status: String(campaign.status) as E2ECampaignStatus,
+          caseResultModes: caseResultModes.get(String(campaign.id)) ?? []
+        }))
       });
       if (!gate.allowed) {
         throw new Error(gate.reason);
@@ -1433,6 +1437,25 @@ export class DionysusRepository {
       params
     );
     return result.rows;
+  }
+
+  private async listE2ECampaignCaseResultModes(milestoneId: string): Promise<Map<string, string[]>> {
+    const result = await this.pool.query(
+      `select c.id as campaign_id,
+              coalesce(array_agg(ec.result_json ->> 'mode' order by ec.created_at)
+                filter (where ec.status = 'passed'), array[]::text[]) as modes
+       from ${this.table("e2e_campaigns")} c
+       left join ${this.table("e2e_cases")} ec on ec.campaign_id = c.id
+       where c.milestone_id = $1
+       group by c.id`,
+      [milestoneId]
+    );
+    return new Map(
+      result.rows.map((row) => [
+        String(row.campaign_id),
+        Array.isArray(row.modes) ? row.modes.map(String) : []
+      ])
+    );
   }
 
   async listE2ECases(campaignId: string): Promise<Array<Record<string, unknown>>> {

@@ -135,7 +135,7 @@ describe("milestone orchestration", () => {
     expect(evaluateMilestoneVerdictGate({
       currentStatus: "e2e_running",
       verdict: "passed",
-      e2eCampaignStatuses: []
+      e2eCampaigns: []
     })).toEqual({
       allowed: false,
       reason: "Milestone passed verdict requires at least one E2E campaign."
@@ -144,7 +144,10 @@ describe("milestone orchestration", () => {
     expect(evaluateMilestoneVerdictGate({
       currentStatus: "e2e_running",
       verdict: "passed",
-      e2eCampaignStatuses: ["passed", "blocked"]
+      e2eCampaigns: [
+        { status: "passed", caseResultModes: ["strict"] },
+        { status: "blocked", caseResultModes: ["strict"] }
+      ]
     })).toEqual({
       allowed: false,
       reason: "Milestone passed verdict requires every E2E campaign to be passed; current statuses: passed, blocked."
@@ -153,10 +156,25 @@ describe("milestone orchestration", () => {
     expect(evaluateMilestoneVerdictGate({
       currentStatus: "e2e_running",
       verdict: "passed",
-      e2eCampaignStatuses: ["passed"]
+      e2eCampaigns: [
+        { status: "passed", caseResultModes: ["strict", "strict"] }
+      ]
     })).toEqual({
       allowed: true,
       nextStatus: "passed"
+    });
+  });
+
+  it("blocks a passed milestone verdict if any passed campaign used render-only evidence", () => {
+    expect(evaluateMilestoneVerdictGate({
+      currentStatus: "e2e_running",
+      verdict: "passed",
+      e2eCampaigns: [
+        { status: "passed", caseResultModes: ["strict", "render-only"] }
+      ]
+    })).toEqual({
+      allowed: false,
+      reason: "Milestone passed verdict requires every E2E case result to use strict mode evidence; current modes: strict, render-only."
     });
   });
 });

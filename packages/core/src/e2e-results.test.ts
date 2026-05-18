@@ -19,7 +19,7 @@ describe("E2E result aggregation", () => {
       result: { note: "checked manually" }
     })).toEqual({
       allowed: false,
-      reason: "Passed E2E case requires strict browser evidence: mode=strict, targetUrl, screenshotPath, and consoleErrors[]."
+      reason: "Passed E2E case requires browser evidence: mode=strict or render-only, targetUrl, screenshotPath, and consoleErrors[]."
     });
 
     expect(validateE2ECaseResultEvidence({
@@ -28,6 +28,18 @@ describe("E2E result aggregation", () => {
         mode: "strict",
         targetUrl: "http://127.0.0.1:5173",
         screenshotPath: "/tmp/e2e.png",
+        consoleErrors: []
+      }
+    })).toEqual({ allowed: true });
+  });
+
+  it("allows render-only passed cases as diagnostic browser evidence", () => {
+    expect(validateE2ECaseResultEvidence({
+      status: "passed",
+      result: {
+        mode: "render-only",
+        targetUrl: "http://127.0.0.1:5173",
+        screenshotPath: "/tmp/render-only.png",
         consoleErrors: []
       }
     })).toEqual({ allowed: true });

@@ -195,7 +195,10 @@ export function milestoneStatusForCodexVerdict(
 export function evaluateMilestoneVerdictGate(input: {
   currentStatus: MilestoneStatus;
   verdict: "passed" | "failed" | "blocked";
-  e2eCampaignStatuses: E2ECampaignStatus[];
+  e2eCampaigns: Array<{
+    status: E2ECampaignStatus;
+    caseResultModes: string[];
+  }>;
 }): {
   allowed: boolean;
   nextStatus?: MilestoneStatus;
@@ -205,16 +208,24 @@ export function evaluateMilestoneVerdictGate(input: {
   if (input.verdict !== "passed") {
     return { allowed: true, nextStatus };
   }
-  if (input.e2eCampaignStatuses.length === 0) {
+  if (input.e2eCampaigns.length === 0) {
     return {
       allowed: false,
       reason: "Milestone passed verdict requires at least one E2E campaign."
     };
   }
-  if (input.e2eCampaignStatuses.some((status) => status !== "passed")) {
+  const statuses = input.e2eCampaigns.map((campaign) => campaign.status);
+  if (statuses.some((status) => status !== "passed")) {
     return {
       allowed: false,
-      reason: `Milestone passed verdict requires every E2E campaign to be passed; current statuses: ${input.e2eCampaignStatuses.join(", ")}.`
+      reason: `Milestone passed verdict requires every E2E campaign to be passed; current statuses: ${statuses.join(", ")}.`
+    };
+  }
+  const modes = input.e2eCampaigns.flatMap((campaign) => campaign.caseResultModes);
+  if (modes.length === 0 || modes.some((mode) => mode !== "strict")) {
+    return {
+      allowed: false,
+      reason: `Milestone passed verdict requires every E2E case result to use strict mode evidence; current modes: ${modes.length ? modes.join(", ") : "none"}.`
     };
   }
   return { allowed: true, nextStatus };

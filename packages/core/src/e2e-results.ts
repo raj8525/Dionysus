@@ -23,16 +23,16 @@ export function validateE2ECaseResultEvidence(input: {
     return { allowed: true };
   }
   const result = input.result ?? {};
-  const hasStrictMode = result.mode === "strict";
+  const hasAcceptedMode = result.mode === "strict" || result.mode === "render-only";
   const hasTargetUrl = typeof result.targetUrl === "string" && result.targetUrl.trim().length > 0;
   const hasScreenshotPath = typeof result.screenshotPath === "string" && result.screenshotPath.trim().length > 0;
   const hasConsoleErrors = Array.isArray(result.consoleErrors);
-  if (hasStrictMode && hasTargetUrl && hasScreenshotPath && hasConsoleErrors) {
+  if (hasAcceptedMode && hasTargetUrl && hasScreenshotPath && hasConsoleErrors) {
     return { allowed: true };
   }
   return {
     allowed: false,
-    reason: "Passed E2E case requires strict browser evidence: mode=strict, targetUrl, screenshotPath, and consoleErrors[]."
+    reason: "Passed E2E case requires browser evidence: mode=strict or render-only, targetUrl, screenshotPath, and consoleErrors[]."
   };
 }
 
