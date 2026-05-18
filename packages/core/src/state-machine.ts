@@ -67,6 +67,16 @@ export function isTerminalStatus(status: string): boolean {
   return terminalStates.has(status);
 }
 
+export function deriveTaskStatusAfterRunCompletion(input: {
+  currentStatus: TaskStatus;
+  exitCode: number;
+}): TaskStatus {
+  if (input.currentStatus === "cancelled" || input.currentStatus === "done" || input.currentStatus === "blocked") {
+    return input.currentStatus;
+  }
+  return input.exitCode === 0 ? "needs_review" : "failed";
+}
+
 function assertTransition<T extends string>(
   entity: string,
   transitions: Record<T, T[]>,

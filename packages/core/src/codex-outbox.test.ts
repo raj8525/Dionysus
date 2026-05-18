@@ -5,7 +5,8 @@ import {
   evaluateCodexOutboxAckGate,
   formatCodexHeartbeat,
   formatCodexOutboxReconciliation,
-  shouldReconcileCodexOutboxForGoalStatus
+  shouldReconcileCodexOutboxForGoalStatus,
+  shouldReconcileCodexOutboxForTaskStatus
 } from "./codex-outbox.js";
 
 describe("codex outbox", () => {
@@ -119,6 +120,29 @@ describe("codex outbox", () => {
       eventType: "blocker",
       outboxStatus: "acked",
       goalStatus: "cancelled"
+    })).toBe(false);
+  });
+
+  it("auto-reconciles pending task blockers when the referenced task is closed", () => {
+    expect(shouldReconcileCodexOutboxForTaskStatus({
+      eventType: "blocker",
+      outboxStatus: "pending",
+      taskStatus: "cancelled"
+    })).toBe(true);
+    expect(shouldReconcileCodexOutboxForTaskStatus({
+      eventType: "blocker",
+      outboxStatus: "pending",
+      taskStatus: "done"
+    })).toBe(true);
+    expect(shouldReconcileCodexOutboxForTaskStatus({
+      eventType: "blocker",
+      outboxStatus: "pending",
+      taskStatus: "needs_review"
+    })).toBe(false);
+    expect(shouldReconcileCodexOutboxForTaskStatus({
+      eventType: "e2e_required",
+      outboxStatus: "pending",
+      taskStatus: "cancelled"
     })).toBe(false);
   });
 });

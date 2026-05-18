@@ -1,4 +1,4 @@
-import type { GoalStatus } from "./types.js";
+import type { GoalStatus, TaskStatus } from "./types.js";
 
 export type CodexOutboxEventType = "blocker" | "e2e_required" | "release_ready" | "user_notify";
 export type CodexOutboxSeverity = "info" | "warning" | "error";
@@ -46,6 +46,16 @@ export function shouldReconcileCodexOutboxForGoalStatus(input: {
   return input.outboxStatus === "pending"
     && input.eventType === "blocker"
     && (input.goalStatus === "done" || input.goalStatus === "cancelled");
+}
+
+export function shouldReconcileCodexOutboxForTaskStatus(input: {
+  eventType: CodexOutboxEventType;
+  outboxStatus: CodexOutboxStatus;
+  taskStatus?: TaskStatus | null;
+}): boolean {
+  return input.outboxStatus === "pending"
+    && input.eventType === "blocker"
+    && (input.taskStatus === "done" || input.taskStatus === "cancelled");
 }
 
 export function buildCodexOutboxDraft(input: {

@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import {
   buildAgentCliUsageSummary,
   deriveGoalStatusAfterRelease,
+  deriveTaskStatusAfterRunCompletion,
   normalizeAgentCliConfig,
   selectAgentForRun,
-  shouldReconcileCodexOutboxForGoalStatus
+  shouldReconcileCodexOutboxForGoalStatus,
+  shouldReconcileCodexOutboxForTaskStatus
 } from "@dionysus/core";
 import type {
   AgentCliConfig,
@@ -933,10 +935,17 @@ export class DionysusRepository {
     modelUsageJson?: Record<string, unknown> | null;
   }): Promise<void> {
     const runStatus = input.exitCode === 0 ? "succeeded" : "failed";
-    const taskStatus = input.exitCode === 0 ? "needs_review" : "failed";
     const client = await this.pool.connect();
     try {
       await client.query("begin");
+      const taskResult = await client.query<{ status: TaskStatus }>(
+        `select status
+         from ${this.table("tasks")}
+         where id = $1
+         for update`,
+        [input.taskId]
+      );
+      const currentTaskStatus = taskResult.rows[0]?.status;
       const runUpdate = await client.query(
         `update ${this.table("task_runs")}
          set status = $1,
@@ -944,7 +953,7 @@ export class DionysusRepository {
              model_call_count = $3,
              model_usage_json = $4,
              finished_at = now()
-         where id = $5
+         where id = $5 and status = 'running'
          returning agent_id`,
         [
           runStatus,
@@ -954,7 +963,29 @@ export class DionysusRepository {
           input.runId
         ]
       );
+      if (!runUpdate.rowCount || !currentTaskStatus) {
+        await client.query(
+          `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+           values ($1, $2, $3, $4)`,
+          [
+            randomUUID(),
+            input.taskId,
+            "task.run_completion_ignored",
+            JSON.stringify({
+              runId: input.runId,
+              exitCode: input.exitCode,
+              reason: !runUpdate.rowCount ? "run_not_running_or_already_closed" : "task_not_found"
+            })
+          ]
+        );
+        await client.query("commit");
+        return;
+      }
       await this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows));
+      const taskStatus = deriveTaskStatusAfterRunCompletion({
+        currentStatus: currentTaskStatus,
+        exitCode: input.exitCode
+      });
       await client.query(
         `update ${this.table("tasks")}
          set status = $1, updated_at = now()
@@ -968,7 +999,12 @@ export class DionysusRepository {
           randomUUID(),
           input.taskId,
           input.exitCode === 0 ? "task.run_succeeded" : "task.run_failed",
-          JSON.stringify({ runId: input.runId, exitCode: input.exitCode })
+          JSON.stringify({
+            runId: input.runId,
+            exitCode: input.exitCode,
+            previousTaskStatus: currentTaskStatus,
+            nextTaskStatus: taskStatus
+          })
         ]
       );
       await client.query("commit");
@@ -2127,6 +2163,22 @@ export class DionysusRepository {
        where co.status = 'pending'
          and co.event_type = 'blocker'`
     );
+    const taskResult = await this.pool.query<{
+      id: string;
+      event_type: CodexOutboxEventType;
+      outbox_status: CodexOutboxStatus;
+      task_status: TaskStatus;
+    }>(
+      `select co.id,
+              co.event_type,
+              co.status as outbox_status,
+              t.status as task_status
+       from ${this.table("codex_outbox")} co
+       join ${this.table("tasks")} t
+         on t.id::text = co.payload_json->>'taskId'
+       where co.status = 'pending'
+         and co.event_type = 'blocker'`
+    );
     const ids = Array.from(new Set([
       ...integrationResult.rows.map((row) => row.id),
       ...goalResult.rows
@@ -2134,6 +2186,13 @@ export class DionysusRepository {
           eventType: row.event_type,
           outboxStatus: row.outbox_status,
           goalStatus: row.goal_status
+        }))
+        .map((row) => row.id),
+      ...taskResult.rows
+        .filter((row) => shouldReconcileCodexOutboxForTaskStatus({
+          eventType: row.event_type,
+          outboxStatus: row.outbox_status,
+          taskStatus: row.task_status
         }))
         .map((row) => row.id)
     ]));
