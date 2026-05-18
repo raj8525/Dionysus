@@ -169,6 +169,19 @@ export function buildMilestoneNotificationDraft(input: {
   };
 }
 
+export function evaluateMilestoneNotificationGate(status: MilestoneStatus): {
+  allowed: boolean;
+  reason?: string;
+} {
+  if (status === "passed") {
+    return { allowed: true };
+  }
+  return {
+    allowed: false,
+    reason: `Milestone notification requires milestone status passed; current status is ${status}.`
+  };
+}
+
 export function milestoneStatusForCodexVerdict(
   currentStatus: MilestoneStatus,
   verdict: "passed" | "failed" | "blocked"

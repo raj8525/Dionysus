@@ -62,6 +62,12 @@ blocked
 
 E2E passed 后通知用户。
 
+通知门禁：
+
+- 只有 milestone 状态为 `passed` 时，才能创建 milestone notification。
+- `candidate`、`e2e_required`、`e2e_running`、`e2e_failed`、`e2e_blocked`、`cancelled` 均不得创建“里程碑已完成”通知。
+- API 必须在门禁未满足时返回阻塞错误，避免用户收到未验收完成的误报。
+
 通知内容必须包含：
 
 - 完成了什么。

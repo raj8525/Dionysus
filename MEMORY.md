@@ -570,3 +570,24 @@
 ### 为什么重要
 
 这条门禁防止 Dionysus 在 happy path / negative path / persistence 仍未通过或被 blocked 时向 Codex/用户宣称里程碑完成，避免重演“看起来有流程，实际上没验收”的问题。
+
+## 2026-05-18 Dionysus milestone notification 门禁修复记录
+
+### 完成内容
+
+- 修复里程碑通知漏洞：`POST /api/milestones/:id/notifications` 现在必须先检查 milestone 状态。
+- 新增 `evaluateMilestoneNotificationGate`：只有 milestone 状态为 `passed` 时才允许创建“里程碑已完成”通知。
+- 如果 milestone 仍是 `candidate`、`e2e_required`、`e2e_running`、`e2e_failed`、`e2e_blocked` 或 `cancelled`，API 返回 `409 MILESTONE_NOTIFICATION_GATE_BLOCKED`，避免用户收到未验收成果的误报。
+- 更新 `docs/specs/e2e-and-notification.md`，把通知门禁写入契约。
+
+### TDD 证据
+
+- 红灯：`pnpm exec vitest run packages/core/src/milestone-orchestration.test.ts` 初始失败，原因是 `evaluateMilestoneNotificationGate is not a function`。
+- 绿灯：
+  - `pnpm exec vitest run packages/core/src/milestone-orchestration.test.ts` 通过，6 个测试。
+  - `pnpm typecheck` 通过。
+  - `pnpm test` 通过，50 个测试文件、230 个测试。
+
+### 为什么重要
+
+Dionysus 的用户通知必须是最终发布证据，而不是流程装饰。该修复确保用户只会在 Codex E2E verdict 已经通过之后收到 milestone 完成通知。

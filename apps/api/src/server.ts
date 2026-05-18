@@ -19,6 +19,7 @@ import {
   compileTargetProject,
   decideMasterStep,
   evaluateCodexOutboxAckGate,
+  evaluateMilestoneNotificationGate,
   evaluateWatchdogTask,
   findUnmanagedGitChanges,
   validateReleaseRecordEvidence,
@@ -34,7 +35,7 @@ import {
   deriveWorkerEffectiveRunConfig,
   taskReviewStatusForVerdict
 } from "@dionysus/core";
-import type { NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
+import type { MilestoneStatus, NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
 import { probeAllClis, validateCliModel } from "@dionysus/cli-adapters";
 
 const createGoalSchema = z.object({
@@ -1057,6 +1058,15 @@ export async function buildServer() {
     const milestone = await repo.getMilestone(id);
     if (!milestone) {
       return reply.code(404).send({ error: "MILESTONE_NOT_FOUND" });
+    }
+    const gate = evaluateMilestoneNotificationGate(String(milestone.status) as MilestoneStatus);
+    if (!gate.allowed) {
+      return reply.code(409).send({
+        error: "MILESTONE_NOTIFICATION_GATE_BLOCKED",
+        reason: gate.reason,
+        requiredStatus: "passed",
+        currentStatus: String(milestone.status)
+      });
     }
     const draft = buildMilestoneNotificationDraft({
       milestoneName: String(milestone.name),
