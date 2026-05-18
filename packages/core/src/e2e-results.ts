@@ -1,6 +1,7 @@
 export type E2ECaseStatus = "created" | "running" | "passed" | "failed" | "blocked" | "skipped";
 
 export type E2ECampaignStatus = E2ECaseStatus;
+export type E2ECaseType = "smoke" | "happy_path" | "negative_path" | "persistence";
 
 export function deriveE2ECampaignStatus(caseStatuses: E2ECaseStatus[]): E2ECampaignStatus {
   if (caseStatuses.length === 0) return "created";
@@ -33,4 +34,14 @@ export function validateE2ECaseResultEvidence(input: {
     allowed: false,
     reason: "Passed E2E case requires strict browser evidence: mode=strict, targetUrl, screenshotPath, and consoleErrors[]."
   };
+}
+
+export function shouldAutoRunE2ECase(input: {
+  mode: "strict" | "render-only";
+  caseType: E2ECaseType;
+}): boolean {
+  if (input.mode === "render-only") {
+    return true;
+  }
+  return input.caseType === "smoke";
 }

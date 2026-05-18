@@ -31,7 +31,7 @@ pnpm dionysus e2e run-campaign --campaign-id "<campaign-id>" --mode strict
 
 执行模式：
 
-- `strict`：执行最终用户视角的浏览器测试，至少覆盖 smoke、主路径、关键异常路径、刷新持久性、控制台错误和截图。涉及登录、业务输入、提交、异常流的用例必须由 Codex 明确执行并逐条写入结果；系统不得伪造通过。
+- `strict`：执行最终用户视角的浏览器测试，至少覆盖 smoke、主路径、关键异常路径、刷新持久性、控制台错误和截图。系统只允许自动执行通用 smoke；涉及登录、业务输入、提交、异常流、刷新持久性的用例必须由 Codex 明确执行并逐条写入结果；系统不得伪造通过。
 - `render-only`：只能用于工程 checkpoint 诊断，不能用于 milestone verdict，不能触发用户通知。
 
 E2E 结论：

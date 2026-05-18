@@ -19,8 +19,8 @@ import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeHealPlan, buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
 import { buildSupervisionAgentStatus, buildSupervisionStepRecord, summarizeSupervisionStep } from "./dionysus-supervise.js";
-import { formatCodexHeartbeat, formatCodexOutboxReconciliation } from "@dionysus/core";
-import type { AgentRole, CliType, CodexOutboxEvent } from "@dionysus/core";
+import { formatCodexHeartbeat, formatCodexOutboxReconciliation, shouldAutoRunE2ECase } from "@dionysus/core";
+import type { AgentRole, CliType, CodexOutboxEvent, E2ECaseType } from "@dionysus/core";
 
 const apiBase = process.env.DIONYSUS_API_BASE ?? "http://localhost:23100";
 const execFileAsync = promisify(execFile);
@@ -816,7 +816,10 @@ async function runE2ECase(input: {
   failureReason?: string;
   evidence: Record<string, unknown>;
 }> {
-  const actionable = input.testCase.caseType === "smoke" || input.testCase.caseType === "persistence";
+  const actionable = shouldAutoRunE2ECase({
+    mode: input.mode,
+    caseType: input.testCase.caseType as E2ECaseType
+  });
   if (!actionable && input.mode === "strict") {
     return {
       status: "blocked",

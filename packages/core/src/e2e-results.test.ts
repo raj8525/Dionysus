@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveE2ECampaignStatus, validateE2ECaseResultEvidence } from "./e2e-results.js";
+import { deriveE2ECampaignStatus, shouldAutoRunE2ECase, validateE2ECaseResultEvidence } from "./e2e-results.js";
 
 describe("E2E result aggregation", () => {
   it("marks campaign passed only when every case is passed or skipped", () => {
@@ -31,5 +31,12 @@ describe("E2E result aggregation", () => {
         consoleErrors: []
       }
     })).toEqual({ allowed: true });
+  });
+
+  it("auto-runs only smoke cases in strict mode", () => {
+    expect(shouldAutoRunE2ECase({ mode: "strict", caseType: "smoke" })).toBe(true);
+    expect(shouldAutoRunE2ECase({ mode: "strict", caseType: "happy_path" })).toBe(false);
+    expect(shouldAutoRunE2ECase({ mode: "strict", caseType: "negative_path" })).toBe(false);
+    expect(shouldAutoRunE2ECase({ mode: "strict", caseType: "persistence" })).toBe(false);
   });
 });
