@@ -483,7 +483,12 @@ export function buildFastLaneStatus(input: FastLaneStatusInput): FastLaneStatusS
   }
 
   const reviewersReady = reviewerTasks.filter((task) => String(task.status) === "created");
-  if (workerTasks.length > 0 && workerTasks.every((task) => String(task.status) === "done") && reviewersReady.length > 0) {
+  const activeWorkerTasks = workerTasks.filter((task) => String(task.status) !== "cancelled");
+  if (
+    activeWorkerTasks.length > 0 &&
+    activeWorkerTasks.every((task) => String(task.status) === "done") &&
+    reviewersReady.length > 0
+  ) {
     return summary({
       goalId,
       goalStatus,

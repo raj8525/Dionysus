@@ -496,3 +496,43 @@
 
 - 已失败的前端 integration 不会自动重放，因为它记录的是旧解析结果；需要在当前 Coupon goal 中重新创建前端 Worker 任务，且允许路径必须明确写为 `apps/admin-web/tests/e2e/identity-support-grants.spec.js`。
 - 修复提交后需要重启 Dionysus runtime，确保后续 Worker 使用新解析逻辑。
+
+## 2026-05-18 上下文压缩恢复记录：FastLane Reviewer 门禁继续修复
+
+### 本次恢复后确认
+
+- 用户新增长期规则：每次上下文压缩前，都必须把完整交接上下文写入项目根目录 `MEMORY.md`；如果没有该文件，则创建，并在 `AGENTS.md` 记录历史记忆位置。
+- Dionysus 根目录 `AGENTS.md` 已经记录：长期上下文、压缩前交接记录和重要历史决策保存在 `MEMORY.md`；压缩恢复后第一件事是读取 `MEMORY.md` 并追加最新状态。
+- 本次压缩恢复后已读取 Dionysus `AGENTS.md`、`MEMORY.md` 和当前 git 状态。
+- 当前工作区只有 `packages/core/src/coupon-data-first-gate.test.ts` 存在本轮未提交改动。
+
+### 当前红灯测试
+
+- 已在 `packages/core/src/coupon-data-first-gate.test.ts` 增加测试：当旧的 `FastLane Worker` 被显式 `cancelled` 并由新的 Worker 成功替代后，不应继续阻塞 `FastLane Reviewer` 启动。
+- 红灯结果：`pnpm exec vitest run packages/core/src/coupon-data-first-gate.test.ts` 失败，当前实现仍要求所有 FastLane Worker 都是 `done`，导致 cancelled superseded worker 误阻塞 reviewer。
+
+### 下一步
+
+1. 修改 `selectFastLaneReviewerFollowupTasks`，只把非 `cancelled` 的 FastLane Worker 视为 active worker。
+2. 同步检查 CLI fastlane status 是否也有相同判断缺陷，必要时补测试和修复。
+3. 跑相关测试、全量测试、更新本文件，再提交并推送 Dionysus。
+
+## 2026-05-18 Dionysus FastLane cancelled Worker 门禁修复记录
+
+### 完成内容
+
+- 修复 `selectFastLaneReviewerFollowupTasks`：`cancelled` 的 FastLane Worker 被视为已显式退出/被替代，不再阻塞 Reviewer 启动。
+- 保持严格门禁：非 `cancelled` 的 active Worker 只要仍是 `created`、`queued`、`running`、`needs_review`、`blocked` 或 `failed`，Reviewer 仍不会启动。
+- 同步修复 `tools/dionysus-fastlane.ts` 的 `fastlane status` 判断，避免 CLI 状态显示和 API 调度逻辑不一致。
+- 新增测试覆盖：旧前端 Worker cancelled、重跑 Worker done 后，Reviewer 可以进入 `ready_for_reviewer`。
+
+### 验证结果
+
+- `pnpm exec vitest run packages/core/src/coupon-data-first-gate.test.ts tools/dionysus-fastlane.test.ts` 通过，25 个测试。
+- `pnpm typecheck` 通过。
+- `pnpm test` 通过，50 个测试文件、228 个测试。
+
+### 后续注意
+
+- 下一轮 Coupon fast lane 如果某个 Worker 因 Dionysus 集成门禁或 Codex 判断被取消并重跑，Reviewer 不应再被已取消的旧 Worker 卡住。
+- 取消 Worker 必须仍由 Codex 或明确门禁决定；不要把失败任务自动改为 cancelled 来绕过质量门禁。

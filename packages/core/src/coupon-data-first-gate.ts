@@ -68,8 +68,11 @@ export function selectFastLaneReviewerFollowupTasks(input: {
     return [];
   }
 
-  const workerTasks = input.goalTasks.filter((task) => String(task.title ?? "").startsWith("FastLane Worker"));
-  if (workerTasks.length === 0 || workerTasks.some((task) => String(task.status ?? "") !== "done")) {
+  const activeWorkerTasks = input.goalTasks.filter((task) =>
+    String(task.title ?? "").startsWith("FastLane Worker") &&
+    String(task.status ?? "") !== "cancelled"
+  );
+  if (activeWorkerTasks.length === 0 || activeWorkerTasks.some((task) => String(task.status ?? "") !== "done")) {
     return [];
   }
 

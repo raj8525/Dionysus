@@ -117,6 +117,24 @@ describe("dionysus fast lane planner", () => {
     expect(status.nextCommands).toEqual(["pnpm dionysus task enqueue --task-id r1"]);
   });
 
+  it("ignores cancelled superseded workers when deciding reviewer readiness", () => {
+    const status = buildFastLaneStatus({
+      goal: { id: "goal-2b", status: "fast_lane" },
+      tasks: [
+        task("w1", "FastLane Worker 1: 数据确认", "done"),
+        task("w2", "FastLane Worker 2: 后端 API", "done"),
+        task("w3", "FastLane Worker 3: 前端 Vue 初版", "cancelled"),
+        task("w4", "FastLane Worker 4: 前端 Vue 重跑", "done"),
+        task("r1", "FastLane Reviewer 1: 质量门禁", "created")
+      ],
+      integrations: [],
+      pendingCodexOutbox: []
+    });
+
+    expect(status.phase).toBe("ready_for_reviewer");
+    expect(status.nextCommands).toEqual(["pnpm dionysus task enqueue --task-id r1"]);
+  });
+
   it("requires a reviewer approval score in the suggested handoff command", () => {
     const status = buildFastLaneStatus({
       goal: { id: "goal-review", status: "fast_lane" },

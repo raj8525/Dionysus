@@ -106,4 +106,19 @@ describe("Coupon data-first enqueue gate", () => {
       goalTasks
     })).toEqual([goalTasks[2]]);
   });
+
+  it("ignores cancelled superseded workers when deciding whether reviewers can start", () => {
+    const goalTasks = [
+      { id: "w1", title: "FastLane Worker 1: 数据确认", status: "done" },
+      { id: "w2", title: "FastLane Worker 2: 后端 API", status: "done" },
+      { id: "w3", title: "FastLane Worker 3: 前端 Vue 初版", status: "cancelled" },
+      { id: "w4", title: "FastLane Worker 4: 前端 Vue 重跑", status: "done" },
+      { id: "r1", title: "FastLane Reviewer 1: 质量门禁", status: "created" }
+    ];
+
+    expect(selectFastLaneReviewerFollowupTasks({
+      reviewedTask: goalTasks[3],
+      goalTasks
+    })).toEqual([goalTasks[4]]);
+  });
 });
