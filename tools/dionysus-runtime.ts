@@ -95,6 +95,7 @@ export function getRuntimeStatus(specs: RuntimeProcessSpec[]): ReturnType<typeof
 export function buildRuntimeHealPlan(input: {
   processStatus: Pick<RuntimeStatusSummary, "ok" | "processes">;
   health?: unknown;
+  currentCodeCommitSha?: string;
 }): RuntimeHealPlan {
   if (!input.processStatus.ok) {
     const stopped = input.processStatus.processes
@@ -114,6 +115,19 @@ export function buildRuntimeHealPlan(input: {
     return {
       action: "restart",
       reason: `worker health ${String(worker.status ?? "not ok")}`,
+      nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+    };
+  }
+
+  const workerCodeCommitSha = readWorkerCodeCommitSha(worker);
+  if (
+    input.currentCodeCommitSha
+    && workerCodeCommitSha
+    && workerCodeCommitSha !== input.currentCodeCommitSha
+  ) {
+    return {
+      action: "restart",
+      reason: `worker runtime commit stale: ${workerCodeCommitSha} != ${input.currentCodeCommitSha}`,
       nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
     };
   }
@@ -294,6 +308,13 @@ async function checkRuntimeHealthReady(healthUrl: string): Promise<boolean> {
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readWorkerCodeCommitSha(worker: Record<string, unknown>): string | undefined {
+  const runtime = record(worker.runtime);
+  const metadata = record(worker.metadata);
+  const value = runtime.codeCommitSha ?? metadata.codeCommitSha ?? worker.codeCommitSha;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function defaultRuntimeHealthUrl(): string {

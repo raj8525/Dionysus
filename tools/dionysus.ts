@@ -115,6 +115,7 @@ async function main(): Promise<void> {
     }
     if (runtimeAction === "heal") {
       const processStatus = getRuntimeStatus(specs);
+      const currentCodeCommitSha = await readCurrentGitHead(process.cwd());
       const health = processStatus.ok
         ? await request("/health").catch((error: unknown) => ({
           ok: false,
@@ -122,17 +123,17 @@ async function main(): Promise<void> {
           error: error instanceof Error ? error.message : String(error)
         }))
         : undefined;
-      const plan = buildRuntimeHealPlan({ processStatus, health });
+      const plan = buildRuntimeHealPlan({ processStatus, health, currentCodeCommitSha });
       if (plan.action === "none") {
-        return print({ status: "no_action", plan, processStatus, health });
+        return print({ status: "no_action", plan, processStatus, health, currentCodeCommitSha });
       }
       if (plan.action === "restart") {
         const stopped = stopRuntime(specs);
         const started = await startRuntime(specs);
-        return print({ status: "healed", plan, stopped, started });
+        return print({ status: "healed", plan, stopped, started, currentCodeCommitSha });
       }
       const started = await startRuntime(specs);
-      return print({ status: "healed", plan, started });
+      return print({ status: "healed", plan, started, currentCodeCommitSha });
     }
   }
 
@@ -869,6 +870,16 @@ async function request(path: string, method = "GET", body?: unknown): Promise<un
     throw new Error(`${method} ${path} failed: ${response.status} ${text}`);
   }
   return payload;
+}
+
+async function readCurrentGitHead(cwd: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd, timeout: 10_000 });
+    const sha = stdout.trim();
+    return sha || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function stripUndefined(value: unknown): unknown {

@@ -2,6 +2,34 @@
 
 本文件用于保存上下文压缩前的交接记录、重要决策和当前进度。未来会话继续开发 Dionysus 前，应先阅读 `AGENTS.md`，再阅读本文件的最新记录。
 
+## 2026-05-18 runtime heal 旧 commit 自愈修复
+
+### 背景
+
+- Dionysus 曾出现“代码已提交并推送，但 API / Worker runtime 仍运行旧 commit”的情况。
+- 原 `pnpm dionysus system runtime heal` 只检查 pid、进程和 worker 心跳是否 stale；如果进程健康、心跳正常，即使 worker 心跳中的 `codeCommitSha` 不是当前仓库 HEAD，也会返回 `no_action`。
+- 这会让 Codex 误以为新门禁已经生效，实际 Worker 仍可能使用旧逻辑继续污染目标仓库。
+
+### 已完成
+
+- 已按 TDD 添加失败测试：健康 runtime 但 worker `runtime.codeCommitSha` 落后于当前 HEAD 时必须返回 `restart`。
+- 已修复 `buildRuntimeHealPlan`：支持传入 `currentCodeCommitSha`，并比较 `/health.worker.runtime.codeCommitSha`、兼容旧的 `metadata.codeCommitSha` / `worker.codeCommitSha`。
+- 已修复 CLI `system runtime heal`：执行前读取当前 Dionysus 仓库 `git rev-parse HEAD`，并把该 commit 传入 heal plan；输出中包含 `currentCodeCommitSha`，方便 Codex 审计。
+- 已更新 `AGENTS.md` 与 `docs/specs/api.md`，明确 runtime 旧 commit 也属于必须 heal 的条件。
+
+### 已验证
+
+- 红灯：新增测试先失败，原行为返回 `no_action`。
+- 绿灯：`pnpm exec vitest run tools/dionysus-runtime.test.ts` 通过。
+- 局部回归：`pnpm exec vitest run tools/dionysus-runtime.test.ts tools/dionysus-doctor.test.ts` 通过。
+- 类型检查：`pnpm typecheck` 通过。
+
+### 下一步
+
+- 跑全量 `pnpm test`。
+- 提交并推送 Dionysus。
+- 提交后运行 `pnpm -s dionysus system runtime heal`，确认当前 runtime 如果仍在旧 commit，会被自动重启。
+
 ## 2026-05-18 交接记录
 
 ### 长期记忆规则

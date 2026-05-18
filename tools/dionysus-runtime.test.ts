@@ -80,6 +80,33 @@ describe("Dionysus runtime process management", () => {
     });
   });
 
+  it("restarts healthy runtime processes when the worker is running an older commit", () => {
+    expect(buildRuntimeHealPlan({
+      processStatus: {
+        ok: true,
+        processes: [
+          { name: "api", pid: 101, running: true, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: true, pidFile: "worker.pid", logFile: "worker.log" }
+        ]
+      },
+      health: {
+        ok: true,
+        worker: {
+          ok: true,
+          status: "ok",
+          runtime: {
+            codeCommitSha: "old-commit"
+          }
+        }
+      },
+      currentCodeCommitSha: "new-commit"
+    })).toEqual({
+      action: "restart",
+      reason: "worker runtime commit stale: old-commit != new-commit",
+      nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+    });
+  });
+
   it("does not restart healthy runtime processes", () => {
     expect(buildRuntimeHealPlan({
       processStatus: {
