@@ -773,7 +773,7 @@ async function superviseGoal(input: {
       continue;
     }
     const runCycle = await runGoalCycle(input);
-    const summary = summarizeSupervisionStep({ agentStatus, runCycle });
+    const summary = summarizeSupervisionStep({ agentStatus, runCycle, fastLaneStatus });
     steps.push(buildSupervisionStepRecord({ iteration: index + 1, summary, agentStatus, runCycle, fastLaneStatus }));
     if (!summary.shouldContinue) {
       await request("/api/codex/outbox", "POST", {
@@ -784,7 +784,8 @@ async function superviseGoal(input: {
         payload: {
           iteration: index + 1,
           agentSummary: agentStatus.summary,
-          runCycleSummary: runCycle.summary
+          runCycleSummary: runCycle.summary,
+          fastLaneStatus
         }
       });
       return {

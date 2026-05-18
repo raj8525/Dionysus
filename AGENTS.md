@@ -162,9 +162,9 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 
 `system doctor --brief` 和 Dashboard 的 Worker 状态会同时展示 Worker 心跳与 effective run config。心跳中的 `runtime.workerCliType` 只是进程 fallback；真实任务执行优先使用 PostgreSQL `agent_cli_configs` 中的角色配置。看到 runtime fallback 为 `mock` 时，不得直接断言 Worker 仍在用 mock，必须同时检查 `worker.effectiveRunConfig` 或 `agent config list`。
 
-`pnpm dionysus goal supervise --goal-id "<goal-id>"` 是连续推进入口。每轮必须复用同一套 Agent 实例和 CLI usage 统计口径；如果目标项目存在已识别且不属于本轮的脏路径，必须显式传入同一组 `--allow-dirty-path`，让 preflight 和 master-step 保持一致。如果它返回 blocker 或 e2e_required，先处理 `codex_outbox`，不要只看前端或任务列表猜测状态。
+`pnpm dionysus goal supervise --goal-id "<goal-id>"` 是连续推进入口。每轮必须复用同一套 Agent 实例和 CLI usage 统计口径；如果目标项目存在已识别且不属于本轮的脏路径，必须显式传入同一组 `--allow-dirty-path`，让 preflight 和 master-step 保持一致。如果它返回 `blocked`、`codex_required` 或 `e2e_required`，先处理 `codex_outbox`，不要只看前端或任务列表猜测状态。
 
-`goal supervise` 会在 fast lane 安全阶段自动执行 `fastlane advance`：当 phase 为 `ready_for_data_followups` 或 `ready_for_reviewer` 且存在入队命令时，它会自动入队下一批任务并继续下一轮。它不会自动 approve Worker、不会 approve Reviewer、不会跳过 Codex E2E；遇到 `reviewer_review`、`codex_final`、`e2e_required` 或 blocker 时仍必须交给 Codex。
+`goal supervise` 会在 fast lane 安全阶段自动执行 `fastlane advance`：当 phase 为 `ready_for_data_followups` 或 `ready_for_reviewer` 且存在入队命令时，它会自动入队下一批任务并继续下一轮。它不会自动 approve Worker、不会 approve Reviewer、不会跳过 Codex E2E；遇到 `reviewer_review`、`codex_final`、`e2e_required` 或 blocker 时仍必须交给 Codex。其中 `reviewer_review` 和 `codex_final` 属于正常 Codex 裁决点，应返回 `codex_required`，不得误判为无活跃任务的 blocker。
 
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`，并等待 API `/health.ok=true` 后才返回。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
 

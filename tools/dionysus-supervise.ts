@@ -13,10 +13,11 @@ export interface SupervisionAgentStatusInput {
 export interface SupervisionStepInput {
   agentStatus: Record<string, unknown>;
   runCycle: Record<string, unknown>;
+  fastLaneStatus?: unknown;
 }
 
 export interface SupervisionStepSummary {
-  status: "blocked" | "e2e_required" | "working";
+  status: "blocked" | "e2e_required" | "codex_required" | "working";
   shouldContinue: boolean;
   reason: string;
 }
@@ -93,6 +94,9 @@ export function summarizeSupervisionStep(input: SupervisionStepInput): Supervisi
     };
   }
 
+  const fastLaneCodexSummary = summarizeFastLaneCodexRequired(input.fastLaneStatus);
+  if (fastLaneCodexSummary) return fastLaneCodexSummary;
+
   if (runCycleSummary.status === "working" && !hasActiveDionysusWork(agentSummary)) {
     return {
       status: "blocked",
@@ -121,6 +125,18 @@ export function shouldAdvanceFastLaneDuringSupervision(status: { phase?: unknown
   return {
     shouldAdvance: false,
     reason: `fast lane phase ${phase || "unknown"} requires Codex or Agent work before automatic advance`
+  };
+}
+
+function summarizeFastLaneCodexRequired(status: unknown): SupervisionStepSummary | undefined {
+  const fastLaneStatus = nestedRecord(status);
+  const phase = String(fastLaneStatus.phase ?? "");
+  if (!["reviewer_review", "codex_final"].includes(phase)) return undefined;
+  const nextAction = String(fastLaneStatus.nextAction ?? "inspect fast lane status");
+  return {
+    status: "codex_required",
+    shouldContinue: false,
+    reason: `fast lane phase ${phase} requires Codex: ${nextAction}`
   };
 }
 

@@ -354,6 +354,7 @@ And ReviewerCLI 必须等全部 Worker 至少达到 `needs_review` 或 `done`，
 And Codex 可以运行 `fastlane advance` 自动入队安全 phase 的下一批任务
 And `fastlane advance` 不得自动 approve Worker 或绕过 ReviewerCLI
 And `goal supervise` 必须在这些安全 phase 自动执行等价的 advance 并继续下一轮
+And 当 fast lane 进入 `reviewer_review` 或 `codex_final` 时，`goal supervise` 必须返回 `codex_required`，不能误报为无活跃任务 blocker
 
 ## 场景 9：Master 自动识别里程碑候选
 

@@ -61,6 +61,54 @@ describe("goal supervision step summary", () => {
     });
   });
 
+  it("reports reviewer_review as Codex-required instead of a no-active-work blocker", () => {
+    expect(summarizeSupervisionStep({
+      agentStatus: {
+        summary: {
+          runtime: "ready",
+          queuedTasks: 0,
+          runningTasks: 0,
+          runningRuns: 0,
+          workingAgents: 0,
+          nextAction: "没有 queued/running task"
+        }
+      },
+      runCycle: { summary: { status: "working" } },
+      fastLaneStatus: {
+        phase: "reviewer_review",
+        nextAction: "Codex 审查 ReviewerCLI 报告并决定是否 approve"
+      }
+    })).toEqual({
+      status: "codex_required",
+      shouldContinue: false,
+      reason: "fast lane phase reviewer_review requires Codex: Codex 审查 ReviewerCLI 报告并决定是否 approve"
+    });
+  });
+
+  it("reports codex_final as Codex-required instead of a no-active-work blocker", () => {
+    expect(summarizeSupervisionStep({
+      agentStatus: {
+        summary: {
+          runtime: "ready",
+          queuedTasks: 0,
+          runningTasks: 0,
+          runningRuns: 0,
+          workingAgents: 0,
+          nextAction: "没有 queued/running task"
+        }
+      },
+      runCycle: { summary: { status: "working" } },
+      fastLaneStatus: {
+        phase: "codex_final",
+        nextAction: "Codex 执行最终测试、E2E、提交和通知"
+      }
+    })).toEqual({
+      status: "codex_required",
+      shouldContinue: false,
+      reason: "fast lane phase codex_final requires Codex: Codex 执行最终测试、E2E、提交和通知"
+    });
+  });
+
   it("stops when run-cycle says working but no tasks or agents are active", () => {
     expect(summarizeSupervisionStep({
       agentStatus: {
