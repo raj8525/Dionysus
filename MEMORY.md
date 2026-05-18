@@ -454,3 +454,45 @@
 
 1. 提交并推送本次 release record 证据门禁。
 2. 重启 Dionysus runtime，使 API 使用新门禁。
+
+## 2026-05-18 上下文压缩恢复记录：Coupon D1 支持授权只读闭环
+
+### 本次恢复后新增事实
+
+- 用户再次要求：每次上下文压缩前，必须把此前完整上下文写入项目根目录 `MEMORY.md`；若文件不存在则新建，同时在 `AGENTS.md` 说明长期记忆位置。
+- 已确认 Dionysus 根目录 `AGENTS.md` 和 `MEMORY.md` 均已包含该规则；本条记录保存本次压缩恢复后的最新执行状态。
+- 当前 Coupon fast lane 目标：`6a9c7a31-634d-42de-ad47-40dae42f715c`，标题为 `D1支持授权只读闭环`。
+- 当前目标是让 Coupon `/identity/support-grants` 页面读取 PostgreSQL 中真实 support grant 数据；本轮只做只读闭环，不做新增、审批、撤销写路径。
+- 已启动三个 Worker：
+  - 数据确认 Worker：任务 `241475a7-278f-451d-9ea3-1140a16ed092`，run `a82934dc-30ae-4f38-9a3e-6cb7c12b6235`，已成功，结论为数据基座可支持只读页面。
+  - 后端 API Worker：任务 `60e3514a-7797-4a8c-b245-516485997858`，run `b514f01b-fcfc-4b78-8822-0191e6f638e1`，恢复时仍在运行，正在修复 `ListSupportGrants` 的租户过滤、视图读取和状态标签。
+  - 前端 Vue Worker：任务 `1ac8b0ea-a8d0-4b97-8612-c75325275e3c`，run `929de992-1d5c-4306-907c-7ec0b7ad592b`，已成功但补丁集成失败。
+- 前端补丁集成失败暴露 Dionysus 缺陷：`allowedFiles` 从中文任务描述中解析时把普通中文逗号后的说明误拆成路径，导致合法文件 `apps/admin-web/tests/e2e/identity-support-grants.spec.js` 被判定为越权。
+- Coupon 主工作区恢复检查时仍为 clean；前端和后端 Worker 补丁尚未进入 Coupon 主工作区。
+
+### 下一步
+
+1. 继续轮询后端 API Worker，等待其完成或失败。
+2. 修复 Dionysus allowed path 解析，或用正确允许路径重新创建前端任务。
+3. 所有 Worker 补丁集成并由 Codex 审查后，才启动 ReviewerCLI 90 分门禁。
+4. 最终在 Coupon 主工作区执行 Go 测试、前端构建、浏览器 E2E、GitNexus 检查，再提交并推送。
+
+## 2026-05-18 Dionysus allowed path 解析修复记录
+
+### 完成内容
+
+- 修复 Worker 集成门禁的 `allowedFiles` 解析缺陷：当任务描述使用中文内联说明时，不再把 `刷新`、`状态标签`、`scope/到期时间展示` 等普通说明误判为允许路径。
+- 新增 `apps/worker/src/allowed-scope.ts`，把 allowed scope 解析从 `worker.ts` 抽成可测试模块。
+- 新增 `apps/worker/src/allowed-scope.test.ts`，复现并锁定以下场景：
+  - `允许修改路径: apps/...vue, apps/...spec.js。参考 ...` 只提取句号前的两个真实文件路径。
+  - bullet 形式的文件范围仍可被正确解析。
+- 当前已通过：
+  - `pnpm exec vitest run apps/worker/src/allowed-scope.test.ts`
+  - `pnpm exec vitest run apps/worker/src/allowed-scope.test.ts apps/worker/src/target-root.test.ts packages/core/src/integration-applier.test.ts`
+  - `pnpm typecheck`
+  - `pnpm test`，50 个测试文件、226 个测试通过。
+
+### 仍需处理
+
+- 已失败的前端 integration 不会自动重放，因为它记录的是旧解析结果；需要在当前 Coupon goal 中重新创建前端 Worker 任务，且允许路径必须明确写为 `apps/admin-web/tests/e2e/identity-support-grants.spec.js`。
+- 修复提交后需要重启 Dionysus runtime，确保后续 Worker 使用新解析逻辑。
