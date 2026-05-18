@@ -21,6 +21,7 @@ import {
   evaluateCodexOutboxAckGate,
   evaluateWatchdogTask,
   findUnmanagedGitChanges,
+  validateReleaseRecordEvidence,
   resolveNotificationChannels,
   queueForRole,
   evaluateReviewerApprovalGate,
@@ -379,6 +380,13 @@ export async function buildServer() {
     const goal = await repo.getGoal(parsed.data.goalId);
     if (!goal) {
       return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    const evidenceGate = validateReleaseRecordEvidence(parsed.data);
+    if (!evidenceGate.allowed) {
+      return reply.code(409).send({
+        error: "RELEASE_RECORD_EVIDENCE_REQUIRED",
+        reason: evidenceGate.reason
+      });
     }
     const record = await repo.createReleaseRecord(parsed.data);
     return reply.code(201).send(record);

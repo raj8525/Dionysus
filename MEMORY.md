@@ -390,3 +390,32 @@
 1. 提交并推送本次 Dionysus usage 可视化修复。
 2. 重启 Dionysus runtime，让 API 使用新代码。
 3. 用 `pnpm dionysus agent usage --target-root "/Volumes/MacMiniSSD/code/Coupon"` 实测返回中是否包含全部 Agent 实例。
+
+## 2026-05-18 Dionysus release record 证据门禁修复记录
+
+### 完成内容
+
+- 新增 release 证据门禁：`status=passed` 且 `pushed=true` 的 release record 必须包含：
+  - 至少 1 个 `changedFiles`
+  - 至少 1 条 `status=passed` 的验证命令
+  - 非空中文/文本摘要
+- API `POST /api/releases` 会在证据不足时返回 `409 RELEASE_RECORD_EVIDENCE_REQUIRED`，不得把 goal 自动置为 `done`。
+- CLI `pnpm dionysus release record` 也会在本地构造 payload 阶段提前失败，避免空证据 release 写入数据库。
+- 更新 `docs/specs/api.md`，把该门禁写入 API 契约。
+
+### 测试证据
+
+- 先写失败测试：
+  - `packages/core/src/release-record.test.ts` 初始失败为 `validateReleaseRecordEvidence is not a function`。
+  - `tools/dionysus-release-record.test.ts` 初始失败为缺证据 release 没有抛错。
+- 绿灯验证：
+  - `pnpm exec vitest run tools/dionysus-release-record.test.ts packages/core/src/release-record.test.ts` 通过，13 个测试。
+  - `pnpm typecheck` 通过。
+  - `pnpm test` 通过，49 个测试文件、223 个测试。
+- 实际 CLI 验证：
+  - 运行缺少 `--changed-file`、`--verification-json`、`--summary` 的 `pnpm dionysus release record ... --status passed --pushed true`，命令失败并返回门禁错误，没有写入 release record。
+
+### 下一步
+
+1. 提交并推送本次 release record 证据门禁。
+2. 重启 Dionysus runtime，使 API 使用新门禁。

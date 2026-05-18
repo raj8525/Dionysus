@@ -1,3 +1,5 @@
+import { validateReleaseRecordEvidence } from "../packages/core/src/release-record.js";
+
 export type ReleaseRecordStatus = "passed" | "failed" | "blocked";
 
 export interface ReleaseVerificationInput {
@@ -20,7 +22,7 @@ export interface ReleaseRecordRequest {
 }
 
 export function buildReleaseRecordRequest(args: string[]): ReleaseRecordRequest {
-  return {
+  const request = {
     goalId: requiredFlag(args, "--goal-id"),
     codexOutboxEventId: readFlag(args, "--codex-outbox-event-id"),
     targetRoot: requiredFlag(args, "--target-root"),
@@ -32,6 +34,11 @@ export function buildReleaseRecordRequest(args: string[]): ReleaseRecordRequest 
     verification: readVerification(args),
     summary: readFlag(args, "--summary") ?? ""
   };
+  const evidenceGate = validateReleaseRecordEvidence(request);
+  if (!evidenceGate.allowed) {
+    throw new Error(evidenceGate.reason);
+  }
+  return request;
 }
 
 function readChangedFiles(args: string[]): string[] {

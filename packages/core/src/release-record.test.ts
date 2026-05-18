@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveGoalStatusAfterRelease,
+  validateReleaseRecordEvidence,
   shouldCloseOutstandingWorkAfterRelease
 } from "./release-record.js";
 
@@ -83,5 +84,40 @@ describe("shouldCloseOutstandingWorkAfterRelease", () => {
       releaseStatus: "passed",
       pushed: true
     })).toBe(false);
+  });
+});
+
+describe("validateReleaseRecordEvidence", () => {
+  it("requires concrete evidence before a passed pushed release can close a goal", () => {
+    expect(validateReleaseRecordEvidence({
+      status: "passed",
+      pushed: true,
+      changedFiles: [],
+      verification: [],
+      summary: ""
+    })).toEqual({
+      allowed: false,
+      reason: "passed pushed release requires changedFiles, at least one passed verification command, and a non-empty summary"
+    });
+  });
+
+  it("allows passed pushed releases with changed files, passed verification, and summary", () => {
+    expect(validateReleaseRecordEvidence({
+      status: "passed",
+      pushed: true,
+      changedFiles: ["apps/admin-api/internal/handler/example.go"],
+      verification: [{ command: "go test ./...", status: "passed" }],
+      summary: "已完成并验证。"
+    })).toEqual({ allowed: true });
+  });
+
+  it("does not require closing evidence for failed or blocked releases", () => {
+    expect(validateReleaseRecordEvidence({
+      status: "blocked",
+      pushed: false,
+      changedFiles: [],
+      verification: [],
+      summary: "等待环境修复。"
+    })).toEqual({ allowed: true });
   });
 });

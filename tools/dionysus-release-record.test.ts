@@ -47,4 +47,15 @@ describe("buildReleaseRecordRequest", () => {
       "--status", "ready"
     ])).toThrow("--status must be one of passed, failed, blocked");
   });
+
+  it("rejects passed pushed release records without concrete evidence", () => {
+    expect(() => buildReleaseRecordRequest([
+      "--goal-id", "18adb562-7ed3-45ae-b99a-b9a76dd2a928",
+      "--target-root", "/repo",
+      "--branch", "main",
+      "--commit-sha", "abc",
+      "--status", "passed",
+      "--pushed", "true"
+    ])).toThrow("passed pushed release requires changedFiles, at least one passed verification command, and a non-empty summary");
+  });
 });
