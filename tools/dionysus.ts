@@ -19,7 +19,12 @@ import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./diony
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeHealPlan, buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
-import { buildSupervisionAgentStatus, buildSupervisionStepRecord, summarizeSupervisionStep } from "./dionysus-supervise.js";
+import {
+  buildSupervisionAgentStatus,
+  buildSupervisionStepRecord,
+  shouldAdvanceFastLaneDuringSupervision,
+  summarizeSupervisionStep
+} from "./dionysus-supervise.js";
 import { formatCodexHeartbeat, formatCodexOutboxReconciliation, shouldAutoRunE2ECase } from "@dionysus/core";
 import type { AgentRole, CliType, CodexOutboxEvent, E2ECaseType } from "@dionysus/core";
 
@@ -739,9 +744,37 @@ async function superviseGoal(input: {
       request(`/api/usage/agent-cli?goalId=${input.goalId}`) as Promise<Record<string, unknown>>
     ]);
     const agentStatus = buildSupervisionAgentStatus({ goalId: input.goalId, health, configs, agents, tasks, runs, usage });
+    const goalStatusPayload = await request(`/api/goals/${encodeURIComponent(input.goalId)}/status`) as {
+      goal: Record<string, unknown>;
+      tasks: Array<Record<string, unknown>>;
+      integrations: Array<Record<string, unknown>>;
+      pendingCodexOutbox: Array<Record<string, unknown>>;
+    };
+    const fastLaneStatus = buildFastLaneStatus(goalStatusPayload);
+    const fastLaneAdvanceDecision = shouldAdvanceFastLaneDuringSupervision(fastLaneStatus);
+    if (fastLaneAdvanceDecision.shouldAdvance) {
+      const fastLaneAdvance = await advanceFastLane(input.goalId);
+      const summary = {
+        status: "working" as const,
+        shouldContinue: true,
+        reason: fastLaneAdvanceDecision.reason
+      };
+      steps.push(buildSupervisionStepRecord({
+        iteration: index + 1,
+        summary,
+        agentStatus,
+        runCycle: { summary: { status: "working", nextActions: ["fast lane advanced"] } },
+        fastLaneStatus,
+        fastLaneAdvance
+      }));
+      if (index < maxIterations - 1 && input.intervalSeconds > 0) {
+        await sleep(input.intervalSeconds * 1000);
+      }
+      continue;
+    }
     const runCycle = await runGoalCycle(input);
     const summary = summarizeSupervisionStep({ agentStatus, runCycle });
-    steps.push(buildSupervisionStepRecord({ iteration: index + 1, summary, agentStatus, runCycle }));
+    steps.push(buildSupervisionStepRecord({ iteration: index + 1, summary, agentStatus, runCycle, fastLaneStatus }));
     if (!summary.shouldContinue) {
       await request("/api/codex/outbox", "POST", {
         goalId: input.goalId,

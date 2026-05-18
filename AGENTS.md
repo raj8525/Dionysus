@@ -164,6 +164,8 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 
 `pnpm dionysus goal supervise --goal-id "<goal-id>"` 是连续推进入口。每轮必须复用同一套 Agent 实例和 CLI usage 统计口径；如果目标项目存在已识别且不属于本轮的脏路径，必须显式传入同一组 `--allow-dirty-path`，让 preflight 和 master-step 保持一致。如果它返回 blocker 或 e2e_required，先处理 `codex_outbox`，不要只看前端或任务列表猜测状态。
 
+`goal supervise` 会在 fast lane 安全阶段自动执行 `fastlane advance`：当 phase 为 `ready_for_data_followups` 或 `ready_for_reviewer` 且存在入队命令时，它会自动入队下一批任务并继续下一轮。它不会自动 approve Worker、不会 approve Reviewer、不会跳过 Codex E2E；遇到 `reviewer_review`、`codex_final`、`e2e_required` 或 blocker 时仍必须交给 Codex。
+
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`，并等待 API `/health.ok=true` 后才返回。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
 
 如果 doctor/readiness 显示 `Worker Runtime 未就绪`、`worker.status=stale`、pid 缺失，或 worker 心跳中的 `runtime.codeCommitSha` 不是当前 Dionysus 仓库 HEAD，优先运行 `pnpm dionysus system runtime heal`。它会在进程缺失时启动缺失进程，在 Worker 心跳过期但进程仍存在时重启 runtime，在运行时仍是旧 commit 时也会重启 runtime；自愈后必须再跑 `pnpm dionysus system doctor --brief`，不要只反复运行 readiness。
@@ -336,6 +338,7 @@ pnpm dionysus fastlane advance --goal-id "<goal-id>"
 - `fast_lane` goal 不会被 Master Control 自动扫描，避免完整 Master 状态机重复拆任务。
 - Reviewer 任务默认只创建不入队，避免没有 Worker 产物时假审核。
 - Worker 产出 patch 并完成 integration 后，用 `pnpm dionysus fastlane advance --goal-id "<goal-id>"` 启动下一批可安全推进的任务；只有需要人工兜底时才直接使用 `pnpm dionysus task enqueue --task-id "<task-id>"`。
+- 连续监督时优先使用 `pnpm dionysus goal supervise --goal-id "<goal-id>" ...`，它会自动调用 `fastlane advance` 处理安全 phase，减少手动轮询。
 - 如已有集成产物需要立即审核，可显式加 `--queue-reviewers`。
 - Reviewer 任务 `approve` 必须带 `--score 90` 或更高；低于 90 或没有分数会被 API 以 `REVIEWER_SCORE_GATE_BLOCKED` 拒绝。低于 90 时必须用 `--verdict reject` 并写清 Worker 修复项。
 - 同一任务被 ReviewerCLI 第 10 次 reject 时，Dionysus 会阻断任务并写入 Codex Outbox；Codex 必须亲自接手，不能继续重排 WorkerCLI。

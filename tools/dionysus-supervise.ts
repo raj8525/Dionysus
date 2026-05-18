@@ -21,19 +21,29 @@ export interface SupervisionStepSummary {
   reason: string;
 }
 
+export interface FastLaneSupervisionAdvanceDecision {
+  shouldAdvance: boolean;
+  reason: string;
+}
+
 export function buildSupervisionStepRecord(input: {
   iteration: number;
   summary: SupervisionStepSummary;
   agentStatus: Record<string, unknown>;
   runCycle: Record<string, unknown>;
+  fastLaneStatus?: unknown;
+  fastLaneAdvance?: Record<string, unknown>;
 }): Record<string, unknown> {
-  return {
+  const record: Record<string, unknown> = {
     iteration: input.iteration,
     summary: input.summary,
     agentSummary: input.agentStatus.summary,
     agentUsage: input.agentStatus.usage,
     runCycleSummary: input.runCycle.summary
   };
+  if (input.fastLaneStatus !== undefined) record.fastLaneStatus = input.fastLaneStatus;
+  if (input.fastLaneAdvance) record.fastLaneAdvance = input.fastLaneAdvance;
+  return record;
 }
 
 export function buildSupervisionAgentStatus(input: SupervisionAgentStatusInput): Record<string, unknown> {
@@ -95,6 +105,22 @@ export function summarizeSupervisionStep(input: SupervisionStepInput): Supervisi
     status: "working",
     shouldContinue: true,
     reason: "runtime ready; continuing supervision"
+  };
+}
+
+export function shouldAdvanceFastLaneDuringSupervision(status: { phase?: unknown; nextCommands?: unknown }): FastLaneSupervisionAdvanceDecision {
+  const phase = String(status.phase ?? "");
+  const nextCommands = Array.isArray(status.nextCommands) ? status.nextCommands.map(String) : [];
+  const hasEnqueueCommand = nextCommands.some((command) => command.includes("task enqueue --task-id"));
+  if (["ready_for_data_followups", "ready_for_reviewer"].includes(phase) && hasEnqueueCommand) {
+    return {
+      shouldAdvance: true,
+      reason: `fast lane phase ${phase} can safely enqueue next tasks`
+    };
+  }
+  return {
+    shouldAdvance: false,
+    reason: `fast lane phase ${phase || "unknown"} requires Codex or Agent work before automatic advance`
   };
 }
 

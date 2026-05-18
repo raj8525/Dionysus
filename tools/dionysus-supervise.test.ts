@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSupervisionAgentStatus, buildSupervisionStepRecord, summarizeSupervisionStep } from "./dionysus-supervise.js";
+import {
+  buildSupervisionAgentStatus,
+  buildSupervisionStepRecord,
+  shouldAdvanceFastLaneDuringSupervision,
+  summarizeSupervisionStep
+} from "./dionysus-supervise.js";
 
 describe("goal supervision step summary", () => {
   it("stops immediately when runtime is blocked", () => {
@@ -33,6 +38,26 @@ describe("goal supervision step summary", () => {
       status: "working",
       shouldContinue: true,
       reason: "runtime ready; continuing supervision"
+    });
+  });
+
+  it("advances fast lane during supervision when a safe phase has enqueue commands", () => {
+    expect(shouldAdvanceFastLaneDuringSupervision({
+      phase: "ready_for_reviewer",
+      nextCommands: ["pnpm dionysus task enqueue --task-id reviewer-1"]
+    })).toEqual({
+      shouldAdvance: true,
+      reason: "fast lane phase ready_for_reviewer can safely enqueue next tasks"
+    });
+  });
+
+  it("does not advance fast lane during supervision when Codex review or E2E is required", () => {
+    expect(shouldAdvanceFastLaneDuringSupervision({
+      phase: "reviewer_review",
+      nextCommands: ["pnpm dionysus task review --task-id reviewer-1 --verdict approve --score 90"]
+    })).toEqual({
+      shouldAdvance: false,
+      reason: "fast lane phase reviewer_review requires Codex or Agent work before automatic advance"
     });
   });
 
