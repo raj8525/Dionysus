@@ -208,3 +208,27 @@
 1. 提交并推送 Dionysus `MEMORY.md`。
 2. 后续开发 Dionysus 时优先修复 Reviewer workspace sync/rebase 和 review prompt evidence。
 3. Coupon 本轮提交后应写入 Dionysus release record，标记 goal `017508c1-e8a2-4327-b1af-14a0f4008e03` 已通过 Codex E2E。
+
+## 2026-05-18 Reviewer workspace baseline 修复记录
+
+### 当前事实
+
+- 已确认 ReviewerCLI 误判的根因：Dionysus 使用 `git clone` 创建 isolated workspace，只复制目标仓库 `HEAD`，不会复制 integration 已应用但 Codex 尚未提交的目标工作区改动。
+- 已按 TDD 修复：
+  - 新增 workspace 测试，复现目标工作区 tracked diff 与 untracked 文件无法进入 reviewer workspace 的问题。
+  - `createIsolatedWorkspace` 现在会同步目标工作区当前 tracked diff 和 untracked 文件，并在 workspace 内提交为 `dionysus workspace baseline`。
+  - 同步后的既有改动不会出现在 Worker 生成的新 patch 中，避免重复集成。
+  - `.dionysus-workspace` 记录 `synced_target_changes=true/false`。
+  - `workspace.created` task event 记录 `syncedTargetChanges`。
+  - Role prompt 在同步过目标未提交改动时加入 `Workspace Baseline Evidence`，提醒 Reviewer 不得只按目标仓库 `HEAD` 判断。
+
+### 已验证
+
+- `pnpm exec vitest run packages/core/src/workspace.test.ts packages/core/src/role-prompt.test.ts` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm test` 通过：49 个测试文件、215 个测试。
+
+### 下一步
+
+- 提交并推送该 Dionysus 修复。
+- 后续再跑 Coupon fast lane 时，ReviewerCLI 应能看到前序 integration 已应用但未提交的成果，降低“基于旧代码误判”的概率。

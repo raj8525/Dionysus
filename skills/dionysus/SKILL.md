@@ -231,6 +231,8 @@ pnpm -s dionysus fastlane start \
 
 也支持 `Allowed files:`、`Allowed paths:`、`file scope:`、`允许修改文件:`、`文件范围:`、`只允许修改:`。Integration Worker 会在 `git apply` 前校验 patch 的 `changedFiles`，任何文件不在允许范围内都会直接 `blocked`，不会修改目标项目。创建 Worker 时不要省略文件范围。
 
+Workspace baseline 规则：Dionysus 创建 isolated workspace 时会同步目标工作区当前未提交改动，并在 workspace 内提交为 `dionysus workspace baseline`。这些改动通常是前序 Worker 已通过 integration、但 Codex 尚未提交到 `main` 的成果。ReviewerCLI 看到 `Workspace Baseline Evidence` 或 `.dionysus-workspace` 中 `synced_target_changes=true` 时，必须按 workspace 当前内容审核，不得只按目标仓库 `HEAD` 判断，否则会误报前序成果不存在。
+
 Coupon 管理后台固定补充规则：
 
 - 模块开发坚持“数据先行、先读后写”：先补数据库表结构和完整虚拟数据，再做只读接口和页面读取，最后才做写路径。

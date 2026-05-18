@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { cp, mkdir, rm, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 export interface WorkspaceCreateResult {
   workspacePath: string;
   taskSlug: string;
+  syncedTargetChanges: boolean;
 }
 
 export async function createIsolatedWorkspace(input: {
@@ -32,8 +33,16 @@ export async function createIsolatedWorkspace(input: {
   if (removeRemote.exitCode !== 0) {
     throw new Error(`Failed to scrub workspace git remote: ${removeRemote.stderr}`);
   }
-  await writeFile(join(workspacePath, ".dionysus-workspace"), `task_id=${input.taskId}\nsource=hidden\n`);
-  return { workspacePath, taskSlug };
+  const syncedTargetChanges = await syncTargetWorktreeToWorkspace({
+    targetRoot: input.targetRoot,
+    workspacePath,
+    taskSlug
+  });
+  await writeFile(
+    join(workspacePath, ".dionysus-workspace"),
+    `task_id=${input.taskId}\nsource=hidden\nsynced_target_changes=${syncedTargetChanges ? "true" : "false"}\n`
+  );
+  return { workspacePath, taskSlug, syncedTargetChanges };
 }
 
 export async function createPatch(input: {
@@ -77,4 +86,82 @@ async function runCommand(command: string, args: string[], cwd: string, timeoutM
       exitCode: typeof err.code === "number" ? err.code : 1
     };
   }
+}
+
+async function syncTargetWorktreeToWorkspace(input: {
+  targetRoot: string;
+  workspacePath: string;
+  taskSlug: string;
+}): Promise<boolean> {
+  const diff = await runCommand(
+    "git",
+    ["diff", "--binary", "HEAD", "--", ".", ":(exclude).dionysus-workspace"],
+    input.targetRoot,
+    120_000
+  );
+  if (diff.exitCode !== 0) {
+    throw new Error(`Failed to read target worktree diff: ${diff.stderr}`);
+  }
+
+  if (diff.stdout.trim()) {
+    const patchPath = join(input.workspacePath, `.dionysus-target-${input.taskSlug}.patch`);
+    await writeFile(patchPath, diff.stdout);
+    const apply = await runCommand("git", ["apply", "--binary", patchPath], input.workspacePath, 120_000);
+    await unlink(patchPath).catch(() => undefined);
+    if (apply.exitCode !== 0) {
+      throw new Error(`Failed to apply target worktree diff to workspace: ${apply.stderr}`);
+    }
+  }
+
+  const untracked = await runCommand(
+    "git",
+    ["ls-files", "--others", "--exclude-standard", "-z"],
+    input.targetRoot,
+    120_000
+  );
+  if (untracked.exitCode !== 0) {
+    throw new Error(`Failed to list target untracked files: ${untracked.stderr}`);
+  }
+  const untrackedFiles = untracked.stdout
+    .split("\0")
+    .map((file) => file.trim())
+    .filter((file) => file && file !== ".dionysus-workspace");
+
+  for (const file of untrackedFiles) {
+    const source = join(input.targetRoot, file);
+    const destination = join(input.workspacePath, file);
+    await mkdir(dirname(destination), { recursive: true });
+    await cp(source, destination, { recursive: true });
+  }
+
+  const status = await runCommand("git", ["status", "--porcelain"], input.workspacePath, 120_000);
+  if (status.exitCode !== 0) {
+    throw new Error(`Failed to inspect workspace baseline status: ${status.stderr}`);
+  }
+  if (!status.stdout.trim()) {
+    return false;
+  }
+
+  const add = await runCommand("git", ["add", "-A", "."], input.workspacePath, 120_000);
+  if (add.exitCode !== 0) {
+    throw new Error(`Failed to stage workspace baseline: ${add.stderr}`);
+  }
+  const commit = await runCommand(
+    "git",
+    [
+      "-c",
+      "user.email=dionysus@example.local",
+      "-c",
+      "user.name=Dionysus",
+      "commit",
+      "-m",
+      "dionysus workspace baseline"
+    ],
+    input.workspacePath,
+    120_000
+  );
+  if (commit.exitCode !== 0) {
+    throw new Error(`Failed to commit workspace baseline: ${commit.stderr}`);
+  }
+  return true;
 }

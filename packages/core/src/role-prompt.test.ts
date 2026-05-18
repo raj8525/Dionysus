@@ -144,4 +144,23 @@ describe("role prompt builder", () => {
     expect(prompt).toContain("必须逐条修复以下反馈");
     expect(prompt).toContain("只输出分析，没有修改文件或 patch。");
   });
+
+  it("tells reviewers when the workspace includes integrated target worktree changes", () => {
+    const prompt = buildRolePrompt({
+      role: "worker",
+      goal,
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-reviewer-task",
+      workspaceSyncedTargetChanges: true,
+      task: {
+        id: "reviewer-task",
+        title: "FastLane Reviewer 1: D1 ReviewerCLI 90 分质量门禁",
+        description: "审查所有 Worker 产物。",
+        roleRequired: "worker"
+      }
+    });
+
+    expect(prompt).toContain("## Workspace Baseline Evidence");
+    expect(prompt).toContain("已同步目标工作区当前未提交改动");
+    expect(prompt).toContain("不要仅按目标仓库 HEAD 判断");
+  });
 });

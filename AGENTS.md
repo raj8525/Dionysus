@@ -179,6 +179,8 @@ Dionysus 不只依赖 prompt 约束 Worker。每个 Worker 任务必须写清允
 
 Worker Runtime 会从任务描述中提取 `Allowed files:`、`Allowed paths:`、`允许修改路径:`、`允许修改文件:`、`文件范围:` 或 `只允许修改:`，把结果写入 `patches.allowed_files_json`。Integration Worker 在应用 patch 前先校验 patch 的 `changedFiles` 是否全部落在允许范围内；超范围直接 `blocked`，不会执行 `git apply`。
 
+创建 isolated workspace 时，Dionysus 不只复制目标仓库 `HEAD`。如果目标项目已有 integration 应用后的未提交改动，Runtime 必须把 tracked diff 和 untracked 文件同步进 workspace，并提交为 `dionysus workspace baseline`。这样后续 Worker / ReviewerCLI 能看到前序已集成成果，但生成 patch 时不会重复包含这些既有改动。若 `.dionysus-workspace` 中 `synced_target_changes=true`，Reviewer 必须按 workspace 当前内容审核，不得只按目标仓库 `HEAD` 做结论。
+
 Integration Worker 还会检查受保护文件：
 
 ```env

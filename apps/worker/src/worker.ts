@@ -90,14 +90,16 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     });
     await repo.recordTaskEvent(message.task_id, "workspace.created", {
       workspacePath: workspace.workspacePath,
-      source: "hidden"
+      source: "hidden",
+      syncedTargetChanges: workspace.syncedTargetChanges
     });
     const prompt = buildRolePrompt({
       role: "worker",
       task: taskContext.task,
       goal: taskContext.goal,
       taskEvents: taskContext.taskEvents,
-      workspacePath: workspace.workspacePath
+      workspacePath: workspace.workspacePath,
+      workspaceSyncedTargetChanges: workspace.syncedTargetChanges
     });
     const isolationDecision = await validateWorkspaceAgentIsolation({
       taskId: message.task_id,
@@ -261,6 +263,7 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
   const taskTargetRoot = targetRootForGoal(taskContext.goal, targetRoot);
   let cwd = taskTargetRoot;
   let workspacePath: string | undefined;
+  let workspaceSyncedTargetChanges = false;
   if (role !== "master") {
     const workspace = await createIsolatedWorkspace({
       targetRoot: taskTargetRoot,
@@ -269,10 +272,12 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     });
     cwd = workspace.workspacePath;
     workspacePath = workspace.workspacePath;
+    workspaceSyncedTargetChanges = workspace.syncedTargetChanges;
     await repo.recordTaskEvent(message.task_id, "workspace.created", {
       workspacePath: workspace.workspacePath,
       source: "hidden",
-      role
+      role,
+      syncedTargetChanges: workspace.syncedTargetChanges
     });
   }
   const prompt = buildRolePrompt({
@@ -280,7 +285,8 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     task: taskContext.task,
     goal: taskContext.goal,
     taskEvents: taskContext.taskEvents,
-    workspacePath
+    workspacePath,
+    workspaceSyncedTargetChanges
   });
   const roleConfig = await repo.getAgentCliConfig(role);
   const runConfig = resolveAgentRunConfig({

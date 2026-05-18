@@ -25,12 +25,14 @@ export function buildRolePrompt(input: {
   task: RolePromptTask;
   goal?: RolePromptGoal | null;
   workspacePath?: string;
+  workspaceSyncedTargetChanges?: boolean;
   taskEvents?: RolePromptTaskEvent[];
 }): string {
   const roleBlock = roleInstructions[input.role];
   const goal = input.goal;
   const promptContext = buildPromptPathContext(input);
   const reviewFeedbackBlock = buildReviewFeedbackBlock(input.taskEvents ?? []);
+  const workspaceBaselineBlock = buildWorkspaceBaselineBlock(input.workspaceSyncedTargetChanges);
   return [
     `你是 Dionysus Agent Team 的 ${roleLabel(input.role)}。`,
     "",
@@ -49,6 +51,8 @@ export function buildRolePrompt(input: {
     "",
     reviewFeedbackBlock,
     reviewFeedbackBlock ? "" : undefined,
+    workspaceBaselineBlock,
+    workspaceBaselineBlock ? "" : undefined,
     "## 角色规则",
     roleBlock,
     "",
@@ -71,6 +75,16 @@ export function buildRolePrompt(input: {
     "最后一行必须单独输出完成标记，用于 Dionysus 主动结束 CLI 进程：",
     "DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}"
   ].filter((line) => line !== undefined).join("\n");
+}
+
+function buildWorkspaceBaselineBlock(workspaceSyncedTargetChanges: boolean | undefined): string {
+  if (!workspaceSyncedTargetChanges) return "";
+  return [
+    "## Workspace Baseline Evidence",
+    "- Dionysus 已同步目标工作区当前未提交改动到本次 isolated workspace，并把它们提交为 workspace baseline。",
+    "- 这些改动通常来自已通过 integration 的前序 Worker 产物；必须按当前 workspace 内容审核，不要仅按目标仓库 HEAD 判断。",
+    "- 如需查看同步内容，可在 workspace 中查看最近一次 baseline commit 的文件列表和当前文件内容。"
+  ].join("\n");
 }
 
 function buildPromptPathContext(input: {
