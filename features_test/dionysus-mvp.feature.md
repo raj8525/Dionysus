@@ -350,7 +350,9 @@ And 如果 Codex 或脚本提前调用 `task enqueue`，API 必须返回 `COUPON
 When 数据基座 Worker 已完成且 Codex approve
 Then API 必须自动并发派发只读 API 和 Vue 只读首页 Worker
 And `fastlane status` 必须在自动派发未发生或需要人工介入时提示入队命令
-And ReviewerCLI 必须等全部 Worker 完成后才能启动
+And ReviewerCLI 必须等全部 Worker 至少达到 `needs_review` 或 `done`，且 integration queue 无待处理项后才能启动
+And Codex 可以运行 `fastlane advance` 自动入队安全 phase 的下一批任务
+And `fastlane advance` 不得自动 approve Worker 或绕过 ReviewerCLI
 
 ## 场景 9：Master 自动识别里程碑候选
 

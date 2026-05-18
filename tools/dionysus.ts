@@ -11,6 +11,7 @@ import {
   buildCouponDataFirstFastLanePlan,
   buildFastLanePlan,
   buildFastLaneStatus,
+  extractFastLaneAdvanceTaskIds,
   isFastLaneReviewerTask,
   parseFastLaneItem
 } from "./dionysus-fastlane.js";
@@ -324,6 +325,10 @@ async function main(): Promise<void> {
       pendingCodexOutbox: Array<Record<string, unknown>>;
     };
     return print(buildFastLaneStatus(status));
+  }
+
+  if (domain === "fastlane" && action === "advance") {
+    return print(await advanceFastLane(requiredFlag(args, "--goal-id")));
   }
 
   if (domain === "coupon" && action === "seed") {
@@ -768,6 +773,35 @@ async function superviseGoal(input: {
   };
 }
 
+async function advanceFastLane(goalId: string): Promise<Record<string, unknown>> {
+  const beforePayload = await request(`/api/goals/${encodeURIComponent(goalId)}/status`) as {
+    goal: Record<string, unknown>;
+    tasks: Array<Record<string, unknown>>;
+    integrations: Array<Record<string, unknown>>;
+    pendingCodexOutbox: Array<Record<string, unknown>>;
+  };
+  const before = buildFastLaneStatus(beforePayload);
+  const taskIds = extractFastLaneAdvanceTaskIds(before);
+  const enqueueResults = [];
+  for (const taskId of taskIds) {
+    enqueueResults.push(await request(`/api/tasks/${encodeURIComponent(taskId)}/enqueue`, "POST"));
+  }
+  const afterPayload = await request(`/api/goals/${encodeURIComponent(goalId)}/status`) as {
+    goal: Record<string, unknown>;
+    tasks: Array<Record<string, unknown>>;
+    integrations: Array<Record<string, unknown>>;
+    pendingCodexOutbox: Array<Record<string, unknown>>;
+  };
+  return {
+    goalId,
+    action: taskIds.length > 0 ? "enqueued" : "no_op",
+    enqueuedTaskIds: taskIds,
+    enqueueResults,
+    before,
+    after: buildFastLaneStatus(afterPayload)
+  };
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -988,6 +1022,7 @@ function usage(): void {
   tsx tools/dionysus.ts fastlane coupon-module-start --module "租户管理" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants" [--allow-dirty-path "path/to/existing-change"] [--dry-run] [--data-only]
   tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane status --goal-id "..."
+  tsx tools/dionysus.ts fastlane advance --goal-id "..."
   tsx tools/dionysus.ts coupon seed plan --target-root "/Volumes/MacMiniSSD/code/Coupon" --migration "migrations/026_hotel_store_create_fields.sql" --verify-sql "SELECT COUNT(*) FROM tenant_stores;"
   tsx tools/dionysus.ts coupon seed apply --target-root "/Volumes/MacMiniSSD/code/Coupon" --migration "migrations/026_hotel_store_create_fields.sql" --verify-sql "SELECT COUNT(*) FROM tenant_stores;" [--goal-id "..."] [--record-event] [--dry-run]
   tsx tools/dionysus.ts release record --goal-id "..." --target-root "/path/to/project" --branch main --commit-sha "..." --status passed --pushed true --changed-file "path" --verification-json '[{"command":"pnpm test","status":"passed"}]' --summary "..."

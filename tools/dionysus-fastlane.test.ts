@@ -4,6 +4,7 @@ import {
   buildCouponDataFirstFastLanePlan,
   buildFastLanePlan,
   buildFastLaneStatus,
+  extractFastLaneAdvanceTaskIds,
   isFastLaneReviewerTask,
   isFastLaneWorkerTask,
   parseFastLaneItem
@@ -85,7 +86,7 @@ describe("dionysus fast lane planner", () => {
     })).toThrow("at least one --worker");
   });
 
-  it("tells Codex to review worker tasks before starting reviewers", () => {
+  it("starts reviewers once every worker output is reviewable", () => {
     const status = buildFastLaneStatus({
       goal: { id: "goal-1", status: "fast_lane" },
       tasks: [
@@ -96,9 +97,10 @@ describe("dionysus fast lane planner", () => {
       pendingCodexOutbox: []
     });
 
-    expect(status.phase).toBe("worker_review");
-    expect(status.nextAction).toBe("先评审 Worker 产物，approve 后才能启动 ReviewerCLI。");
-    expect(status.nextCommands).toContain("pnpm dionysus task review --task-id w1 --verdict approve --reason \"Worker output accepted by Codex\"");
+    expect(status.phase).toBe("ready_for_reviewer");
+    expect(status.nextAction).toBe("Worker 产物已可审查，启动 ReviewerCLI 做 90 分质量门禁。");
+    expect(status.nextCommands).toEqual(["pnpm dionysus task enqueue --task-id r1"]);
+    expect(extractFastLaneAdvanceTaskIds(status)).toEqual(["r1"]);
   });
 
   it("tells Codex to enqueue reviewer tasks when workers are done", () => {
@@ -113,7 +115,7 @@ describe("dionysus fast lane planner", () => {
     });
 
     expect(status.phase).toBe("ready_for_reviewer");
-    expect(status.nextAction).toBe("Worker 已完成，启动 ReviewerCLI 做 90 分质量门禁。");
+    expect(status.nextAction).toBe("Worker 产物已可审查，启动 ReviewerCLI 做 90 分质量门禁。");
     expect(status.nextCommands).toEqual(["pnpm dionysus task enqueue --task-id r1"]);
   });
 

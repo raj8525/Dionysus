@@ -484,9 +484,14 @@ Fast lane 目标必须有专用状态入口：
 
 ```text
 pnpm dionysus fastlane status --goal-id "<goal-id>"
+pnpm dionysus fastlane advance --goal-id "<goal-id>"
 ```
 
 该命令必须读取 `GET /api/goals/:id/status`，按 FastLane Worker / Reviewer 任务、integration、Codex Outbox 聚合为明确 phase 和 nextCommands。它必须能区分：`working`、`worker_review`、`waiting_for_integration`、`ready_for_reviewer`、`reviewer_review`、`codex_final`、`blocked`、`codex_outbox`、`closed`、`idle`，避免 Codex 通过人工猜测推进。
+
+`fastlane advance` 是 Codex 的安全自动推进入口。它必须先复用 `fastlane status` 的 phase 判断；只有 phase 为 `ready_for_data_followups` 或 `ready_for_reviewer` 时，才允许自动调用 `POST /api/tasks/:id/enqueue` 入队下一批任务。其他 phase 必须返回 `no_op`，不得自动 approve Worker、不得绕过 ReviewerCLI、不得绕过 Codex E2E。
+
+ReviewerCLI 的启动条件不是“所有 Worker 已由 Codex approve”，而是“所有未取消的 FastLane Worker 都已经产出到 `needs_review` 或已 `done`，且 integration queue 无 `created/queued/running` 项”。这样便宜 ReviewerCLI 可以先审查 Worker 产物，Codex 只在 Reviewer 门禁后做最终裁决。
 
 `run-cycle` 必须顺序执行 preflight、master-step、detect-milestones，返回当前 blocker、nextOwner、nextActions。提供 `target-url` 时，它可以为待验收 milestone 创建或复用 E2E campaign；只有显式传入 `--run-e2e` 才运行浏览器测试，且 `strict` 模式不得伪造产品主路径通过。
 

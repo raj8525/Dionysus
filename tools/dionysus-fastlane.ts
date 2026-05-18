@@ -77,6 +77,15 @@ export function isFastLaneWorkerTask(task: Record<string, unknown>): boolean {
   return String(task.title ?? "").startsWith("FastLane Worker");
 }
 
+export function extractFastLaneAdvanceTaskIds(summary: FastLaneStatusSummary): string[] {
+  if (!["ready_for_data_followups", "ready_for_reviewer"].includes(summary.phase)) {
+    return [];
+  }
+  return summary.nextCommands
+    .map((command) => command.match(/task enqueue --task-id ([^\s]+)/)?.[1])
+    .filter((taskId): taskId is string => Boolean(taskId));
+}
+
 export function parseFastLaneItem(value: string): FastLaneItemInput {
   const [rawTitle, ...descriptionParts] = value.split("::");
   const title = rawTitle.trim();
@@ -433,22 +442,6 @@ export function buildFastLaneStatus(input: FastLaneStatusInput): FastLaneStatusS
     });
   }
 
-  const workersNeedingReview = workerTasks.filter((task) => String(task.status) === "needs_review");
-  if (workersNeedingReview.length > 0) {
-    return summary({
-      goalId,
-      goalStatus,
-      phase: "worker_review",
-      nextAction: "先评审 Worker 产物，approve 后才能启动 ReviewerCLI。",
-      nextCommands: workersNeedingReview.map((task) =>
-        `pnpm dionysus task review --task-id ${String(task.id)} --verdict approve --reason "Worker output accepted by Codex"`
-      ),
-      counts,
-      workerTasks,
-      reviewerTasks
-    });
-  }
-
   if (hasAnyStatus(input.integrations, ["created", "queued", "running"])) {
     return summary({
       goalId,
@@ -486,15 +479,31 @@ export function buildFastLaneStatus(input: FastLaneStatusInput): FastLaneStatusS
   const activeWorkerTasks = workerTasks.filter((task) => String(task.status) !== "cancelled");
   if (
     activeWorkerTasks.length > 0 &&
-    activeWorkerTasks.every((task) => String(task.status) === "done") &&
+    activeWorkerTasks.every((task) => ["needs_review", "done"].includes(String(task.status))) &&
     reviewersReady.length > 0
   ) {
     return summary({
       goalId,
       goalStatus,
       phase: "ready_for_reviewer",
-      nextAction: "Worker 已完成，启动 ReviewerCLI 做 90 分质量门禁。",
+      nextAction: "Worker 产物已可审查，启动 ReviewerCLI 做 90 分质量门禁。",
       nextCommands: reviewersReady.map((task) => `pnpm dionysus task enqueue --task-id ${String(task.id)}`),
+      counts,
+      workerTasks,
+      reviewerTasks
+    });
+  }
+
+  const workersNeedingReview = workerTasks.filter((task) => String(task.status) === "needs_review");
+  if (workersNeedingReview.length > 0) {
+    return summary({
+      goalId,
+      goalStatus,
+      phase: "worker_review",
+      nextAction: "存在阶段门禁需要 Codex 审查 Worker 产物，approve 后才能继续。",
+      nextCommands: workersNeedingReview.map((task) =>
+        `pnpm dionysus task review --task-id ${String(task.id)} --verdict approve --reason "Worker output accepted by Codex"`
+      ),
       counts,
       workerTasks,
       reviewerTasks
