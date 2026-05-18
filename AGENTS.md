@@ -198,13 +198,15 @@ DIONYSUS_ALLOW_PROTECTED_FILES=
 
 默认推进真实 Coupon 功能时，Codex 优先使用 fast lane，而不是完整 Master 状态机：
 
-启动 fast lane 前先运行 readiness，确认 Dionysus Runtime、四类 Agent CLI 配置、目标项目 git 状态和 SDD/TDD 文件入口都满足基本条件：
+启动 fast lane 前先运行 readiness，确认 Dionysus Runtime、四类 Agent CLI 配置、目标项目 git 状态、SDD/TDD 文件入口和上下文压缩记忆入口都满足基本条件：
 
 ```bash
 pnpm dionysus system readiness --target-root /Volumes/MacMiniSSD/code/Coupon
 ```
 
 如果返回 `blocked`，先处理 `blockers`，不要继续创建 Worker 任务。
+
+readiness 会阻止缺少 `MEMORY.md` 的目标项目，也会阻止 `AGENTS.md` 未提到 `MEMORY.md` 的目标项目。这样上下文压缩后，Codex 可以从目标项目根目录恢复完整交接状态，不会只依赖短期会话记忆。
 
 如果 blocker 只是已确认归属的既有改动，且本轮任务不会触碰该文件，可以显式允许该文件再复查：
 

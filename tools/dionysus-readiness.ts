@@ -26,6 +26,8 @@ export interface ReadinessTargetInput {
   blockingChanges?: string[];
   suggestedDirtyAllowances?: string[];
   hasAgentsMd: boolean;
+  hasMemoryMd: boolean;
+  agentsMentionsMemory: boolean;
   hasPlan: boolean;
   hasSpecs: boolean;
   hasFeaturesTest: boolean;
@@ -139,6 +141,8 @@ export function buildCodexReadinessSummary(input: {
     blockers.push(`目标项目存在未允许的工作区改动：${blockingChanges.length} 个`);
   }
   if (!input.target.hasAgentsMd) blockers.push("目标项目缺少 AGENTS.md");
+  if (!input.target.hasMemoryMd) blockers.push("目标项目缺少 MEMORY.md，无法保存上下文压缩交接记录");
+  if (!input.target.agentsMentionsMemory) blockers.push("目标项目 AGENTS.md 未记录 MEMORY.md 上下文恢复规则");
   if (!input.target.hasPlan) blockers.push("目标项目缺少 docs/PLAN.md");
   if (!input.target.hasSpecs) blockers.push("目标项目缺少 docs/specs/");
   if (!input.target.hasFeaturesTest) blockers.push("目标项目缺少 features_test/");

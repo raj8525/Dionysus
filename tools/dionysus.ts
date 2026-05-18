@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { resolveApiCommand } from "./dionysus-command.js";
@@ -776,6 +776,8 @@ async function inspectReadinessTarget(targetRoot: string): Promise<{
   gitClean: boolean;
   changes: string[];
   hasAgentsMd: boolean;
+  hasMemoryMd: boolean;
+  agentsMentionsMemory: boolean;
   hasPlan: boolean;
   hasSpecs: boolean;
   hasFeaturesTest: boolean;
@@ -794,10 +796,16 @@ async function inspectReadinessTarget(targetRoot: string): Promise<{
     changes = [`git status failed: ${error instanceof Error ? error.message : String(error)}`];
   }
 
+  const agentsMdPath = join(targetRoot, "AGENTS.md");
+  const hasAgentsMd = existsSync(agentsMdPath);
+  const agentsContent = hasAgentsMd ? readFileSync(agentsMdPath, "utf8") : "";
+
   return {
     gitClean: changes.length === 0,
     changes,
-    hasAgentsMd: existsSync(join(targetRoot, "AGENTS.md")),
+    hasAgentsMd,
+    hasMemoryMd: existsSync(join(targetRoot, "MEMORY.md")),
+    agentsMentionsMemory: /MEMORY\.md/.test(agentsContent),
     hasPlan: existsSync(join(targetRoot, "docs", "PLAN.md")),
     hasSpecs: existsSync(join(targetRoot, "docs", "specs")),
     hasFeaturesTest: existsSync(join(targetRoot, "features_test"))

@@ -238,6 +238,15 @@ And 必须同时运行 PLAN / specs / features_test gate
 And 如果 Git 脏或任一 gate blocked，则 preflight 返回 `blocked`
 And response 必须包含 blockers 汇总
 
+## 场景 7.1.1：Readiness 必须保护上下文压缩记忆
+
+Given Codex 准备对目标项目启动 fast lane
+When Codex 运行 `pnpm dionysus system readiness --target-root <target>`
+Then Dionysus 必须检查目标根目录存在 `MEMORY.md`
+And 必须检查目标 `AGENTS.md` 提到 `MEMORY.md`
+And 如果缺少任一项，readiness 必须返回 `blocked`
+And `fastlane start` 不得创建 goal 或 task
+
 ## 场景 7.2：Preflight Remediation 只能生成草案
 
 Given target preflight 因缺少 PLAN / specs / features_test 被阻塞
