@@ -591,3 +591,32 @@
 ### 为什么重要
 
 Dionysus 的用户通知必须是最终发布证据，而不是流程装饰。该修复确保用户只会在 Codex E2E verdict 已经通过之后收到 milestone 完成通知。
+
+## 2026-05-18 Dionysus E2E case passed 证据门禁修复记录
+
+### 完成内容
+
+- 新增 `validateE2ECaseResultEvidence`：`status=passed` 的 E2E case-result 必须包含严格浏览器证据。
+- 必要证据包括：
+  - `mode="strict"`
+  - 非空 `targetUrl`
+  - 非空 `screenshotPath`
+  - `consoleErrors` 数组
+- API `POST /api/e2e/cases/:id/result` 在缺少上述证据时返回 `409 E2E_CASE_EVIDENCE_REQUIRED`，不得把人工口头判断或空 JSON 记为 E2E 通过。
+- 同步更新：
+  - `AGENTS.md` 中的 `e2e case-result` 示例。
+  - `docs/specs/e2e-and-notification.md`。
+  - `docs/specs/api.md`。
+  - `tools/dionysus.ts` help 文本。
+
+### TDD 证据
+
+- 红灯：`pnpm exec vitest run packages/core/src/e2e-results.test.ts` 初始失败，原因是 `validateE2ECaseResultEvidence is not a function`。
+- 绿灯：
+  - `pnpm exec vitest run packages/core/src/e2e-results.test.ts` 通过，3 个测试。
+  - `pnpm typecheck` 通过。
+  - `pnpm test` 通过，50 个测试文件、231 个测试。
+
+### 为什么重要
+
+这条门禁防止 Dionysus / Codex 用 `{"note":"checked"}` 这类弱证据把 happy path、negative path 或 persistence 标记为 passed。以后里程碑通知链路必须建立在真实浏览器证据上。

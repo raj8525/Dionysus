@@ -23,6 +23,7 @@ import {
   evaluateWatchdogTask,
   findUnmanagedGitChanges,
   validateReleaseRecordEvidence,
+  validateE2ECaseResultEvidence,
   resolveNotificationChannels,
   queueForRole,
   evaluateReviewerApprovalGate,
@@ -1003,6 +1004,16 @@ export async function buildServer() {
     const parsed = recordE2ECaseResultSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_E2E_CASE_RESULT", details: parsed.error.flatten() });
+    }
+    const evidenceGate = validateE2ECaseResultEvidence({
+      status: parsed.data.status,
+      result: parsed.data.result
+    });
+    if (!evidenceGate.allowed) {
+      return reply.code(409).send({
+        error: "E2E_CASE_EVIDENCE_REQUIRED",
+        reason: evidenceGate.reason
+      });
     }
     try {
       const result = await repo.recordE2ECaseResult({ caseId: id, ...parsed.data });

@@ -1010,7 +1010,7 @@ function usage(): void {
   tsx tools/dionysus.ts milestone verdict --milestone-id "..." --verdict passed --reason "..."
   tsx tools/dionysus.ts milestone notify --milestone-id "..." --summary "..." --target-url "..."
   tsx tools/dionysus.ts e2e cases --campaign-id "..."
-  tsx tools/dionysus.ts e2e case-result --case-id "..." --status passed --result-json '{"note":"..."}'
+  tsx tools/dionysus.ts e2e case-result --case-id "..." --status passed --result-json '{"mode":"strict","targetUrl":"http://127.0.0.1:5173","screenshotPath":"/tmp/e2e.png","consoleErrors":[]}'
   tsx tools/dionysus.ts e2e run-campaign --campaign-id "..." --mode strict
   tsx tools/dionysus.ts notification deliver --notification-id "..."
   tsx tools/dionysus.ts codex outbox --limit 5

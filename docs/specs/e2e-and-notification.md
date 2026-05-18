@@ -58,6 +58,15 @@ blocked
 - targetUrl。
 - 执行模式和 caveat。
 
+`status=passed` 的 case-result 必须包含严格浏览器证据：
+
+- `mode="strict"`。
+- 非空 `targetUrl`。
+- 非空 `screenshotPath`。
+- `consoleErrors` 数组，即使为空也必须显式记录。
+
+缺少这些证据时，API 必须拒绝 `passed` 结果，不能把人工口头判断当成 E2E 通过。
+
 ## 通知
 
 E2E passed 后通知用户。

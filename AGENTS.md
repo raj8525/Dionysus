@@ -89,7 +89,7 @@ pnpm dionysus task codex-complete --task-id "<task-id>" --reason "Codex接手并
 pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
 pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"
 pnpm dionysus e2e cases --campaign-id "<campaign-id>"
-pnpm dionysus e2e case-result --case-id "<case-id>" --status passed --result-json '{"evidence":"checked by Codex"}'
+pnpm dionysus e2e case-result --case-id "<case-id>" --status passed --result-json '{"mode":"strict","targetUrl":"http://127.0.0.1:5173","screenshotPath":"/tmp/dionysus-e2e.png","consoleErrors":[]}'
 pnpm dionysus e2e run-campaign --campaign-id "<campaign-id>" --mode strict
 pnpm dionysus milestone verdict --milestone-id "<milestone-id>" --verdict passed --reason "E2E passed"
 pnpm dionysus milestone notify --milestone-id "<milestone-id>" --summary "里程碑完成" --target-url "http://localhost:23101"

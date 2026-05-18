@@ -129,7 +129,7 @@ POST /api/e2e/cases/:id/result
 
 E2E campaign 由 Dionysus 生成用例草案，由 Codex 执行最终用户视角的浏览器级测试并提交 verdict。milestone verdict 不接受 render-only 结果；render-only 只能用于工程 checkpoint 诊断。
 
-每条 E2E case 必须可记录执行结果：`passed`、`failed`、`blocked`、`skipped`，同时保存失败原因与证据 JSON。Campaign 状态必须由 case 状态自动汇总，不能靠人工口头判断。
+每条 E2E case 必须可记录执行结果：`passed`、`failed`、`blocked`、`skipped`，同时保存失败原因与证据 JSON。Campaign 状态必须由 case 状态自动汇总，不能靠人工口头判断。`passed` 结果必须包含 `mode=strict`、`targetUrl`、`screenshotPath` 和 `consoleErrors[]`，否则 API 必须拒绝。
 
 ## Notifications
 
