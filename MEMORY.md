@@ -327,3 +327,17 @@
 - fast lane Reviewer 调度必须增加“全部必要 Worker done”门禁，不能任一 Worker approve 后立即跑 Reviewer。
 - Reviewer 分数低于 90 但 verdict 写 PASS 时，Dionysus/Codex 应按分数门禁处理为未通过，除非 Codex 修复扣分项并记录批准原因。
 - Worker 隔离 workspace 的前端依赖验证仍会诱导 Agent 尝试 `npm install`；后续应在 prompt 或 workspace 准备阶段提供正确的 `NODE_PATH` / 构建命令证据，避免生成 `package-lock.json`。
+
+## 2026-05-18 上下文压缩恢复记录：记忆规则确认
+
+### 本次恢复后新增事实
+
+- 用户要求：每次上下文压缩前，必须把完整交接上下文写入项目根目录 `MEMORY.md`；如果不存在则新建，同时在 `AGENTS.md` 中记录历史记忆位置。
+- Dionysus 的 `AGENTS.md` 已记录：长期上下文、压缩前交接记录和重要历史决策保存在根目录 `MEMORY.md`；压缩恢复后第一件事是读取并追加最新状态。
+- 本次压缩恢复后已读取 Dionysus `AGENTS.md` 和 `MEMORY.md`，并在此处追加恢复记录。
+
+### 下一步
+
+1. 继续修复 Dionysus fast lane：Reviewer 不得在同一 goal 的必要 Worker 全部 `done` 前启动。
+2. 补充 TDD 测试，覆盖 Reviewer 过早调度和低于 90 分不得批准的门禁。
+3. 优化 Worker / Reviewer prompt，避免前端任务诱导 CLI 执行 `npm install` 并生成 `package-lock.json`。
