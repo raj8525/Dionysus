@@ -85,6 +85,7 @@ pnpm dionysus integration list --goal-id "<goal-id>"
 pnpm dionysus integration retry --integration-id "<integration-id>"
 pnpm dionysus task enqueue --task-id "<task-id>"
 pnpm dionysus task review --task-id "<task-id>" --verdict approve --score 90 --reason "reviewed by Codex"
+pnpm dionysus task codex-complete --task-id "<task-id>" --reason "Codex接手并完成" --evidence-json '{"commit":"...","verification":["..."]}'
 pnpm dionysus milestone request-e2e --milestone-id "<milestone-id>"
 pnpm dionysus milestone create-campaign --milestone-id "<milestone-id>" --target-url "http://localhost:23101" --acceptance "主路径通过"
 pnpm dionysus e2e cases --campaign-id "<campaign-id>"

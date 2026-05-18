@@ -142,3 +142,20 @@
 2. 如果 WorkerC 产出 patch，必须先看 integration 状态、changedFiles、verificationCommands，再决定是否接受。
 3. 如果 WorkerC 失败或输出不可信，Codex 接手 Worker 1 数据基座任务。
 4. 完成 Dionysus 集成门禁修复的 `pnpm typecheck` 与 `pnpm test`，通过后提交、推送并重启 runtime。
+
+## 2026-05-18 Codex 接手任务回写机制
+
+### 背景
+
+- Coupon D1 成员数据基座 Worker 多次失败后由 Codex 接手完成，并已在 Coupon `main` 提交 `7a5b292 feat(identity): add d1 member data foundation`。
+- 原 Dionysus fast lane 只认“数据基座 Worker 状态为 done”，而该 Worker 已被取消，导致 API/Vue 只读 Worker 被 `COUPON_DATA_FIRST_GATE_BLOCKED` 阻止入队。
+
+### 已改进
+
+- 新增 `task codex-complete` API/CLI：Codex 接手并完成任务后，可用证据把任务标记为 `done`。
+- 该入口会记录 `task.codex_complete` 事件，并复用 `dispatchNextTaskAfterReview` 触发后续任务分发。
+- 已同步更新 Dionysus `AGENTS.md` 和本地 `/Users/yangyu/.codex/skills/dionysus/SKILL.md`。
+
+### 当前用途
+
+- 对 Coupon 目标 `017508c1-e8a2-4327-b1af-14a0f4008e03`，下一步应对数据基座任务 `6d5897f7-3eff-4985-871b-235f2755ad9e` 执行 `task codex-complete`，证据包含 Coupon commit `7a5b292`、PostgreSQL 视图计数和 GitNexus detect-changes low。

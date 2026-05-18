@@ -130,6 +130,11 @@ const reviewTaskSchema = z.object({
   score: z.number().int().min(0).max(100).optional()
 });
 
+const codexCompleteTaskSchema = z.object({
+  reason: z.string().min(1),
+  evidence: z.record(z.string(), z.unknown()).optional()
+});
+
 const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS ?? "90", 10);
 
 const watchdogRunSchema = z.object({
@@ -709,6 +714,24 @@ export async function buildServer() {
       await dispatchNextTaskAfterReview(repo, task);
     }
     return reply.code(202).send(task);
+  });
+
+  app.post("/api/tasks/:id/codex-complete", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = codexCompleteTaskSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_CODEX_COMPLETE_INPUT", details: parsed.error.flatten() });
+    }
+    const task = await repo.completeTaskByCodex({
+      taskId: id,
+      reason: parsed.data.reason,
+      evidence: parsed.data.evidence
+    });
+    if (!task) {
+      return reply.code(409).send({ error: "TASK_NOT_CODEX_COMPLETABLE" });
+    }
+    await dispatchNextTaskAfterReview(repo, task);
+    return reply.code(200).send(task);
   });
 
   app.post("/api/goals/:id/intake", async (request, reply) => {

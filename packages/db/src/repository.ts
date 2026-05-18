@@ -795,6 +795,57 @@ export class DionysusRepository {
     }
   }
 
+  async completeTaskByCodex(input: {
+    taskId: string;
+    reason: string;
+    evidence?: Record<string, unknown>;
+  }): Promise<Record<string, unknown> | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query(
+        `update ${this.table("tasks")}
+         set status = 'done',
+             blocked_reason = null,
+             updated_at = now()
+         where id = $1 and status in ('created', 'queued', 'running', 'blocked', 'failed', 'cancelled', 'needs_review')
+         returning id, goal_id, title, description, role_required, assigned_agent_id, status, priority,
+                   blocked_reason, current_attempt, max_attempts, created_at, updated_at`,
+        [input.taskId]
+      );
+      if (!result.rowCount) {
+        await client.query("rollback");
+        return null;
+      }
+      await client.query(
+        `update ${this.table("task_runs")}
+         set status = 'passed',
+             exit_code = coalesce(exit_code, 0),
+             finished_at = coalesce(finished_at, now())
+         where task_id = $1 and status = 'running'
+         returning agent_id`,
+        [input.taskId]
+      ).then((runUpdate) => this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows)));
+      await client.query(
+        `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)
+         values ($1, $2, $3, $4)`,
+        [
+          randomUUID(),
+          input.taskId,
+          "task.codex_complete",
+          JSON.stringify({ reason: input.reason, evidence: input.evidence ?? {} })
+        ]
+      );
+      await client.query("commit");
+      return result.rows[0];
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async reviewTask(input: {
     taskId: string;
     verdict: "approve" | "reject" | "block";

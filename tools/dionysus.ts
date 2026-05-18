@@ -426,6 +426,13 @@ async function main(): Promise<void> {
     }));
   }
 
+  if (domain === "task" && action === "codex-complete") {
+    return print(await request(`/api/tasks/${requiredFlag(args, "--task-id")}/codex-complete`, "POST", {
+      reason: requiredFlag(args, "--reason"),
+      evidence: parseJsonFlag(args, "--evidence-json") ?? {}
+    }));
+  }
+
   if (domain === "milestone" && action === "request-e2e") {
     return print(await request(`/api/milestones/${requiredFlag(args, "--milestone-id")}/request-e2e`, "POST"));
   }
@@ -986,6 +993,7 @@ function usage(): void {
   tsx tools/dionysus.ts task enqueue --task-id "..."
   tsx tools/dionysus.ts task cancel --task-id "..." --reason "..."
   tsx tools/dionysus.ts task review --task-id "..." --verdict approve --score 90 --reason "reviewed by Codex"
+  tsx tools/dionysus.ts task codex-complete --task-id "..." --reason "Codex completed takeover" [--evidence-json '{"commit":"..."}']
   tsx tools/dionysus.ts milestone request-e2e --milestone-id "..."
   tsx tools/dionysus.ts milestone create-campaign --milestone-id "..." --target-url "..." --acceptance "..."
   tsx tools/dionysus.ts milestone verdict --milestone-id "..." --verdict passed --reason "..."
