@@ -159,3 +159,52 @@
 ### 当前用途
 
 - 对 Coupon 目标 `017508c1-e8a2-4327-b1af-14a0f4008e03`，下一步应对数据基座任务 `6d5897f7-3eff-4985-871b-235f2755ad9e` 执行 `task codex-complete`，证据包含 Coupon commit `7a5b292`、PostgreSQL 视图计数和 GitNexus detect-changes low。
+
+## 2026-05-18 上下文压缩恢复记录
+
+### 当前事实
+
+- `task codex-complete` 已在 Dionysus `main` 提交并推送：`e0fc889 feat(tasks): allow codex completion handoff`。
+- Dionysus API / worker runtime 已通过 `pnpm -s dionysus system runtime heal` 重启，doctor 显示 worker runtime commit 为 `e0fc88956a8e09ce276da7bbcae94508b615412a`。
+- 已对 Coupon goal `017508c1-e8a2-4327-b1af-14a0f4008e03` 的数据基座任务 `6d5897f7-3eff-4985-871b-235f2755ad9e` 执行 `task codex-complete`，并触发后续任务。
+- 当前后续任务：
+  - API 只读任务：`a4e267b7-a8e7-4106-a106-fc83007feca8`，run `f4ad05f5-0016-406e-b5ac-d7f5405fd554`，压缩前仍在运行。
+  - Vue 只读页面任务：`c6e823ec-517e-46c0-bc9e-1363d26482ab`，run `5f0693c4-60da-43bf-a29a-85afa1f9bdc9`，integration 已应用到 Coupon，任务状态为 `needs_review`。
+- Coupon 工作区当前有 Dionysus Vue patch：`apps/admin-web/src/pages/identity/members.vue` 修改中，尚未通过 Codex review / E2E，不得提交。
+
+### 下一步
+
+1. 查询 `agent status` 和 `integration list`，确认 API Worker 是否完成并产生可审查 patch。
+2. 若 API Worker 完成，审查 API + Vue patch，并运行对应测试。
+3. 如果 API Worker 长时间停滞或失败，按用户规则由 Codex 接手，但必须记录接手原因和证据。
+4. D1 成员只读闭环必须通过浏览器 E2E 后才可提交 Coupon。
+
+## 2026-05-18 Reviewer workspace 同步缺陷记录
+
+### 当前事实
+
+- Coupon goal `017508c1-e8a2-4327-b1af-14a0f4008e03` 的 API Worker 和 Vue Worker 已完成并被 Codex 验收。
+- ReviewerCLI run `bcbc4def-1fbc-437a-bdd2-c3a8dea9bc56` 输出 `BLOCKED / 35`，但其核心结论是误报：它声称 `ListMembers` 未读取 `v_identity_members`。
+- 目标工作区真实代码已经读取 `v_identity_members`，真实 PostgreSQL API curl 和浏览器 E2E 均证明成员姓名、手机号、角色、部门已正确返回和展示。
+- Codex 已在 Dionysus 中使用 `task review approve --score 91` 覆盖 ReviewerCLI 误判，并记录原因：Reviewer 隔离 workspace 未同步已集成 patch。
+
+### Dionysus 后续修复方向
+
+- Reviewer 任务启动前必须基于目标工作区当前状态重新创建或 rebase workspace。
+- Reviewer prompt 中必须包含当前已应用 integration ids、changed files、目标工作区 commit/dirty diff 摘要。
+- Reviewer 若发现与 Codex/目标工作区证据冲突，应先读取目标工作区或 integration evidence，而不是只信自己的隔离 workspace。
+- 对 `BLOCKED` Reviewer 结论增加 Codex evidence override 机制，要求记录“为何覆盖 Reviewer 结论”。
+
+## 2026-05-18 上下文压缩后恢复记录
+
+### 当前待收尾
+
+- 本轮压缩发生在 Coupon D1 成员只读闭环验收完成之后、提交之前。
+- Dionysus 工作区当前仅有 `MEMORY.md` 修改，用于记录 Reviewer workspace 未同步导致的误判。
+- 该缺陷是 Dionysus fast lane 的关键流程问题：ReviewerCLI 必须在 review 前看到目标工作区当前已集成 patch，否则会持续产出过期结论。
+
+### 下一步
+
+1. 提交并推送 Dionysus `MEMORY.md`。
+2. 后续开发 Dionysus 时优先修复 Reviewer workspace sync/rebase 和 review prompt evidence。
+3. Coupon 本轮提交后应写入 Dionysus release record，标记 goal `017508c1-e8a2-4327-b1af-14a0f4008e03` 已通过 Codex E2E。
