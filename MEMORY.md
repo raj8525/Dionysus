@@ -30,6 +30,13 @@
 - 提交并推送 Dionysus。
 - 提交后运行 `pnpm -s dionysus system runtime heal`，确认当前 runtime 如果仍在旧 commit，会被自动重启。
 
+### 完成结果
+
+- 全量验证通过：`pnpm test` 通过，49 个测试文件、224 个测试。
+- 已提交并推送 commit `1a23864 fix(runtime): restart stale commit runtime`。
+- 真实自愈验证通过：提交后运行 `pnpm -s dionysus system runtime heal`，系统识别 worker runtime 仍在旧 commit `a1850f53e2daddf44ffde27bed8ec7f62a2066ac`，当前 HEAD 为 `1a23864001378c0f9a6b838d4158f46e9f809694`，自动执行 restart。
+- `pnpm -s dionysus system doctor --brief` 通过，worker runtime `codeCommitSha` 已更新为 `1a23864001378c0f9a6b838d4158f46e9f809694`，API、PostgreSQL、RabbitMQ、Worker 均健康。
+
 ## 2026-05-18 交接记录
 
 ### 长期记忆规则
