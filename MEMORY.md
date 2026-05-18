@@ -341,3 +341,28 @@
 1. 继续修复 Dionysus fast lane：Reviewer 不得在同一 goal 的必要 Worker 全部 `done` 前启动。
 2. 补充 TDD 测试，覆盖 Reviewer 过早调度和低于 90 分不得批准的门禁。
 3. 优化 Worker / Reviewer prompt，避免前端任务诱导 CLI 执行 `npm install` 并生成 `package-lock.json`。
+
+## 2026-05-18 Dionysus fast lane 调度修复记录
+
+### 完成内容
+
+- 修复 API review 自动调度缺陷：`dispatchNextTaskAfterReview` 不再在任意一个 `FastLane Worker` approve 后直接拉起 `FastLane Reviewer`。
+- 新增 `selectFastLaneReviewerFollowupTasks`：只有同一 goal 的全部 `FastLane Worker` 都为 `done`，才允许选择 `created` 状态的 `FastLane Reviewer`。
+- 保留 Coupon 数据先行门禁：数据基座 Worker approve 后仍会优先并发派发只读 API / Vue 只读首页 Worker。
+- 如果下一个 created 任务是 Reviewer 但 Worker 尚未全部完成，API 会记录 `review.fastlane_reviewer_held` 事件并停止调度。
+- 优化前端 Worker prompt：当任务涉及 `apps/admin-web` 或 `@coupon/admin-web` 时，明确禁止 `npm install`、禁止生成/修改 `package-lock.json`，建议使用 `pnpm --filter @coupon/admin-web build`；如果 isolated workspace 缺依赖，则报告 blocker，由 Codex 在目标项目根执行最终验证。
+
+### 测试证据
+
+- 先写失败测试并确认红灯：
+  - `packages/core/src/coupon-data-first-gate.test.ts` 新增 Reviewer 不得过早启动测试，初始失败为 `selectFastLaneReviewerFollowupTasks is not a function`。
+  - `packages/core/src/role-prompt.test.ts` 新增前端依赖门禁测试，初始失败为缺少 `## 前端依赖与构建门禁`。
+- 绿灯验证：
+  - `pnpm exec vitest run packages/core/src/coupon-data-first-gate.test.ts packages/core/src/task-review.test.ts packages/core/src/role-prompt.test.ts` 通过，22 个测试。
+  - `pnpm typecheck` 通过。
+  - `pnpm test` 通过，49 个测试文件、218 个测试。
+
+### 下一步
+
+1. 重启 Dionysus runtime，确保 API / Worker 使用包含该调度修复的新代码。
+2. 下一轮 Coupon fast lane 应观察：API/Vue Worker 未全部 done 前，Reviewer 任务只保持 `created`，不会被自动排队。

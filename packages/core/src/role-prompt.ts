@@ -33,6 +33,7 @@ export function buildRolePrompt(input: {
   const promptContext = buildPromptPathContext(input);
   const reviewFeedbackBlock = buildReviewFeedbackBlock(input.taskEvents ?? []);
   const workspaceBaselineBlock = buildWorkspaceBaselineBlock(input.workspaceSyncedTargetChanges);
+  const frontendDependencyGateBlock = buildFrontendDependencyGateBlock(input);
   return [
     `你是 Dionysus Agent Team 的 ${roleLabel(input.role)}。`,
     "",
@@ -53,6 +54,8 @@ export function buildRolePrompt(input: {
     reviewFeedbackBlock ? "" : undefined,
     workspaceBaselineBlock,
     workspaceBaselineBlock ? "" : undefined,
+    frontendDependencyGateBlock,
+    frontendDependencyGateBlock ? "" : undefined,
     "## 角色规则",
     roleBlock,
     "",
@@ -75,6 +78,28 @@ export function buildRolePrompt(input: {
     "最后一行必须单独输出完成标记，用于 Dionysus 主动结束 CLI 进程：",
     "DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}"
   ].filter((line) => line !== undefined).join("\n");
+}
+
+function buildFrontendDependencyGateBlock(input: {
+  task: RolePromptTask;
+  goal?: RolePromptGoal | null;
+}): string {
+  const text = [
+    input.goal?.targetRoot ?? "",
+    input.goal?.description ?? "",
+    input.task.title,
+    input.task.description
+  ].join("\n");
+  const isAdminWebTask = text.includes("apps/admin-web") || text.includes("@coupon/admin-web");
+  if (!isAdminWebTask) return "";
+
+  return [
+    "## 前端依赖与构建门禁",
+    "- Coupon 管理后台使用 pnpm workspace；不得运行 npm install。",
+    "- 不得生成或修改 package-lock.json、npm-shrinkwrap.json 或无关依赖锁文件。",
+    "- 如需验证前端构建，优先在 workspace 中运行 pnpm --filter @coupon/admin-web build。",
+    "- 如果 isolated workspace 缺少依赖或构建环境，不要安装新依赖；报告 blocker，由 Codex 在目标项目根目录执行最终构建验证。"
+  ].join("\n");
 }
 
 function buildWorkspaceBaselineBlock(workspaceSyncedTargetChanges: boolean | undefined): string {

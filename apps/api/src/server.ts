@@ -27,6 +27,7 @@ import {
   evaluateTaskReviewRejectionPolicy,
   evaluateCouponDataFirstEnqueueGate,
   selectCouponDataFirstFollowupTasks,
+  selectFastLaneReviewerFollowupTasks,
   shouldDispatchAfterTaskReview,
   deriveWorkerHealth,
   deriveWorkerEffectiveRunConfig,
@@ -1416,7 +1417,36 @@ async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTas
     });
     return;
   }
+  const reviewerFollowups = selectFastLaneReviewerFollowupTasks({ reviewedTask, goalTasks });
+  if (reviewerFollowups.length > 0) {
+    for (const nextTask of reviewerFollowups) {
+      await repo.markTaskQueued(String(nextTask.id));
+      await publishJson(queueForRole("worker"), {
+        message_id: randomUUID(),
+        goal_id: goalId,
+        task_id: String(nextTask.id),
+        type: "worker_task_review_approved_reviewer_followup",
+        attempt: 1,
+        idempotency_key: `${String(nextTask.id)}:worker:reviewer-followup:${Date.now()}`,
+        created_at: new Date().toISOString()
+      });
+    }
+    await repo.recordTaskEvent(reviewedTaskId, "review.dispatch_fastlane_reviewers", {
+      nextTaskIds: reviewerFollowups.map((task) => String(task.id))
+    });
+    return;
+  }
   const nextTask = await repo.findNextCreatedTask({ goalId, afterPriority: priority });
+  const nextTaskTitle = nextTask
+    ? String(goalTasks.find((task) => String(task.id) === nextTask.id)?.title ?? "")
+    : "";
+  if (nextTask && nextTaskTitle.startsWith("FastLane Reviewer")) {
+    await repo.recordTaskEvent(reviewedTaskId, "review.fastlane_reviewer_held", {
+      nextTaskId: nextTask.id,
+      reason: "waiting for every FastLane Worker to reach done"
+    });
+    return;
+  }
   if (!nextTask) {
     await repo.recordTaskEvent(reviewedTaskId, "review.no_next_task", { goalId });
     return;

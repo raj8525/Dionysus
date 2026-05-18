@@ -163,4 +163,23 @@ describe("role prompt builder", () => {
     expect(prompt).toContain("已同步目标工作区当前未提交改动");
     expect(prompt).toContain("不要仅按目标仓库 HEAD 判断");
   });
+
+  it("warns admin-web workers not to mutate package manager state", () => {
+    const prompt = buildRolePrompt({
+      role: "worker",
+      goal,
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-admin-web-task",
+      task: {
+        id: "admin-web-task",
+        title: "FastLane Worker 2: 租户管理 Vue 只读首页",
+        description: "允许修改路径: apps/admin-web/src/pages/identity/roles.vue。运行前端构建验证。",
+        roleRequired: "worker"
+      }
+    });
+
+    expect(prompt).toContain("## 前端依赖与构建门禁");
+    expect(prompt).toContain("不得运行 npm install");
+    expect(prompt).toContain("不得生成或修改 package-lock.json");
+    expect(prompt).toContain("pnpm --filter @coupon/admin-web build");
+  });
 });

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCouponDataFirstEnqueueGate, selectCouponDataFirstFollowupTasks } from "./coupon-data-first-gate.js";
+import {
+  evaluateCouponDataFirstEnqueueGate,
+  selectCouponDataFirstFollowupTasks,
+  selectFastLaneReviewerFollowupTasks
+} from "./coupon-data-first-gate.js";
 
 describe("Coupon data-first enqueue gate", () => {
   it("allows ordinary tasks", () => {
@@ -75,5 +79,31 @@ describe("Coupon data-first enqueue gate", () => {
         { id: "w2", title: "FastLane Worker 2: 普通前端", status: "created" }
       ]
     })).toEqual([]);
+  });
+
+  it("does not select a fast lane reviewer while any worker is still pending", () => {
+    const goalTasks = [
+      { id: "w1", title: "FastLane Worker 1: 后端 API", status: "done" },
+      { id: "w2", title: "FastLane Worker 2: 前端 Vue", status: "created" },
+      { id: "r1", title: "FastLane Reviewer 1: 质量门禁", status: "created" }
+    ];
+
+    expect(selectFastLaneReviewerFollowupTasks({
+      reviewedTask: goalTasks[0],
+      goalTasks
+    })).toEqual([]);
+  });
+
+  it("selects created fast lane reviewers only after all active workers are done", () => {
+    const goalTasks = [
+      { id: "w1", title: "FastLane Worker 1: 后端 API", status: "done" },
+      { id: "w2", title: "FastLane Worker 2: 前端 Vue", status: "done" },
+      { id: "r1", title: "FastLane Reviewer 1: 质量门禁", status: "created" }
+    ];
+
+    expect(selectFastLaneReviewerFollowupTasks({
+      reviewedTask: goalTasks[1],
+      goalTasks
+    })).toEqual([goalTasks[2]]);
   });
 });

@@ -57,3 +57,24 @@ export function selectCouponDataFirstFollowupTasks(input: {
       (title.includes("只读 API") || title.includes("Vue 只读首页"));
   });
 }
+
+export function selectFastLaneReviewerFollowupTasks(input: {
+  reviewedTask: CouponDataFirstGateTask;
+  goalTasks: CouponDataFirstGateTask[];
+}): CouponDataFirstGateTask[] {
+  const reviewedTitle = String(input.reviewedTask.title ?? "");
+  const reviewedStatus = String(input.reviewedTask.status ?? "");
+  if (!reviewedTitle.startsWith("FastLane Worker") || reviewedStatus !== "done") {
+    return [];
+  }
+
+  const workerTasks = input.goalTasks.filter((task) => String(task.title ?? "").startsWith("FastLane Worker"));
+  if (workerTasks.length === 0 || workerTasks.some((task) => String(task.status ?? "") !== "done")) {
+    return [];
+  }
+
+  return input.goalTasks.filter((task) =>
+    String(task.status ?? "") === "created" &&
+    String(task.title ?? "").startsWith("FastLane Reviewer")
+  );
+}
