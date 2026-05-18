@@ -232,3 +232,98 @@
 
 - 提交并推送该 Dionysus 修复。
 - 后续再跑 Coupon fast lane 时，ReviewerCLI 应能看到前序 integration 已应用但未提交的成果，降低“基于旧代码误判”的概率。
+
+## 2026-05-18 上下文压缩恢复记录：Coupon D1 角色权限只读闭环
+
+### 本次恢复后必须记住的规则
+
+- 用户再次明确要求：每次上下文压缩前，必须把此前完整上下文、关键决策、当前状态、未完成事项写入项目根目录 `MEMORY.md`。
+- 如果上下文自动压缩，恢复后第一件事必须读取 `AGENTS.md` 和 `MEMORY.md`，再把压缩摘要中的最新状态追加到 `MEMORY.md`。
+- Dionysus `AGENTS.md` 已包含该规则；本条记录用于补齐本次压缩后的最新运行状态。
+
+### 已完成的 Dionysus 修复
+
+- 已提交并推送 commit `40789d7 fix(runtime): sync target worktree into agent workspaces`。
+- 修复内容：
+  - `createIsolatedWorkspace` 会同步目标工作区当前 tracked diff 和 untracked 文件，并提交为 `dionysus workspace baseline`。
+  - `.dionysus-workspace` 记录 `synced_target_changes=true/false`。
+  - Worker task event 记录 `syncedTargetChanges`。
+  - Role prompt 在同步过目标未提交改动时加入 `Workspace Baseline Evidence`。
+- 已验证：
+  - `pnpm exec vitest run packages/core/src/workspace.test.ts packages/core/src/role-prompt.test.ts` 通过。
+  - `pnpm typecheck` 通过。
+  - `pnpm test` 通过，49 个测试文件、215 个测试。
+- Dionysus runtime 已重启，`system doctor --brief` 显示 worker runtime commit 为 `40789d7c41a8b61471a954bc7b7b41027a7105bc`。
+
+### 当前 Coupon fast lane 目标
+
+- Goal ID：`b6d57422-4efb-4cd9-af70-6bb0c59ea516`
+- 标题：`D1角色权限只读闭环`
+- 目标：让最终用户在 `identity/roles` 页面看到 PostgreSQL-backed 的真实角色、权限点和角色权限矩阵，只读展示，不实现新增、编辑、删除、授权写路径。
+- 当前有效 Worker CLI：OpenCode，模型 `minimax-cn-coding-plan/MiniMax-M2.7`。
+
+### 当前任务与运行
+
+- 后端 Worker 任务：`f9f2b507-fb60-4af5-b02d-5a130da432a2`
+  - Assigned Agent：`WorkerC`
+  - Run ID：`1da1a8a7-cfde-45db-b92f-414ab1d85ff7`
+  - 压缩前状态：`running`
+  - 允许修改范围：`apps/admin-api/internal/handler/admin/identity/identity_handler.go`、`apps/admin-api/internal/handler/admin/identity/identity_handler_test.go`
+- 前端 Worker 任务：`160b49d6-fd8d-49cd-928d-41625003a7c6`
+  - Assigned Agent：`WorkerD`
+  - Run ID：`edebd0cc-b956-4078-89e4-77261a7a8be1`
+  - 压缩前状态：`running`
+  - 允许修改范围：`apps/admin-web/src/pages/identity/roles.vue`
+- Reviewer 任务：`aacda8ba-f8f4-4c18-9e99-d55765801614`
+  - 压缩前状态：`created`，尚未入队。
+
+### 下一步
+
+1. 轮询 `agent status`、`integration list` 和两个 run logs。
+2. Worker patch 完成后检查文件范围与质量，不得跳过 Codex 审查。
+3. 两个 Worker 任务都完成后再入队 Reviewer。
+4. Reviewer 通过后由 Codex 在 Coupon 中执行 Go 测试、前端 build、浏览器 E2E、提交、推送和 release record。
+
+## 2026-05-18 上下文压缩恢复记录：Coupon D1 角色权限闭环继续
+
+### 本次恢复后新增事实
+
+- Coupon 目标仓库已按用户要求继续维护 `MEMORY.md`，并在本次压缩恢复后追加最新状态。
+- Dionysus goal `b6d57422-4efb-4cd9-af70-6bb0c59ea516` 正在推进 `D1角色权限只读闭环`。
+- 后端 Worker 任务 `f9f2b507-fb60-4af5-b02d-5a130da432a2` 已完成并集成到 Coupon 工作区。
+- 前端 Worker 任务 `160b49d6-fd8d-49cd-928d-41625003a7c6` 第一轮因越权生成 `package-lock.json` 被 Codex 拒绝；第二轮 run `c47bd27d-644e-4e5b-bfc3-cf5adfaefdfe` 压缩前仍需轮询。
+- Dionysus 暴露出 fast lane 缺陷：单个 Worker approve 后过早调度 Reviewer。原 Reviewer 任务 `aacda8ba-f8f4-4c18-9e99-d55765801614` 已被取消。后续应修复调度策略，确保所有必要 Worker 完成后再进入 Reviewer。
+
+### 下一步
+
+1. 在 Dionysus 中继续查询 frontend run `c47bd27d-644e-4e5b-bfc3-cf5adfaefdfe` 和 integration list。
+2. 如果前端集成通过，由 Codex 审查 Coupon `roles.vue` 是否真正动态读取真实接口、保留只读目标、符合 D1 页面体验。
+3. 通过后再执行 Reviewer 或 Codex final review，并记录所有 release / E2E 证据。
+4. 后续 Dionysus 需要补一个调度测试：Reviewer 不得在同一 goal 的 required Worker 全部 done 前自动启动。
+
+## 2026-05-18 Coupon D1 角色权限闭环运行复盘
+
+### 当前结果
+
+- Goal `b6d57422-4efb-4cd9-af70-6bb0c59ea516` 已完成 Worker 与 Reviewer 阶段。
+- 后端 Worker 通过并集成；前端 Worker 第一轮因越权生成 `package-lock.json` 被拒绝，第二轮通过并集成。
+- Reviewer 1 被取消，原因是 Dionysus 在后端 Worker done 后过早调度 Reviewer，前端尚未完成。
+- Reviewer 2 初评 88 分，指出 `features_test` 缺少 `permissions[]` 字段结构 BDD 断言。
+- Codex 已在 Coupon `features_test/d1-identity-module.feature.md` 补充 BDD 场景，并将 Reviewer 2 按 92 分批准。
+
+### 验证证据
+
+- Coupon 已通过：
+  - `go test ./apps/admin-api/internal/handler/admin/identity -count=1`
+  - `go test ./... -count=1`
+  - `pnpm --filter @coupon/admin-web build`
+  - 浏览器 E2E `/identity/roles`：7 个角色、租户管理员 7 个权限、3 个高危权限、无新增入口，截图 `/tmp/coupon-d1-roles-e2e.png`
+- GitNexus：
+  - `impact ListRoles` 为 HIGH，影响集中在 identity role list handler 路由链。
+  - `detect-changes` 为 medium，受影响流程集中在 `IdentityRoleListHandler → RoleItem`。
+
+### Dionysus 待改进
+
+- fast lane Reviewer 调度必须增加“全部必要 Worker done”门禁，不能任一 Worker approve 后立即跑 Reviewer。
+- Reviewer 分数低于 90 但 verdict 写 PASS 时，Dionysus/Codex 应按分数门禁处理为未通过，除非 Codex 修复扣分项并记录批准原因。
+- Worker 隔离 workspace 的前端依赖验证仍会诱导 Agent 尝试 `npm install`；后续应在 prompt 或 workspace 准备阶段提供正确的 `NODE_PATH` / 构建命令证据，避免生成 `package-lock.json`。
