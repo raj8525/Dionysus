@@ -204,6 +204,36 @@ describe("integration patch applier", () => {
     }
   });
 
+  it("blocks automatic target mutation when verification is required but missing", async () => {
+    const root = await initRepo();
+    try {
+      const patch = [
+        "diff --git a/README.md b/README.md",
+        "index 5a60f7d..61e9f52 100644",
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        ""
+      ].join("\n");
+
+      const result = await applyPatchToTarget({
+        targetRoot: root,
+        patchText: patch,
+        requireVerification: true
+      });
+      const status = await execFileAsync("git", ["status", "--porcelain"], { cwd: root });
+
+      expect(result.status).toBe("blocked");
+      expect(result.reason).toContain("requires at least one verification command");
+      expect(result.changedFiles).toEqual(["README.md"]);
+      expect(status.stdout.trim()).toBe("");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("blocks patches that touch files outside the task allowed file scope", async () => {
     const root = await initRepo();
     try {

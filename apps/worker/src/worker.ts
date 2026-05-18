@@ -538,6 +538,7 @@ async function handleIntegrationTask(message: QueueMessage): Promise<void> {
     targetRoot: targetRootForGoal(goal, targetRoot),
     patchText: integration.patchText,
     verificationCommands,
+    requireVerification: true,
     allowedChangedFiles: integration.allowedFiles,
     protectedFiles,
     allowProtectedFiles

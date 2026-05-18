@@ -16,6 +16,7 @@ export async function applyPatchToTarget(input: {
   targetRoot: string;
   patchText: string;
   verificationCommands?: string[];
+  requireVerification?: boolean;
   allowedChangedFiles?: string[];
   protectedFiles?: string[];
   allowProtectedFiles?: string[];
@@ -46,6 +47,15 @@ export async function applyPatchToTarget(input: {
     };
   }
 
+  const verificationCommands = input.verificationCommands ?? [];
+  if (input.requireVerification && verificationCommands.length === 0) {
+    return {
+      status: "blocked",
+      changedFiles: patchChangedFiles,
+      reason: "integration requires at least one verification command before patch can be applied to target worktree"
+    };
+  }
+
   const patchFile = await writeTempPatch(input.patchText);
   try {
     const check = await runGit(input.targetRoot, ["apply", "--check", patchFile]);
@@ -58,7 +68,7 @@ export async function applyPatchToTarget(input: {
       return { status: "failed", changedFiles: [], reason: apply.stderr };
     }
 
-    const verification = await runVerificationCommands(input.targetRoot, input.verificationCommands ?? []);
+    const verification = await runVerificationCommands(input.targetRoot, verificationCommands);
     if (verification) {
       await runGit(input.targetRoot, ["apply", "-R", patchFile]);
       return { status: "failed", changedFiles: [], reason: verification };

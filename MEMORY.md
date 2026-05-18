@@ -108,3 +108,37 @@
 2. 如果超范围 patch 被放行，优先修 Dionysus integration guardrail。
 3. 如果 WorkerB 数据 patch 干净，先人工审查 SQL，再用真实 PostgreSQL 验证 migration。
 4. Coupon 中被拒绝的 `migrations/039_d1_member_baseline_dataoundation.sql` 不能进入正式提交。
+
+## 2026-05-18 压缩后续写记录
+
+### 当前事实
+
+- 已按用户要求再次确认长期记忆规则：上下文压缩前必须写入本文件，压缩恢复后必须先读本文件并续写最新事实。
+- Coupon 当前工作区已恢复干净：`## main...origin/main`。
+- Dionysus 当前工作区有未提交的集成门禁修复：
+  - `apps/worker/src/worker.ts`
+  - `docs/specs/state-machine.md`
+  - `packages/core/src/integration-applier.test.ts`
+  - `packages/core/src/integration-applier.ts`
+- 修复目标：Integration Worker 自动应用 patch 前必须要求至少一个验证命令；没有验证命令时返回 `blocked`，不修改目标工作区。
+- 已通过局部测试：
+  - `pnpm exec vitest run packages/core/src/integration-applier.test.ts packages/core/src/dispatch-policy.test.ts`
+  - 结果：2 个测试文件、12 个测试通过。
+- 本轮 Dionysus 修复已完成全量验证：`pnpm typecheck` 通过，`pnpm test` 通过（49 个测试文件、213 个测试）。
+- 尚未完成本轮 Dionysus 修复的提交、推送和 runtime 重启。
+
+### 当前 Coupon fast lane 运行状态
+
+- Goal ID：`017508c1-e8a2-4327-b1af-14a0f4008e03`
+- 当前任务：`FastLane Worker 1: D1成员基线 数据基座`
+- 当前尝试：attempt 3 / max_attempts 3。
+- WorkerC run id：`affedf97-56f4-46d3-8c15-5f3793fd5906`，仍在运行。
+- WorkerB patch `ea4881dd-309b-44b2-b08a-99ad2cc6866d` 已被 integration 拦截，原因是触碰了不允许的 API handler 文件。
+- WorkerA patch `9984cf0f-94c9-4bc3-961a-159cf963280c` 曾被旧 integration 应用，但已被 Codex 拒绝，Coupon 工作区已清理。
+
+### 下一步
+
+1. 继续轮询 WorkerC run logs 和 integration list。
+2. 如果 WorkerC 产出 patch，必须先看 integration 状态、changedFiles、verificationCommands，再决定是否接受。
+3. 如果 WorkerC 失败或输出不可信，Codex 接手 Worker 1 数据基座任务。
+4. 完成 Dionysus 集成门禁修复的 `pnpm typecheck` 与 `pnpm test`，通过后提交、推送并重启 runtime。

@@ -64,5 +64,6 @@ cancelled
 - 已关闭的 fast lane goal 只代表历史审计记录，不得继续暴露 worker/reviewer/integration 残留计数作为可执行工作。
 - Agent run 成功但产生 patch 时，不得立即放行下一优先级 task；必须记录 `dispatch.waiting_for_integration`，等待 integration `passed` 且 patch `applied` 后仍需进入 task review；review approve 后才能 dispatch 下一 task。
 - integration `blocked` 或 `failed` 时必须写入 `codex_outbox` blocker，由 Codex 处理，不能继续放行 Worker。
+- Integration Worker 在自动修改目标项目工作区前必须有至少一条验证命令。若 patch 没有可执行验证命令，必须 `blocked`，并保持目标项目工作区不变，交给 Codex 人工审查和接管。
 - Milestone 不能跳过 `e2e_required` 直接进入 `passed`。
 - Goal 不能跳过 `codex_review` 直接进入 `done`。
