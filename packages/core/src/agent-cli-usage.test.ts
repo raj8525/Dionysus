@@ -49,7 +49,7 @@ describe("buildAgentCliUsageSummary", () => {
     expect(summary.byAgentInstance).toEqual([
       expect.objectContaining({
         agentKey: "role:master",
-        agentName: "Master",
+        agentName: "历史未绑定 Master",
         cliCalls: 1,
         modelCalls: 0
       }),
@@ -85,7 +85,7 @@ describe("buildAgentCliUsageSummary", () => {
     expect(summary.totals.failedCalls).toBe(4);
     expect(summary.byAgentInstance[0]).toMatchObject({
       agentKey: "role:test_writer",
-      agentName: "TestWriter",
+      agentName: "历史未绑定 TestWriter",
       cliCalls: 4,
       modelCalls: 4,
       failedCalls: 4

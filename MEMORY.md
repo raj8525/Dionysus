@@ -373,6 +373,7 @@
 
 - 补齐 `/api/usage/agent-cli` 的 Agent 实例基线：返回值会合并 `agents` 表中的全部内置 Agent，即使某个 Agent 尚未产生任何 `task_runs`，也会以 `cliCalls=0`、`modelCalls=0` 出现在 `byAgentInstance` 中。
 - `AgentInstanceCliUsage` 增加 `agentStatus` 字段，Dashboard 的按 Agent 实例卡片会显示空闲、工作中、阻塞或禁用状态。
+- 历史上未绑定 `agent_id` 的 run 会显示为“历史未绑定 Master/Worker/...”，避免和真实 Master、WorkerA-D 实例混淆。
 - 更新 `docs/specs/api.md`，明确 usage 接口必须展示 Master、RuleWriter、TestWriter、WorkerA-D 的全貌，而不是只展示已经调用过 CLI 的 Agent。
 
 ### 测试证据

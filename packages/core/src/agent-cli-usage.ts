@@ -165,7 +165,7 @@ function upsertAgentInstanceUsage(
   const usage = byAgentInstance.get(agentKey) ?? {
     agentKey,
     agentId: row.agentId ?? undefined,
-    agentName: row.agentName?.trim() || roleLabel(row.role),
+    agentName: row.agentName?.trim() || (row.agentId ? roleLabel(row.role) : `历史未绑定 ${roleLabel(row.role)}`),
     role: row.role,
     cliCalls: 0,
     modelCalls: 0,
