@@ -303,6 +303,16 @@ And 如果该变化无法解释，必须记录 `target_root_mutation_blocked`
 And 当前 task 必须进入 `blocked`
 And Runtime 不得为该 task 排队 patch 或自动 dispatch 下一任务
 
+## 场景 7.7.1：真实 CLI Agent 不得自行提交或推送仓库
+
+Given Worker / RuleWriter / TestWriter 通过真实 CLI Adapter 执行
+And Runtime 已为本次 run 创建 isolated workspace
+When Agent CLI 进程尝试执行 `git commit`、`git push`、`git apply`、`git reset` 或其他仓库写操作
+Then Dionysus Git Guard 必须阻断该命令
+And CLI run 必须返回非零退出码
+And stderr 必须包含 `Dionysus git guard blocked`
+But Agent CLI 仍可以执行 `git --version`、`git status`、`git diff` 等只读检查
+
 ## 场景 7.8：允许修改路径必须支持仓库顶层目录
 
 Given Worker 任务描述包含 `允许修改路径:`

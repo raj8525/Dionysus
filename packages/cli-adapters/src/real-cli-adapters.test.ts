@@ -165,6 +165,38 @@ describe("real CLI adapters", () => {
     expect(chunks.filter((chunk) => chunk.stream === "stdout").map((chunk) => chunk.chunkText).join("")).toBe("out-1\nout-2\n");
     expect(chunks.filter((chunk) => chunk.stream === "stderr").map((chunk) => chunk.chunkText).join("")).toBe("err-1\n");
   });
+
+  it("blocks Agent CLI attempts to commit from inside a guarded run", async () => {
+    const command = await gitCommitCliCommand();
+    setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);
+
+    const result = await createCliAdapter({ cliType: "claude_code" }).run({
+      taskId: "task-git-commit",
+      cwd: process.cwd(),
+      prompt: "try git commit",
+      targetRoot: process.cwd(),
+      workspacePath: process.cwd()
+    });
+
+    expect(result.exitCode).toBe(97);
+    expect(result.stderr).toContain("Dionysus git guard blocked 'git commit'");
+  });
+
+  it("still allows Agent CLI read-only git inspection during a guarded run", async () => {
+    const command = await gitVersionCliCommand();
+    setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);
+
+    const result = await createCliAdapter({ cliType: "claude_code" }).run({
+      taskId: "task-git-version",
+      cwd: process.cwd(),
+      prompt: "inspect git",
+      targetRoot: process.cwd(),
+      workspacePath: process.cwd()
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("git version");
+  });
 });
 
 async function fakeCliCommand(): Promise<string> {
@@ -209,6 +241,36 @@ async function streamingCliCommand(): Promise<string> {
     "process.stdout.write('out-1\\n')",
     "process.stderr.write('err-1\\n')",
     "process.stdout.write('out-2\\n')"
+  ].join("\n"));
+  await chmod(file, 0o755);
+  return file;
+}
+
+async function gitCommitCliCommand(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-git-commit-"));
+  const file = join(dir, "git-commit-cli.mjs");
+  await writeFile(file, [
+    "#!/usr/bin/env node",
+    "import { spawnSync } from 'node:child_process';",
+    "const result = spawnSync('git', ['commit', '--allow-empty', '-m', 'agent should not commit'], { encoding: 'utf8' });",
+    "process.stdout.write(result.stdout || '');",
+    "process.stderr.write(result.stderr || '');",
+    "process.exit(result.status ?? 1);"
+  ].join("\n"));
+  await chmod(file, 0o755);
+  return file;
+}
+
+async function gitVersionCliCommand(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-git-version-"));
+  const file = join(dir, "git-version-cli.mjs");
+  await writeFile(file, [
+    "#!/usr/bin/env node",
+    "import { spawnSync } from 'node:child_process';",
+    "const result = spawnSync('git', ['--version'], { encoding: 'utf8' });",
+    "process.stdout.write(result.stdout || '');",
+    "process.stderr.write(result.stderr || '');",
+    "process.exit(result.status ?? 1);"
   ].join("\n"));
   await chmod(file, 0o755);
   return file;

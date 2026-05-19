@@ -29,6 +29,7 @@ Codex
 - 创建 isolated workspace 时，必须以目标工作区当前状态为基线：除已提交 `HEAD` 外，还要同步目标工作区中的未提交 tracked diff 和 untracked 文件，并在 workspace 内提交为 `dionysus workspace baseline`。这样后续 API/Vue/Reviewer 任务能看到已通过 integration 但尚未由 Codex 提交的前序 Worker 成果，同时生成 patch 时不会重复包含这些既有改动。
 - Worker prompt 必须显式写出 `Workspace Root`，并禁止通过 `Target Root` 绝对路径绕过 workspace。
 - Worker / RuleWriter / TestWriter 运行期间如果目标项目主工作区发生未解释变化，Runtime 必须阻断当前 task；只有同一 goal 中其他 task 的 `passed` integration 能解释该变化时，才允许当前 task 继续。
+- Worker / RuleWriter / TestWriter 的真实 CLI 子进程必须启用运行期 Git Guard：允许 `git status`、`git diff`、`git log`、`git show`、`git --version` 等只读检查，禁止 `git add`、`git commit`、`git push`、`git apply`、`git reset`、`git checkout`、`git pull`、`git merge`、`git rebase` 等会改变仓库或远端状态的操作。Agent 只能修改 isolated workspace 文件，由 Dionysus 生成 patch、由 Integration/Codex 受控应用和提交。
 - 如果 workspace baseline 同步了目标工作区未提交改动，Agent prompt 必须包含 `Workspace Baseline Evidence`，提醒 ReviewerCLI 按当前 workspace 内容审核，不得只按目标仓库 `HEAD` 判断。
 - Integration apply 后必须同时记录 patch 级 `changedFiles` 和结果级 `result.changedFiles`，新增文件也必须被审计到。
 - 前端只负责可视化和配置，不承担核心调度逻辑。

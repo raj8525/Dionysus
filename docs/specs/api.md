@@ -204,6 +204,8 @@ Agent Runtime 必须在隔离工作区运行 Worker / RuleWriter / TestWriter。
 - 如果变化无法解释，记录 `target_root_mutation_blocked`，将当前 task 标记为 `blocked`，不得继续排队 patch、不得自动 dispatch next task。
 - 最终是否允许提交由 patch apply、review、测试和 release gate 判断；release gate 必须阻止未归属文件混入提交。
 
+真实 CLI Adapter 在执行 Worker / RuleWriter / TestWriter 时必须为子进程注入 Git Guard。该 guard 通过 PATH 前置临时 `git` wrapper 拦截会改变仓库或远端状态的 git 子命令，典型包括 `add`、`commit`、`push`、`apply`、`checkout`、`switch`、`reset`、`merge`、`rebase`、`pull`、`fetch`、`stash`、`clean`、`rm`、`mv`、`tag`、`worktree`。被拦截时 CLI run 必须返回非零退出码并在 stderr 写明 `Dionysus git guard blocked`。只读命令如 `git --version`、`git status`、`git diff`、`git log`、`git show` 必须继续可用，便于 ReviewerCLI 做代码审查。Master 可以读取目标仓库状态，但非 Master Agent 不得自行提交、推送或应用 patch。
+
 ## Integration Apply
 
 Integration applier 不得因为目标项目存在无关 dirty 文件而整体阻塞。它必须直接执行 `git apply --check`，由 Git 判断 patch 是否与当前工作区冲突：

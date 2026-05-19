@@ -1,4 +1,8 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
 import type { CliType } from "@dionysus/core";
 import { resolveOpenCodeModel } from "./opencode-model.js";
 import type { AgentRunInput, AgentRunResult, CliAdapter } from "./types.js";
@@ -28,17 +32,23 @@ export class TemplateCliAdapter implements CliAdapter {
     const command = this.commandName();
     const args = this.commandArgs(input);
     const cliModel = this.resolvedModel();
-    const result = await run(command, args, input.cwd, this.options.timeoutMs ?? 20 * 60_000, input.onOutput);
-    return {
-      ...result,
-      structuredResult: {
-        cliType: this.options.cliType,
-        cliModel: cliModel ?? null,
-        command,
-        argsPreview: args.map((arg) => (arg === input.prompt ? "<prompt>" : arg)),
-        completionMarkerDetected: result.completionMarkerDetected ?? false
-      }
-    };
+    const gitGuard = await createGitGuard(input);
+    try {
+      const result = await run(command, args, input.cwd, this.options.timeoutMs ?? 20 * 60_000, input.onOutput, gitGuard.env);
+      return {
+        ...result,
+        structuredResult: {
+          cliType: this.options.cliType,
+          cliModel: cliModel ?? null,
+          command,
+          argsPreview: args.map((arg) => (arg === input.prompt ? "<prompt>" : arg)),
+          completionMarkerDetected: result.completionMarkerDetected ?? false,
+          gitGuardEnabled: gitGuard.enabled
+        }
+      };
+    } finally {
+      await gitGuard.cleanup();
+    }
   }
 
   private commandName(): string {
@@ -148,7 +158,8 @@ async function run(
   args: string[],
   cwd: string,
   timeoutMs: number,
-  onOutput?: (stream: "stdout" | "stderr", chunkText: string) => void
+  onOutput?: (stream: "stdout" | "stderr", chunkText: string) => void,
+  env?: NodeJS.ProcessEnv
 ): Promise<{
   stdout: string;
   stderr: string;
@@ -164,6 +175,7 @@ async function run(
 
     const child = spawn(command, args, {
       cwd,
+      env,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -263,4 +275,84 @@ function completionGraceMs(): number {
   const raw = Number(process.env.DIONYSUS_CLI_COMPLETION_GRACE_MS);
   if (!Number.isFinite(raw) || raw < 0) return 1_500;
   return Math.min(10_000, Math.floor(raw));
+}
+
+async function createGitGuard(input: AgentRunInput): Promise<{
+  enabled: boolean;
+  env: NodeJS.ProcessEnv;
+  cleanup: () => Promise<void>;
+}> {
+  if (!input.targetRoot) {
+    return { enabled: false, env: process.env, cleanup: async () => {} };
+  }
+
+  const guardDir = await mkdtemp(join(tmpdir(), "dionysus-git-guard-"));
+  const guardPath = join(guardDir, "git");
+  const realGit = resolveRealGitCommand(process.env.PATH ?? "");
+  await writeFile(guardPath, gitGuardScript(realGit));
+  await chmod(guardPath, 0o755);
+
+  return {
+    enabled: true,
+    env: {
+      ...process.env,
+      PATH: `${guardDir}${delimiter}${process.env.PATH ?? ""}`,
+      DIONYSUS_GIT_GUARD_TARGET_ROOT: input.targetRoot,
+      DIONYSUS_GIT_GUARD_WORKSPACE_PATH: input.workspacePath ?? input.cwd,
+      DIONYSUS_GIT_GUARD_REAL_GIT: realGit
+    },
+    cleanup: async () => {
+      await rm(guardDir, { recursive: true, force: true });
+    }
+  };
+}
+
+function resolveRealGitCommand(pathValue: string): string {
+  for (const dir of pathValue.split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, "git");
+    if (existsSync(candidate)) return candidate;
+  }
+  return "/usr/bin/git";
+}
+
+function gitGuardScript(realGit: string): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+real_git=${shellQuote(realGit)}
+orig=("$@")
+cmd=""
+i=0
+while [[ $i -lt \${#orig[@]} ]]; do
+  arg="\${orig[$i]}"
+  case "$arg" in
+    -C|-c|--git-dir|--work-tree)
+      i=$((i + 2))
+      ;;
+    --*)
+      i=$((i + 1))
+      ;;
+    -*)
+      i=$((i + 1))
+      ;;
+    *)
+      cmd="$arg"
+      break
+      ;;
+  esac
+done
+
+case "$cmd" in
+  add|am|apply|bisect|checkout|cherry-pick|clean|commit|fetch|merge|mv|pull|push|rebase|reset|restore|revert|rm|stash|submodule|switch|tag|worktree)
+    echo "Dionysus git guard blocked 'git $cmd'; agents must not mutate or push repositories. Modify files in the isolated workspace and let Dionysus create the patch." >&2
+    exit 97
+    ;;
+esac
+
+exec "$real_git" "\${orig[@]}"
+`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }

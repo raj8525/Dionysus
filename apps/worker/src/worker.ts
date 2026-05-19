@@ -139,6 +139,8 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       taskId: message.task_id,
       prompt,
       cwd: workspace.workspacePath,
+      targetRoot: taskTargetRoot,
+      workspacePath: workspace.workspacePath,
       onOutput: (stream, chunkText) => {
         streamedLogs = true;
         pendingLogWrites.push(repo.appendRunLog(activeRunId, stream, chunkText, logSequence++));
@@ -353,6 +355,8 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
     taskId: message.task_id,
     prompt,
     cwd,
+    targetRoot: role === "master" ? undefined : taskTargetRoot,
+    workspacePath,
     onOutput: (stream, chunkText) => {
       streamedLogs = true;
       pendingLogWrites.push(repo.appendRunLog(activeRunId, stream, chunkText, logSequence++));

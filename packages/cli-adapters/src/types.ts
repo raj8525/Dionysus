@@ -2,6 +2,8 @@ export interface AgentRunInput {
   taskId: string;
   prompt: string;
   cwd: string;
+  targetRoot?: string;
+  workspacePath?: string;
   onOutput?: (stream: "stdout" | "stderr", chunkText: string) => void;
 }
 
