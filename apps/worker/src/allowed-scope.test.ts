@@ -26,4 +26,21 @@ describe("parseAllowedFileScope", () => {
       "docs/contracts/admin-api.md"
     ]);
   });
+
+  it("keeps top-level repository directory scopes from bullet lists", () => {
+    const description = [
+      "允许修改路径:",
+      "- migrations/",
+      "- features_test/",
+      "- docs/specs/",
+      "",
+      "验收标准: 只允许补 D1 数据基座、BDD 和规格。"
+    ].join("\n");
+
+    expect(parseAllowedFileScope(description)).toEqual([
+      "docs/specs/",
+      "features_test/",
+      "migrations/"
+    ]);
+  });
 });

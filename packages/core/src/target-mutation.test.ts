@@ -72,16 +72,16 @@ describe("target mutation attribution", () => {
     })).toBe(false);
   });
 
-  it("continues with a warning when mutation is unexplained because release gates own final file attribution", () => {
+  it("blocks unexplained mutation because isolated workers must not edit the target root directly", () => {
     expect(decideTargetMutationHandling({
       currentTaskId: "task-b",
       runStartedAt: "2026-05-17T04:13:38.000Z",
       integrations: []
     })).toEqual({
-      action: "continue",
-      eventType: "target_root_mutation_observed",
-      severity: "warning",
-      reason: "target changed during isolated agent run; continue and leave ownership checks to integration and release gates"
+      action: "block",
+      eventType: "target_root_mutation_blocked",
+      severity: "error",
+      reason: "target changed during isolated agent run without a concurrent integration; block the task because workers must only modify isolated workspaces"
     });
   });
 

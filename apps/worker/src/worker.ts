@@ -173,6 +173,21 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
         reason: handling.reason,
         severity: handling.severity
       });
+      if (handling.action === "block") {
+        const usageReceipt = parseCliUsageReceipt(`${result.stdout}\n${result.stderr}`);
+        await repo.completeTaskRun({
+          taskId: message.task_id,
+          runId,
+          exitCode: 1,
+          modelCallCount: usageReceipt?.modelCalls,
+          modelUsageJson: usageReceipt?.raw
+        });
+        await repo.markTaskBlocked({
+          taskId: message.task_id,
+          reason: handling.reason
+        });
+        return;
+      }
     }
 
     let queuedPatchId: string | null = null;
@@ -372,6 +387,21 @@ async function handleGovernanceTask(message: QueueMessage, roleName: string): Pr
       reason: handling.reason,
       severity: handling.severity
     });
+    if (handling.action === "block") {
+      const usageReceipt = parseCliUsageReceipt(`${result.stdout}\n${result.stderr}`);
+      await repo.completeTaskRun({
+        taskId: message.task_id,
+        runId,
+        exitCode: 1,
+        modelCallCount: usageReceipt?.modelCalls,
+        modelUsageJson: usageReceipt?.raw
+      });
+      await repo.markTaskBlocked({
+        taskId: message.task_id,
+        reason: handling.reason
+      });
+      return;
+    }
   }
   await repo.recordTaskEvent(message.task_id, result.exitCode === 0 ? `${roleName}.completed` : `${roleName}.failed`, {
     messageId: message.message_id,

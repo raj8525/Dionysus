@@ -294,6 +294,23 @@ And 每个 goal 只能推进一个合法 Master Step
 And 决策结果必须写入 `system_events`
 And Dashboard 必须能展示最近的 `master_control.step` 与 `master_control.run` 事件
 
+## 场景 7.7：隔离 Agent 不得绕过 workspace 修改目标项目
+
+Given Worker / RuleWriter / TestWriter 在 isolated workspace 中运行
+When Runtime 发现目标项目主工作区在本次 run 期间发生变化
+Then 如果该变化可由同一 goal 中另一个 `passed` integration 解释，必须记录 `target_root_mutation_explained_by_integration` 并继续
+And 如果该变化无法解释，必须记录 `target_root_mutation_blocked`
+And 当前 task 必须进入 `blocked`
+And Runtime 不得为该 task 排队 patch 或自动 dispatch 下一任务
+
+## 场景 7.8：允许修改路径必须支持仓库顶层目录
+
+Given Worker 任务描述包含 `允许修改路径:`
+And 列表中包含 `migrations/`、`features_test/`、`docs/specs/`
+When Runtime 解析 allowed file scope
+Then `patches.allowed_files_json` 必须包含这些目录前缀
+And Integration 不得把合法的 `migrations/*.sql` 或 `features_test/*` 误判为越权
+
 ## 场景 8：Worker patch 必须进入 Integration Queue
 
 Given Worker 完成隔离 workspace 内的实现

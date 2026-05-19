@@ -35,7 +35,7 @@ export function parseAllowedFileScope(description: string): string[] {
 function addScopeItems(value: string, allowed: Set<string>): void {
   const scopeClause = value.split(/[。；;]/)[0] ?? "";
   const pathPattern =
-    /(?:`([^`]+)`)|(?:"([^"]+)")|(?:'([^']+)')|((?:\.{0,2}\/|\/)?[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@-]+)+(?:\/)?|[A-Za-z0-9_.@-]+\.[A-Za-z0-9_.@-]+)/g;
+    /(?:`([^`]+)`)|(?:"([^"]+)")|(?:'([^']+)')|((?:\.{0,2}\/|\/)?[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@-]+)*(?:\/)?|[A-Za-z0-9_.@-]+\.[A-Za-z0-9_.@-]+)/g;
 
   for (const match of scopeClause.matchAll(pathPattern)) {
     const raw = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";

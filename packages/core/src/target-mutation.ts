@@ -11,9 +11,12 @@ export interface TargetMutationHandlingInput {
 }
 
 export interface TargetMutationHandlingDecision {
-  action: "continue";
-  eventType: "target_root_mutation_explained_by_integration" | "target_root_mutation_observed";
-  severity: "info" | "warning";
+  action: "continue" | "block";
+  eventType:
+    | "target_root_mutation_explained_by_integration"
+    | "target_root_mutation_observed"
+    | "target_root_mutation_blocked";
+  severity: "info" | "warning" | "error";
   reason: string;
 }
 
@@ -46,9 +49,9 @@ export function decideTargetMutationHandling(
   }
 
   return {
-    action: "continue",
-    eventType: "target_root_mutation_observed",
-    severity: "warning",
-    reason: "target changed during isolated agent run; continue and leave ownership checks to integration and release gates"
+    action: "block",
+    eventType: "target_root_mutation_blocked",
+    severity: "error",
+    reason: "target changed during isolated agent run without a concurrent integration; block the task because workers must only modify isolated workspaces"
   };
 }
