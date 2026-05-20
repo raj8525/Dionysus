@@ -11,9 +11,13 @@ export interface SystemAuditUsageBucket {
   lastRunAt?: string;
   lastSucceededAt?: string;
   lastFailedAt?: string;
+  latestActiveRunAt?: string;
+  latestActiveSucceededAt?: string;
+  latestActiveFailedAt?: string;
 }
 
 export interface SystemAuditUsage {
+  activeGoalRunTracking?: boolean;
   totals?: SystemAuditUsageBucket;
   byAgent?: SystemAuditUsageBucket[];
   byCli?: SystemAuditUsageBucket[];
@@ -91,7 +95,7 @@ export function buildSystemAuditSummary(input: {
   if (runningCalls > 0) {
     warnings.push(`仍有 ${runningCalls} 次 CLI 调用处于运行中，先确认是否卡住或等待结果`);
   }
-  if (hasUnrecoveredLatestFailure(totals)) {
+  if (hasUnrecoveredLatestFailure(totals, input.usage?.activeGoalRunTracking === true)) {
     warnings.push("整体最近一次 CLI 运行失败，尚无后续成功恢复证据");
     nextCommands.add(buildUsageCommand(input.targetRoot));
   }
@@ -107,7 +111,7 @@ export function buildSystemAuditSummary(input: {
   for (const bucket of input.usage?.byAgent ?? []) {
     const bucketCalls = numberOrZero(bucket.cliCalls);
     const bucketFailures = numberOrZero(bucket.failedCalls);
-    if (hasUnrecoveredLatestFailure(bucket)) {
+    if (hasUnrecoveredLatestFailure(bucket, input.usage?.activeGoalRunTracking === true)) {
       warnings.push(`${bucket.role ?? "unknown-agent"} 最近一次 CLI 运行失败，尚无后续成功恢复证据`);
       nextCommands.add(buildUsageCommand(input.targetRoot));
     }
@@ -185,10 +189,10 @@ function isRecoveredBucket(bucket?: SystemAuditUsageBucket): boolean {
   );
 }
 
-function hasUnrecoveredLatestFailure(bucket?: SystemAuditUsageBucket): boolean {
-  const lastFailedAt = parseTimestamp(bucket?.lastFailedAt);
-  const lastSucceededAt = parseTimestamp(bucket?.lastSucceededAt);
-  const lastRunAt = parseTimestamp(bucket?.lastRunAt);
+function hasUnrecoveredLatestFailure(bucket?: SystemAuditUsageBucket, useActiveGoalTimestamps = false): boolean {
+  const lastFailedAt = parseTimestamp(useActiveGoalTimestamps ? bucket?.latestActiveFailedAt : bucket?.lastFailedAt);
+  const lastSucceededAt = parseTimestamp(useActiveGoalTimestamps ? bucket?.latestActiveSucceededAt : bucket?.lastSucceededAt);
+  const lastRunAt = parseTimestamp(useActiveGoalTimestamps ? bucket?.latestActiveRunAt : bucket?.lastRunAt);
   return Boolean(
     lastFailedAt !== undefined &&
     lastRunAt !== undefined &&

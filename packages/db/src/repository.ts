@@ -440,6 +440,7 @@ export class DionysusRepository {
               a.name as agent_name,
               tr.cli_type,
               coalesce(nullif(tr.cli_model, ''), 'default/unknown') as cli_model,
+              g.status as goal_status,
               tr.status,
               count(*)::int as cli_calls,
               sum(coalesce(tr.model_call_count, case when tr.cli_type = 'mock' then 0 else 1 end))::int as model_calls,
@@ -454,6 +455,7 @@ export class DionysusRepository {
                 a.name,
                 tr.cli_type,
                 coalesce(nullif(tr.cli_model, ''), 'default/unknown'),
+                g.status,
                 tr.status
        order by run_at asc`,
       params
@@ -477,7 +479,8 @@ export class DionysusRepository {
         status: String(row.status),
         cliCalls: Number(row.cli_calls),
         modelCalls: Number(row.model_calls),
-        runAt: row.run_at ? new Date(row.run_at).toISOString() : null
+        runAt: row.run_at ? new Date(row.run_at).toISOString() : null,
+        goalStatus: row.goal_status ? String(row.goal_status) : null
       }))
     });
   }

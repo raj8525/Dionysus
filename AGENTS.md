@@ -103,7 +103,7 @@ pnpm dionysus codex reconcile
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
-`system audit` 是 Codex 开始或继续操作目标项目的首选产品化入口。它会合并 readiness、Agent CLI usage、Codex outbox 和可选 goal status，输出 `ready` / `needs_attention` / `blocked`、风险说明和下一条命令。不要只凭 `doctor` 正常或某个 Agent 还在 working 判断系统能推进；如果 audit 显示 `needs_attention`，先处理 pending outbox、当前高失败率角色、最近一次 CLI 失败且尚未恢复的角色、运行中调用或真实模型调用证据缺口。已被后续成功 run 证明恢复的历史失败应进入 `notes`，不能永久阻断当前模块派工。
+`system audit` 是 Codex 开始或继续操作目标项目的首选产品化入口。它会合并 readiness、Agent CLI usage、Codex outbox 和可选 goal status，输出 `ready` / `needs_attention` / `blocked`、风险说明和下一条命令。不要只凭 `doctor` 正常或某个 Agent 还在 working 判断系统能推进；如果 audit 显示 `needs_attention`，先处理 pending outbox、当前高失败率角色、未关闭 goal 中最近一次 CLI 失败且尚未恢复的角色、运行中调用或真实模型调用证据缺口。已被后续成功 run 证明恢复的历史失败应进入 `notes`；已关闭 goal 的失败只保留在成本统计中，不应长期阻断当前模块派工。
 
 `fastlane --report-only` 用于只读审计、模块验收、缺口扫描、方案评审等不应产生 patch 的任务。该模式下 Worker 必须只输出证据报告，不得修改文件；Reviewer 评审的是 Worker report 的证据强度和可执行性，而不是 integration patch。不要用普通 patch fast lane 承载审计任务，否则低成本 Agent 会被“产出 patch”门禁误导。
 

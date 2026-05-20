@@ -135,6 +135,42 @@ describe("buildAgentCliUsageSummary", () => {
     });
   });
 
+  it("keeps closed-goal failures in total usage without treating them as active-goal risk", () => {
+    const summary = buildAgentCliUsageSummary({
+      rows: [
+        {
+          role: "worker",
+          agentId: "worker-a",
+          agentName: "WorkerA",
+          cliType: "opencode",
+          cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+          status: "failed",
+          goalStatus: "done",
+          runAt: "2026-05-20T10:18:36.603Z"
+        },
+        {
+          role: "worker",
+          agentId: "worker-a",
+          agentName: "WorkerA",
+          cliType: "opencode",
+          cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+          status: "succeeded",
+          goalStatus: "fast_lane",
+          runAt: "2026-05-20T08:53:58.360Z"
+        }
+      ]
+    });
+
+    expect(summary.activeGoalRunTracking).toBe(true);
+    expect(summary.byAgent[0]).toMatchObject({
+      failedCalls: 1,
+      lastFailedAt: "2026-05-20T10:18:36.603Z",
+      latestActiveRunAt: "2026-05-20T08:53:58.360Z",
+      latestActiveSucceededAt: "2026-05-20T08:53:58.360Z",
+      latestActiveFailedAt: undefined
+    });
+  });
+
   it("uses persisted model call counts before falling back to inferred CLI calls", () => {
     const summary = buildAgentCliUsageSummary({
       rows: [

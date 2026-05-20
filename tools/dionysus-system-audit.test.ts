@@ -176,6 +176,47 @@ describe("Dionysus system audit summary", () => {
     expect(summary.nextAction).toContain("先查看最近失败");
   });
 
+  it("does not warn on recent historical failures when active-goal usage has recovered", () => {
+    const summary = buildSystemAuditSummary({
+      targetRoot: "/repo/Coupon",
+      readiness: readyReadiness(),
+      usage: {
+        activeGoalRunTracking: true,
+        totals: {
+          cliCalls: 80,
+          modelCalls: 80,
+          runningCalls: 0,
+          succeededCalls: 70,
+          failedCalls: 10,
+          lastRunAt: "2026-05-20T10:18:36.603Z",
+          lastSucceededAt: "2026-05-20T08:53:58.360Z",
+          lastFailedAt: "2026-05-20T10:18:36.603Z",
+          latestActiveRunAt: "2026-05-20T08:53:58.360Z",
+          latestActiveSucceededAt: "2026-05-20T08:53:58.360Z"
+        },
+        byCli: [{ cliType: "opencode", cliCalls: 80, modelCalls: 80, succeededCalls: 70, failedCalls: 10 }],
+        byAgent: [
+          {
+            role: "worker",
+            cliCalls: 79,
+            modelCalls: 79,
+            succeededCalls: 64,
+            failedCalls: 15,
+            lastRunAt: "2026-05-20T10:18:36.603Z",
+            lastSucceededAt: "2026-05-20T08:53:58.360Z",
+            lastFailedAt: "2026-05-20T10:18:36.603Z",
+            latestActiveRunAt: "2026-05-20T08:53:58.360Z",
+            latestActiveSucceededAt: "2026-05-20T08:53:58.360Z"
+          }
+        ]
+      },
+      pendingCodexOutbox: []
+    });
+
+    expect(summary.warnings).not.toContain("worker 最近一次 CLI 运行失败，尚无后续成功恢复证据");
+    expect(summary.nextAction).toContain("可以启动或继续一个完整模块");
+  });
+
   it("is ready when runtime, target project, real CLI usage, and Codex outbox are clean", () => {
     const summary = buildSystemAuditSummary({
       targetRoot: "/repo/Coupon",

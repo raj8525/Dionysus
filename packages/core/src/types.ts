@@ -26,6 +26,9 @@ export interface AgentCliModelUsage {
   lastRunAt?: string;
   lastSucceededAt?: string;
   lastFailedAt?: string;
+  latestActiveRunAt?: string;
+  latestActiveSucceededAt?: string;
+  latestActiveFailedAt?: string;
 }
 
 export interface AgentCliUsage {
@@ -38,6 +41,9 @@ export interface AgentCliUsage {
   lastRunAt?: string;
   lastSucceededAt?: string;
   lastFailedAt?: string;
+  latestActiveRunAt?: string;
+  latestActiveSucceededAt?: string;
+  latestActiveFailedAt?: string;
   models: AgentCliModelUsage[];
 }
 
@@ -55,6 +61,9 @@ export interface AgentInstanceCliUsage {
   lastRunAt?: string;
   lastSucceededAt?: string;
   lastFailedAt?: string;
+  latestActiveRunAt?: string;
+  latestActiveSucceededAt?: string;
+  latestActiveFailedAt?: string;
   models: AgentCliModelUsage[];
 }
 
@@ -68,12 +77,16 @@ export interface CliUsage {
   lastRunAt?: string;
   lastSucceededAt?: string;
   lastFailedAt?: string;
+  latestActiveRunAt?: string;
+  latestActiveSucceededAt?: string;
+  latestActiveFailedAt?: string;
 }
 
 export interface AgentCliUsageSummary {
   goalId?: string;
   targetRoot?: string;
   generatedAt: string;
+  activeGoalRunTracking?: boolean;
   totals: {
     cliCalls: number;
     modelCalls: number;
@@ -81,6 +94,9 @@ export interface AgentCliUsageSummary {
     succeededCalls: number;
     failedCalls: number;
     distinctModels: number;
+    latestActiveRunAt?: string;
+    latestActiveSucceededAt?: string;
+    latestActiveFailedAt?: string;
   };
   byAgent: AgentCliUsage[];
   byAgentInstance: AgentInstanceCliUsage[];
