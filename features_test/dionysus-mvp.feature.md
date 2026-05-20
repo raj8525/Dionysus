@@ -33,6 +33,10 @@ And pid 文件必须写入 `.dionysus/pids/`
 And 日志必须写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`
 And CLI 必须等待 API `/health` 可访问后才返回
 And Codex 可以立刻执行依赖 API 的下一条命令，不需要手动 `sleep`
+And `/health` 必须暴露 API Runtime 的 `runtime.codeCommitSha`
+And Worker health 必须暴露 Worker Runtime 的 `runtime.codeCommitSha`
+When 当前 API 或 Worker Runtime 的 `codeCommitSha` 落后于 Dionysus 仓库 `HEAD`
+Then `pnpm dionysus system runtime heal` 必须重启 runtime
 When Codex 运行 `pnpm dionysus system runtime status`
 Then CLI 必须显示 API 与 Worker 是否仍在运行
 When Codex 运行 `pnpm dionysus system runtime stop`

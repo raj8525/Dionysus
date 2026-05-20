@@ -174,7 +174,7 @@ Agent Runtime 执行任务时以 PostgreSQL `agent_cli_configs` 为准。`.env` 
 
 如果 API 或 Worker 未启动，先运行 `pnpm dionysus system runtime start`。它会以本地后台进程启动 API 与 Worker，pid 写入 `.dionysus/pids/`，日志写入 `.dionysus/logs/api.log` 与 `.dionysus/logs/worker.log`，并等待 API `/health.ok=true` 后才返回。停止时使用 `pnpm dionysus system runtime stop`，不要手动留下孤儿进程。
 
-如果 doctor/readiness 显示 `Worker Runtime 未就绪`、`worker.status=stale`、pid 缺失，或 worker 心跳中的 `runtime.codeCommitSha` 不是当前 Dionysus 仓库 HEAD，优先运行 `pnpm dionysus system runtime heal`。它会在进程缺失时启动缺失进程，在 Worker 心跳过期但进程仍存在时重启 runtime，在运行时仍是旧 commit 时也会重启 runtime；自愈后必须再跑 `pnpm dionysus system doctor --brief`，不要只反复运行 readiness。
+如果 doctor/readiness 显示 `Worker Runtime 未就绪`、`worker.status=stale`、pid 缺失，或 `/health.runtime.codeCommitSha` / `worker.runtime.codeCommitSha` 不是当前 Dionysus 仓库 HEAD，优先运行 `pnpm dionysus system runtime heal`。它会在进程缺失时启动缺失进程，在 Worker 心跳过期但进程仍存在时重启 runtime，在 API 或 Worker Runtime 仍是旧 commit 时也会重启 runtime；自愈后必须再跑 `pnpm dionysus system doctor --brief`，不要只反复运行 readiness。
 
 ## Integration 文件范围与受保护文件门禁
 

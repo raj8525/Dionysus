@@ -14,6 +14,12 @@ GET /health
 {
   "ok": true,
   "service": "dionysus-api",
+  "runtime": {
+    "pid": 12345,
+    "runtimeInstanceId": "30d40bf9-918b-4606-b665-3ebc169a560d",
+    "runtimeStartedAt": "2026-05-16T11:59:30.000Z",
+    "codeCommitSha": "69d762523ba948eef31b40db9b1be1b6bf5c5131"
+  },
   "database": {
     "ok": true,
     "schema": "dionysus",
@@ -36,6 +42,8 @@ GET /health
 ```
 
 Worker Runtime 必须在启动时写入 `worker.started` system event，并按 `DIONYSUS_WORKER_HEARTBEAT_INTERVAL_SECONDS` 定时写入 `worker.heartbeat`。API 使用 `DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS` 判断心跳是否过期。
+
+API Runtime 必须在 `/health.runtime` 暴露自身 `pid`、`runtimeInstanceId`、`runtimeStartedAt` 和 `codeCommitSha`。`system runtime heal` 必须同时比较 `/health.runtime.codeCommitSha` 与 `/health.worker.runtime.codeCommitSha` 是否等于当前仓库 `HEAD`；任一进程仍运行旧 commit 时都必须重启 runtime，防止 Codex 以为新的 API 门禁或 Worker 门禁已生效但实际仍在旧代码上运行。
 
 ## Goals
 
@@ -186,7 +194,7 @@ pnpm dionysus codex ack --event-id "<event-id>"
 
 `system runtime start` 必须本地启动 API 与 Worker 后台进程，并把 pid/log 位置返回给 Codex；返回前必须等待 API `/health` 至少可访问，避免 Codex 紧接着执行 `agent config list`、`goal status` 等 API 命令时遇到 `fetch failed` 竞态；`status` 必须基于 pid 文件检查进程是否仍在运行；`stop` 必须停止由 Dionysus 管理的 API 与 Worker。这个能力不依赖 API 已经可用，因为它用于修复 `fetch failed` 级别的基础阻断。
 
-`system runtime heal` 必须读取当前 Dionysus 仓库 `git rev-parse HEAD`，并与 `/health.worker.runtime.codeCommitSha` 比较。只要 worker 进程仍在运行旧 commit，即使 `/health.ok=true` 且心跳未过期，也必须执行 runtime restart，防止 Codex 以为新门禁已经生效但实际 Worker 仍运行旧代码。
+`system runtime heal` 必须读取当前 Dionysus 仓库 `git rev-parse HEAD`，并与 `/health.runtime.codeCommitSha` 和 `/health.worker.runtime.codeCommitSha` 比较。只要 API 或 Worker 进程仍在运行旧 commit，即使 `/health.ok=true` 且心跳未过期，也必须执行 runtime restart，防止 Codex 以为新门禁已经生效但实际运行时仍是旧代码。
 
 `reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。
 

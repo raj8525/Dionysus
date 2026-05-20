@@ -3,6 +3,9 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { resolve } from "node:path";
+import { promisify } from "node:util";
 import { createPool, DionysusRepository, loadDatabaseConfig } from "@dionysus/db";
 import { checkRabbitMqHealth, publishJson } from "@dionysus/mq";
 import {
@@ -142,6 +145,9 @@ const codexCompleteTaskSchema = z.object({
 });
 
 const workerHealthMaxAgeSeconds = Number.parseInt(process.env.DIONYSUS_WORKER_HEALTH_MAX_AGE_SECONDS ?? "90", 10);
+const execFileAsync = promisify(execFile);
+const apiRuntimeStartedAt = new Date().toISOString();
+const apiRuntimeInstanceId = randomUUID();
 
 const watchdogRunSchema = z.object({
   runningTimeoutMinutes: z.number().int().positive().max(24 * 60).default(15),
@@ -185,6 +191,8 @@ const systemEventCreateSchema = z.object({
 export interface BuildServerOptions {
   repo?: DionysusRepository;
   publishJson?: typeof publishJson;
+  checkRabbitMqHealth?: typeof checkRabbitMqHealth;
+  apiCodeCommitSha?: string;
   logger?: boolean;
 }
 
@@ -193,7 +201,9 @@ export async function buildServer(options: BuildServerOptions = {}) {
   const pool: ReturnType<typeof createPool> | null = dbConfig ? createPool(dbConfig) : null;
   const repo = options.repo ?? new DionysusRepository(pool as ReturnType<typeof createPool>, dbConfig?.schema ?? "dionysus");
   const publish = options.publishJson ?? publishJson;
+  const checkRabbit = options.checkRabbitMqHealth ?? checkRabbitMqHealth;
   const app = Fastify({ logger: options.logger ?? true });
+  const apiCodeCommitSha = options.apiCodeCommitSha ?? await readDionysusCodeCommitSha();
 
   await app.register(cors, {
     origin: true,
@@ -207,7 +217,7 @@ export async function buildServer(options: BuildServerOptions = {}) {
   app.get("/health", async () => {
     const [database, rabbitmq, workerEvents, workerRoleConfig] = await Promise.all([
       repo.healthCheck(),
-      checkRabbitMqHealth(),
+      checkRabbit(),
       repo.listSystemEvents({ eventPrefix: "worker.", limit: 5 }) as Promise<Array<{
         eventType: string;
         createdAt: string;
@@ -232,6 +242,12 @@ export async function buildServer(options: BuildServerOptions = {}) {
     return {
       ok: database.ok && rabbitmq.ok && workerWithEffectiveConfig.ok,
       service: "dionysus-api",
+      runtime: {
+        pid: process.pid,
+        runtimeInstanceId: apiRuntimeInstanceId,
+        runtimeStartedAt: apiRuntimeStartedAt,
+        codeCommitSha: apiCodeCommitSha
+      },
       database,
       rabbitmq,
       worker: workerWithEffectiveConfig
@@ -1657,6 +1673,16 @@ function summarizeStatuses(records: Array<{ status?: unknown }>): {
     total: records.length,
     byStatus
   };
+}
+
+async function readDionysusCodeCommitSha(): Promise<string | undefined> {
+  const repoRoot = resolve(process.cwd(), "../..");
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, timeout: 10_000 });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

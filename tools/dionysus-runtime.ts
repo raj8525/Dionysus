@@ -110,6 +110,19 @@ export function buildRuntimeHealPlan(input: {
   }
 
   const health = record(input.health);
+  const apiCodeCommitSha = readApiCodeCommitSha(health);
+  if (
+    input.currentCodeCommitSha
+    && apiCodeCommitSha
+    && apiCodeCommitSha !== input.currentCodeCommitSha
+  ) {
+    return {
+      action: "restart",
+      reason: `api runtime commit stale: ${apiCodeCommitSha} != ${input.currentCodeCommitSha}`,
+      nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+    };
+  }
+
   const worker = record(health.worker);
   if (worker.ok === false) {
     return {
@@ -314,6 +327,15 @@ function readWorkerCodeCommitSha(worker: Record<string, unknown>): string | unde
   const runtime = record(worker.runtime);
   const metadata = record(worker.metadata);
   const value = runtime.codeCommitSha ?? metadata.codeCommitSha ?? worker.codeCommitSha;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readApiCodeCommitSha(health: Record<string, unknown>): string | undefined {
+  const runtime = record(health.runtime);
+  const metadata = record(health.metadata);
+  const api = record(health.api);
+  const apiRuntime = record(api.runtime);
+  const value = runtime.codeCommitSha ?? metadata.codeCommitSha ?? apiRuntime.codeCommitSha ?? api.codeCommitSha;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
