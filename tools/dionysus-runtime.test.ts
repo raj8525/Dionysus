@@ -44,7 +44,7 @@ describe("Dionysus runtime process management", () => {
     });
   });
 
-  it("starts missing runtime processes during heal", () => {
+  it("restarts partial runtime processes during heal to keep API and Worker on the same commit", () => {
     expect(buildRuntimeHealPlan({
       processStatus: {
         ok: false,
@@ -54,8 +54,24 @@ describe("Dionysus runtime process management", () => {
         ]
       }
     })).toEqual({
+      action: "restart",
+      reason: "partial runtime process set not running: worker",
+      nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+    });
+  });
+
+  it("starts runtime processes when every managed process is stopped", () => {
+    expect(buildRuntimeHealPlan({
+      processStatus: {
+        ok: false,
+        processes: [
+          { name: "api", pid: 101, running: false, pidFile: "api.pid", logFile: "api.log" },
+          { name: "worker", pid: 202, running: false, pidFile: "worker.pid", logFile: "worker.log" }
+        ]
+      }
+    })).toEqual({
       action: "start",
-      reason: "process not running: worker",
+      reason: "process not running: api, worker",
       nextAction: "运行 pnpm dionysus system runtime start"
     });
   });

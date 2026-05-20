@@ -98,10 +98,16 @@ export function buildRuntimeHealPlan(input: {
   currentCodeCommitSha?: string;
 }): RuntimeHealPlan {
   if (!input.processStatus.ok) {
-    const stopped = input.processStatus.processes
-      .filter((process) => !process.running)
-      .map((process) => process.name)
-      .join(", ");
+    const stoppedProcesses = input.processStatus.processes.filter((process) => !process.running);
+    const runningProcesses = input.processStatus.processes.filter((process) => process.running);
+    const stopped = stoppedProcesses.map((process) => process.name).join(", ");
+    if (runningProcesses.length > 0 && stoppedProcesses.length > 0) {
+      return {
+        action: "restart",
+        reason: stopped ? `partial runtime process set not running: ${stopped}` : "partial runtime process set",
+        nextAction: "重启 Dionysus runtime 并重新检查 doctor/readiness"
+      };
+    }
     return {
       action: "start",
       reason: stopped ? `process not running: ${stopped}` : "runtime process missing",

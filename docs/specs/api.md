@@ -196,6 +196,8 @@ pnpm dionysus codex ack --event-id "<event-id>"
 
 `system runtime heal` 必须读取当前 Dionysus 仓库 `git rev-parse HEAD`，并与 `/health.runtime.codeCommitSha` 和 `/health.worker.runtime.codeCommitSha` 比较。只要 API 或 Worker 进程仍在运行旧 commit，即使 `/health.ok=true` 且心跳未过期，也必须执行 runtime restart，防止 Codex 以为新门禁已经生效但实际运行时仍是旧代码。
 
+如果 runtime 进程集合不完整，例如 API 仍在运行但 Worker 缺失，`system runtime heal` 必须执行整体 restart，而不是只补齐缺失进程。这样可以保证 API 与 Worker 来自同一提交，避免“旧 API + 新 Worker”或“新 API + 旧 Worker”的混合运行态。
+
 `reconcile` 必须检查 pending `blocker` 事件中携带的 `integrationId`。如果对应 `integration_queue.status = passed`，说明阻塞根因已被后续 retry 或 patch 解决，系统必须自动将该 Outbox 事件标记为 `acked`，并写入 `codex.outbox_reconciled` system event。
 
 `reconcile` 还必须检查 pending `blocker` 所属 goal 的状态。如果 goal 已经是 `done` 或 `cancelled`，该 blocker 已不再代表当前可执行工作，也必须自动标记为 `acked`。`failed` goal 的 blocker 不得自动关闭，因为失败目标仍需要 Codex 或人类判断。`heartbeat` 必须先调用 reconcile，再返回剩余 pending 事件，防止 Codex 继续处理陈旧 blocker。
