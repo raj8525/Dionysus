@@ -23,6 +23,7 @@ import {
   mergeIntegrationVerificationCommands,
   parseCliUsageReceipt,
   resolveAgentRunConfig,
+  evaluateReportOnlyReviewerOutputGate,
   shouldDispatchAfterIntegration,
   decideTargetMutationHandling,
   queueForRole,
@@ -192,8 +193,29 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       }
     }
 
+    let effectiveExitCode = result.exitCode;
+    const reviewerOutputGate = evaluateReportOnlyReviewerOutputGate({
+      taskTitle: taskContext.task.title,
+      taskDescription: taskContext.task.description,
+      output: `${result.stdout}\n${result.stderr}`
+    });
+    if (result.exitCode === 0 && !reviewerOutputGate.allowed) {
+      effectiveExitCode = 1;
+      await repo.appendRunLog(
+        runId,
+        "stderr",
+        `Dionysus reviewer output gate failed: ${reviewerOutputGate.reason}`,
+        97
+      );
+      await repo.recordTaskEvent(message.task_id, "reviewer.output_gate_failed", {
+        reason: reviewerOutputGate.reason,
+        missingFields: reviewerOutputGate.missingFields ?? [],
+        requiredAction: "ReviewerCLI must return the required structured Verdict/Score/Evidence/Coverage/Required fixes/Codex handoff report before Dionysus can mark it reviewable."
+      });
+    }
+
     let queuedPatchId: string | null = null;
-    if (result.exitCode === 0 && message.goal_id) {
+    if (effectiveExitCode === 0 && message.goal_id) {
       const patch = await createWorkspacePatch({ workspacePath: workspace.workspacePath });
       if (patch.patchText.trim().length > 0) {
         const allowedFiles = parseAllowedFileScope(taskContext.task.description);
@@ -222,11 +244,11 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     await repo.completeTaskRun({
       taskId: message.task_id,
       runId,
-      exitCode: result.exitCode,
+      exitCode: effectiveExitCode,
       modelCallCount: usageReceipt?.modelCalls,
       modelUsageJson: usageReceipt?.raw
     });
-    const dispatchDecision = decidePostRunDispatch({ exitCode: result.exitCode, queuedPatchId });
+    const dispatchDecision = decidePostRunDispatch({ exitCode: effectiveExitCode, queuedPatchId });
     if (dispatchDecision.action === "dispatch_next") {
       await dispatchNextTask(message.task_id);
     } else if (dispatchDecision.action === "wait_for_integration") {
@@ -244,7 +266,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       message_id: randomUUID(),
       goal_id: message.goal_id,
       task_id: message.task_id,
-      type: result.exitCode === 0 ? "worker_completed" : "worker_failed",
+      type: effectiveExitCode === 0 ? "worker_completed" : "worker_failed",
       attempt: message.attempt,
       idempotency_key: `${message.task_id}:integration:${message.attempt}`,
       created_at: new Date().toISOString()

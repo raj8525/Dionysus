@@ -197,6 +197,15 @@ And Runtime 构建 Reviewer prompt 时必须展示 `Worker Report Evidence`
 And Reviewer 必须先审查这些 Worker 报告，不能用重新探索代码替代审核
 And 如果没有 Worker 报告证据，Reviewer 必须返回 `BLOCKED`
 
+## 场景 6.5.4.2：Report-only Reviewer 输出缺少结构化结论不得进入 needs_review
+
+Given 一个 report-only FastLane Reviewer 任务正在运行
+When CLI 进程返回 `exit_code=0`，但 stdout / stderr 中缺少 `Verdict:`、`Score:`、`Evidence reviewed:`、`Coverage gaps:`、`Required fixes:` 或 `Codex handoff:`
+Then Worker Runtime 必须把该 run 按失败收口
+And task 不得进入 `needs_review`
+And task event 必须写入 `reviewer.output_gate_failed`
+And Dashboard / Codex 不得把“需要我继续做什么？”这类未完成输出当成有效 Reviewer 门禁
+
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
 
 Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode

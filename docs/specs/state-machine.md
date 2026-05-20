@@ -55,6 +55,7 @@ cancelled
 - 只有 `task review --verdict approve` 才能将任务标记为 `done` 并放行下一条 created task。
 - `FastLane Reviewer` 任务执行 90 分质量门禁；`task review --verdict approve` 必须携带 `score >= 90`，否则 API 必须拒绝状态迁移。
 - `--report-only` fast lane 的 Reviewer 入队前，Dionysus 必须把同一 goal 下已产出的 FastLane Worker run logs 摘要写入 Reviewer 任务事件 `reviewer.worker_reports_evidence`。Reviewer prompt 必须优先展示这些 Worker 报告证据；如果没有 Worker report evidence，Reviewer 必须判定为 `BLOCKED`，不得通过重新探索代码假装已经审核 Worker 产物。
+- `--report-only` fast lane 的 Reviewer 即使 CLI 进程 `exit_code=0`，也必须通过 Runtime 结构化输出门禁。输出必须包含 `Verdict:`、`Score:`、`Evidence reviewed:`、`Coverage gaps:`、`Required fixes:`、`Codex handoff:`，且 `Verdict` 只能是 `PASS` 或 `BLOCKED`，`Score` 必须是 0-100 数字。缺失或格式非法时，该 run 必须按失败处理，task 不得进入 `needs_review`，并写入 `reviewer.output_gate_failed` 事件。
 - `task review --verdict reject` 只能把当前任务退回 `queued` 并重跑当前任务，不得放行下一任务。
 - `task review --verdict block` 只能把当前任务标记为 `blocked`，不得放行下一任务。
 - 同一任务第 10 次 `task review --verdict reject` 后必须强制进入 `blocked`，并写入 Codex Outbox `blocker`，由 Codex 亲自接手；不得继续 requeue WorkerCLI。

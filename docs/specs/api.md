@@ -471,6 +471,19 @@ event_type = reviewer.worker_reports_evidence
 
 该事件必须至少包含 `workerReports[]`、`taskId`、`taskTitle`、`taskStatus`、`runId`、`runStatus` 和 `logExcerpt`。Worker Runtime 构建 Reviewer prompt 时必须展示该证据区块，要求 Reviewer 先审核 Worker 报告。若 `workerReports` 为空，Reviewer 必须返回 `BLOCKED`，不能用重新探索代码替代对 Worker 产物的审核。
 
+Runtime 必须对 `--report-only` FastLane Reviewer 的最终输出执行结构化门禁。CLI 进程正常退出仍不足以证明 Reviewer 完成审查；输出必须包含：
+
+```text
+Verdict: PASS|BLOCKED
+Score: <0-100>
+Evidence reviewed: <files/tests/logs/commands cited by Worker>
+Coverage gaps: <concrete list or none>
+Required fixes: <concrete list or none>
+Codex handoff: <what Codex must decide or verify next>
+```
+
+如果缺少任一字段，或 `Verdict` / `Score` 格式非法，Runtime 必须把本次 run 按失败收口，写入 `reviewer.output_gate_failed` task event，task 不得进入 `needs_review`。这可以阻止 ReviewerCLI 输出“需要我继续做什么？”这类未完成报告后被 Dashboard 或 Codex 当作有效门禁。
+
 `system audit` 是 Codex 的高层运行判断入口。它必须合并 `system readiness`、`agent usage`、pending `codex_outbox` 和可选 goal 聚合状态，返回 `ready` / `needs_attention` / `blocked`、`blockers`、`warnings`、`notes`、`nextAction`、`nextCommands` 和 evidence。`readiness.blocked` 必须直接阻断派工；pending outbox、真实模型调用证据缺失、运行中调用、当前高失败率角色必须进入 `needs_attention`，由 Codex 先处理风险再扩大并发。`agent usage` 必须暴露最后成功和最后失败时间；如果某角色历史失败率偏高但最近一次运行已经成功，audit 必须将其降级为 `notes`，不能让已恢复的历史失败永久阻断当前派工判断。
 
 `task review` 请求体支持 `score`。普通 Worker 任务可由 Codex 直接 approve；`FastLane Reviewer` 任务执行 90 分质量门禁，`approve` 必须携带 `score >= 90`。缺少 `score` 或 `score < 90` 时 API 必须返回 `409 REVIEWER_SCORE_GATE_BLOCKED`，要求 Codex 改用 `--verdict reject` 并把具体修复项交回 WorkerCLI。
