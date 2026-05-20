@@ -139,6 +139,43 @@ describe("Dionysus system audit summary", () => {
     expect(summary.notes).toContain("test_writer 曾有较高历史失败率：12/21，但最近一次运行已成功");
   });
 
+  it("requires attention when a role's latest run failed even if the historical failure rate is acceptable", () => {
+    const summary = buildSystemAuditSummary({
+      targetRoot: "/repo/Coupon",
+      readiness: readyReadiness(),
+      usage: {
+        totals: {
+          cliCalls: 80,
+          modelCalls: 80,
+          runningCalls: 0,
+          succeededCalls: 70,
+          failedCalls: 10,
+          lastRunAt: "2026-05-20T10:18:36.603Z",
+          lastSucceededAt: "2026-05-20T08:53:58.360Z",
+          lastFailedAt: "2026-05-20T10:18:36.603Z"
+        },
+        byCli: [{ cliType: "opencode", cliCalls: 80, modelCalls: 80, succeededCalls: 70, failedCalls: 10 }],
+        byAgent: [
+          {
+            role: "worker",
+            cliCalls: 79,
+            modelCalls: 79,
+            succeededCalls: 64,
+            failedCalls: 15,
+            lastRunAt: "2026-05-20T10:18:36.603Z",
+            lastSucceededAt: "2026-05-20T08:53:58.360Z",
+            lastFailedAt: "2026-05-20T10:18:36.603Z"
+          }
+        ]
+      },
+      pendingCodexOutbox: []
+    });
+
+    expect(summary.status).toBe("needs_attention");
+    expect(summary.warnings).toContain("worker 最近一次 CLI 运行失败，尚无后续成功恢复证据");
+    expect(summary.nextAction).toContain("先查看最近失败");
+  });
+
   it("is ready when runtime, target project, real CLI usage, and Codex outbox are clean", () => {
     const summary = buildSystemAuditSummary({
       targetRoot: "/repo/Coupon",

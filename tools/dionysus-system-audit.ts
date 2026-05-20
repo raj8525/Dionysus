@@ -91,6 +91,10 @@ export function buildSystemAuditSummary(input: {
   if (runningCalls > 0) {
     warnings.push(`仍有 ${runningCalls} 次 CLI 调用处于运行中，先确认是否卡住或等待结果`);
   }
+  if (hasUnrecoveredLatestFailure(totals)) {
+    warnings.push("整体最近一次 CLI 运行失败，尚无后续成功恢复证据");
+    nextCommands.add(buildUsageCommand(input.targetRoot));
+  }
   if (cliCalls >= 10 && failedCalls / cliCalls >= 0.3) {
     if (isRecoveredBucket(totals)) {
       notes.push(`整体曾有较高历史失败率：${failedCalls}/${cliCalls}，但最近一次运行已成功`);
@@ -103,6 +107,10 @@ export function buildSystemAuditSummary(input: {
   for (const bucket of input.usage?.byAgent ?? []) {
     const bucketCalls = numberOrZero(bucket.cliCalls);
     const bucketFailures = numberOrZero(bucket.failedCalls);
+    if (hasUnrecoveredLatestFailure(bucket)) {
+      warnings.push(`${bucket.role ?? "unknown-agent"} 最近一次 CLI 运行失败，尚无后续成功恢复证据`);
+      nextCommands.add(buildUsageCommand(input.targetRoot));
+    }
     if (bucketCalls >= 5 && bucketFailures / bucketCalls >= 0.3) {
       if (isRecoveredBucket(bucket)) {
         notes.push(`${bucket.role ?? "unknown-agent"} 曾有较高历史失败率：${bucketFailures}/${bucketCalls}，但最近一次运行已成功`);
@@ -155,6 +163,9 @@ function buildAttentionAction(warnings: string[]): string {
   if (warnings.some((warning) => warning.includes("失败率偏高"))) {
     return "先查看高失败角色最近运行日志，必要时调整 prompt、CLI 模型或由 Codex 接手该任务。";
   }
+  if (warnings.some((warning) => warning.includes("最近一次 CLI 运行失败"))) {
+    return "先查看最近失败的 Agent 运行日志，确认是可忽略的历史失败、任务已被 Codex 接手，还是需要调整 prompt、CLI 模型或停止继续派工。";
+  }
   return "先补齐审计证据，确认真实 CLI、模型调用和运行结果后再扩大并发。";
 }
 
@@ -171,6 +182,18 @@ function isRecoveredBucket(bucket?: SystemAuditUsageBucket): boolean {
     lastSucceededAt !== undefined &&
     lastSucceededAt > lastFailedAt &&
     (lastRunAt === undefined || lastRunAt <= lastSucceededAt)
+  );
+}
+
+function hasUnrecoveredLatestFailure(bucket?: SystemAuditUsageBucket): boolean {
+  const lastFailedAt = parseTimestamp(bucket?.lastFailedAt);
+  const lastSucceededAt = parseTimestamp(bucket?.lastSucceededAt);
+  const lastRunAt = parseTimestamp(bucket?.lastRunAt);
+  return Boolean(
+    lastFailedAt !== undefined &&
+    lastRunAt !== undefined &&
+    lastRunAt <= lastFailedAt &&
+    (lastSucceededAt === undefined || lastSucceededAt < lastFailedAt)
   );
 }
 
