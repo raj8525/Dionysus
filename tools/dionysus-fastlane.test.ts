@@ -65,6 +65,29 @@ describe("dionysus fast lane planner", () => {
     expect(plan.tasks.find((task) => task.lane === "reviewer")?.queue).toBe(true);
   });
 
+  it("supports report-only fast lanes without asking Workers to create patches", () => {
+    const plan = buildFastLanePlan({
+      title: "D1里程碑验收缺口审计",
+      description: "只读审计 D1 模块是否完整闭环",
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      workers: [
+        parseFastLaneItem("功能地图审计::输出已闭环/未闭环/证据不足清单；禁止修改文件")
+      ],
+      reviewers: [
+        parseFastLaneItem("产品验收评审::检查审计报告是否证据可追溯")
+      ],
+      reportOnly: true
+    });
+
+    expect(plan.tasks[0].description).toContain("Report-only mode");
+    expect(plan.tasks[0].description).toContain("Do not modify files");
+    expect(plan.tasks[0].description).toContain("No patch is required");
+    expect(plan.tasks[0].description).toContain("A concrete report");
+    expect(plan.tasks[0].description).not.toContain("Produce the smallest reviewable patch");
+    expect(plan.tasks[2]?.description ?? plan.tasks[1].description).toContain("Worker report");
+    expect(plan.nextCommands.join("\n")).toContain("Worker report-only 产出后");
+  });
+
   it("classifies fast lane workers and reviewers by title, not created status", () => {
     expect(isFastLaneWorkerTask({
       title: "FastLane Worker 2: 租户管理 只读 API",

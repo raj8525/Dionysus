@@ -243,7 +243,8 @@ async function main(): Promise<void> {
       targetRoot: requiredFlag(args, "--target-root"),
       workers: readRepeatedFlag(args, "--worker").map(parseFastLaneItem),
       reviewers: readRepeatedFlag(args, "--reviewer").map(parseFastLaneItem),
-      queueReviewers: hasFlag(args, "--queue-reviewers")
+      queueReviewers: hasFlag(args, "--queue-reviewers"),
+      reportOnly: hasFlag(args, "--report-only")
     }));
   }
 
@@ -315,7 +316,8 @@ async function main(): Promise<void> {
       targetRoot,
       workers: readRepeatedFlag(args, "--worker").map(parseFastLaneItem),
       reviewers: readRepeatedFlag(args, "--reviewer").map(parseFastLaneItem),
-      queueReviewers: hasFlag(args, "--queue-reviewers")
+      queueReviewers: hasFlag(args, "--queue-reviewers"),
+      reportOnly: hasFlag(args, "--report-only")
     });
     if (hasFlag(args, "--dry-run")) {
       return print({
@@ -1079,10 +1081,10 @@ function usage(): void {
   tsx tools/dionysus.ts agent config set --role worker --cli opencode --model "minimax/MiniMax-M2.7" --enabled true
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
-  tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面"
+  tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--report-only]
   tsx tools/dionysus.ts fastlane coupon-module-plan --module "身份权限" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/identity.vue" --api "/api/admin/identity/overview" [--html-template "apps/admin-web/html/identity.html"] [--data-only]
   tsx tools/dionysus.ts fastlane coupon-module-start --module "身份权限" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/identity.vue" --api "/api/admin/identity/overview" [--html-template "apps/admin-web/html/identity.html"] [--allow-dirty-path "path/to/existing-change"] [--dry-run] [--data-only]
-  tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
+  tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--report-only] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane status --goal-id "..."
   tsx tools/dionysus.ts fastlane advance --goal-id "..."
   tsx tools/dionysus.ts coupon seed plan --target-root "/Volumes/MacMiniSSD/code/Coupon" --migration "migrations/026_hotel_store_create_fields.sql" --verify-sql "SELECT COUNT(*) FROM tenant_stores;"

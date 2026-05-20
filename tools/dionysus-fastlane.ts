@@ -13,6 +13,7 @@ export interface FastLaneTaskPlan {
 }
 
 export interface FastLanePlan {
+  mode: "patch" | "report_only";
   goal: {
     title: string;
     description: string;
@@ -103,6 +104,7 @@ export function buildFastLanePlan(input: {
   workers: FastLaneItemInput[];
   reviewers?: FastLaneItemInput[];
   queueReviewers?: boolean;
+  reportOnly?: boolean;
 }): FastLanePlan {
   if (!input.title.trim()) {
     throw new Error("fast lane title is required");
@@ -142,6 +144,7 @@ export function buildFastLanePlan(input: {
   }));
 
   return {
+    mode: input.reportOnly ? "report_only" : "patch",
     goal: {
       title: input.title.trim(),
       description: input.description.trim(),
@@ -152,7 +155,9 @@ export function buildFastLanePlan(input: {
       "pnpm dionysus agent status --goal-id <goal-id>",
       "pnpm dionysus agent usage --goal-id <goal-id>",
       "pnpm dionysus codex heartbeat --limit 5",
-      "Worker 产出 patch 并完成 integration 后，再对 Reviewer 任务运行 pnpm dionysus task enqueue --task-id <reviewer-task-id>"
+      input.reportOnly
+        ? "Worker report-only 产出后，再对 Reviewer 任务运行 pnpm dionysus task enqueue --task-id <reviewer-task-id>"
+        : "Worker 产出 patch 并完成 integration 后，再对 Reviewer 任务运行 pnpm dionysus task enqueue --task-id <reviewer-task-id>"
     ]
   };
 }
@@ -359,7 +364,33 @@ function buildWorkerDescription(input: {
   title: string;
   description: string;
   targetRoot: string;
+  reportOnly?: boolean;
 }, worker: FastLaneItemInput, index: number): string {
+  if (input.reportOnly) {
+    return [
+      `Fast lane worker slot: ${index}`,
+      "",
+      "Report-only mode: this task is a read-only audit or planning task.",
+      `Goal: ${input.title.trim()}`,
+      `Goal description: ${input.description.trim()}`,
+      "",
+      `Assigned work: ${worker.title}`,
+      worker.description,
+      "",
+      "Hard rules:",
+      "- Work only inside the Dionysus isolated workspace prepared for this task.",
+      "- Do not modify files, generate patches, push, commit, reset, or directly edit the target main worktree.",
+      "- No patch is required; the required artifact is a concrete report with evidence.",
+      "- Use target project files, tests, docs, command names, and current runtime evidence as citations.",
+      "- Separate proven completion, missing work, weak evidence, contradictions, risks, and recommended next owner.",
+      "- Final line must be exactly: DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}.",
+      "",
+      "Output bar:",
+      "- A concrete report with file paths, commands, evidence strength, risks, and next actions.",
+      "- No generic advice without a traceable source or command."
+    ].join("\n");
+  }
+
   return [
     `Fast lane worker slot: ${index}`,
     "",
@@ -395,7 +426,37 @@ function buildReviewerDescription(input: {
   title: string;
   description: string;
   targetRoot: string;
+  reportOnly?: boolean;
 }, reviewer: FastLaneItemInput, index: number): string {
+  if (input.reportOnly) {
+    return [
+      `Fast lane reviewer slot: ${index}`,
+      "",
+      "Report-only mode: review Worker reports, not integrated patches.",
+      `Goal: ${input.title.trim()}`,
+      `Goal description: ${input.description.trim()}`,
+      "",
+      `Review focus: ${reviewer.title}`,
+      reviewer.description,
+      "",
+      "Hard rules:",
+      "- Review only Worker report artifacts, cited evidence, logs, and commands.",
+      "- Score the report from 0 to 100.",
+      "- Below 90 is BLOCKED and must include concrete follow-up questions or rerun instructions for Worker.",
+      "- 90 or above may be handed to Codex for final product decision, E2E planning, or next fast lane.",
+      "- Do not require a code patch for report-only work.",
+      "- If there is no Worker report yet, mark blocked; do not pretend to review.",
+      "",
+      "Required response format:",
+      "Verdict: PASS|BLOCKED",
+      "Score: <0-100>",
+      "Evidence reviewed: <files/tests/logs/commands cited by Worker>",
+      "Coverage gaps: <concrete list or none>",
+      "Required fixes: <concrete list or none>",
+      "Codex handoff: <what Codex must decide or verify next>"
+    ].join("\n");
+  }
+
   return [
     `Fast lane reviewer slot: ${index}`,
     "",

@@ -176,6 +176,16 @@ And 高失败率角色必须使 audit 返回 `needs_attention` 并给出查看 u
 And 如果高失败率角色的最后一次运行晚于最后一次失败且状态已成功，audit 必须返回 `ready` 并把历史失败写入 `notes`
 And 没有 blocker、没有 warning、且存在真实 CLI / 模型调用证据时，audit 才能返回 `ready`
 
+## 场景 6.5.4：Fast Lane 必须支持只读报告型任务
+
+Given Codex 需要让 WorkerCLI 做模块验收、缺口扫描或方案评审
+When Codex 运行 `pnpm dionysus fastlane start --report-only ...`
+Then Worker prompt 必须明确禁止修改文件
+And Worker prompt 必须说明无需 patch，交付物是证据报告
+And Reviewer prompt 必须评审 Worker report 的证据强度和可执行性
+And Reviewer prompt 不得要求 integration patch
+And nextCommands 必须提示 report-only 产出后再启动 Reviewer
+
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
 
 Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode
