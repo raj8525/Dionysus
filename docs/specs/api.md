@@ -495,6 +495,8 @@ pnpm dionysus fastlane advance --goal-id "<goal-id>"
 
 ReviewerCLI 的启动条件不是“所有 Worker 已由 Codex approve”，而是“所有未取消的 FastLane Worker 都已经产出到 `needs_review` 或已 `done`，且 integration queue 无 `created/queued/running` 项”。这样便宜 ReviewerCLI 可以先审查 Worker 产物，Codex 只在 Reviewer 门禁后做最终裁决。
 
+Coupon 管理后台页面的 fast lane 任务必须带有产品语义门禁。对于存在 HTML 原型且不是 `tenants.vue` / `hotels.vue` 的页面，`coupon-module-plan` 必须自动或显式注入模板对照要求：Worker 需要保留核心信息架构、视觉层级、内容密度、关键按钮/Tab/筛选区、滚动区域和底部区域，但不得机械 100% 复刻 HTML。Worker / Reviewer 都必须按最终用户任务流区分“页内上下文切换”和“明确 CTA”：对象行、Tab、筛选 chip、详情卡片等上下文选择入口优先在当前 Vue 页面内更新右侧/下方详情；进入完整管理页、新增、编辑、审批、审计详情、导出等明确 CTA 才跳转子页面或打开真实弹窗。Reviewer 90 分门禁必须同时检查模板一致性、产品语义、功能入口保真、Playwright/E2E 或截图证据；没有页内上下文切换和明确 CTA 路由/弹窗断言时，不得放行。
+
 `run-cycle` 必须顺序执行 preflight、master-step、detect-milestones，返回当前 blocker、nextOwner、nextActions。提供 `target-url` 时，它可以为待验收 milestone 创建或复用 E2E campaign；只有显式传入 `--run-e2e` 才运行浏览器测试，且 `strict` 模式不得伪造产品主路径通过。
 
 `supervise` 必须按轮次执行 agent status 与 run-cycle，直到出现 runtime blocker、业务 blocker、E2E 需要 Codex 介入，或达到最大轮次。它是 Codex 7x24 监督 Dionysus 的主入口，不能依赖前端刷新。每轮 agent status 必须同时读取 `/health`、`/api/agent-cli-configs`、`/api/agents`、`/api/tasks`、`/api/runs` 和 `/api/usage/agent-cli`，保证 Codex 监督入口、Dashboard 与 CLI usage 统计口径一致。

@@ -365,7 +365,9 @@ Then Dionysus 必须固定生成数据基座、只读 API、Vue 只读首页和 
 And 数据基座任务必须要求先补数据库表结构、完整虚拟数据、契约和 `features_test/`
 And 只读 API 任务必须禁止写接口进入本轮范围
 And Vue 任务必须要求读取真实接口数据并禁止 `v-html`、raw HTML import 或长字符串整页模板
-And ReviewerCLI 必须执行 90 分门禁，检查数据、接口、页面、E2E 证据和本轮无写路径
+And 存在 HTML 原型且不是成熟页面时，Vue 任务必须要求保留模板核心信息架构、视觉层级和内容密度
+And Vue 任务必须要求 Worker 按最终用户任务流区分页内上下文切换和明确 CTA 跳转，不得机械复刻 HTML 或机械禁止所有跳转
+And ReviewerCLI 必须执行 90 分门禁，检查数据、接口、页面、模板一致性、产品语义、功能入口、E2E 证据和本轮无写路径
 
 ## 场景 8.5：Coupon 数据先行模板必须分阶段入队
 

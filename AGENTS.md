@@ -347,6 +347,7 @@ pnpm dionysus fastlane advance --goal-id "<goal-id>"
 - Reviewer 任务 `approve` 必须带 `--score 90` 或更高；低于 90 或没有分数会被 API 以 `REVIEWER_SCORE_GATE_BLOCKED` 拒绝。低于 90 时必须用 `--verdict reject` 并写清 Worker 修复项。
 - 同一任务被 ReviewerCLI 第 10 次 reject 时，Dionysus 会阻断任务并写入 Codex Outbox；Codex 必须亲自接手，不能继续重排 WorkerCLI。
 - Coupon 页面任务必须在 worker prompt 中显式写清：`tenants.vue` 和 `hotels.vue` 保持现有语义与布局，只做必要接口、字段或路由增量；其他页面才参考对应 HTML 模板重写为 Vue。
+- HTML 模板是视觉和信息架构参考，不是不可变交互脚本。Worker / Reviewer 必须按系统功能、系统设计和最终用户任务流判断点击语义：对象行、Tab、筛选 chip、详情卡片等上下文选择入口优先在当前 Vue 页面内更新详情；进入完整管理页、新增、编辑、审批、审计详情、导出等明确 CTA 才跳转子页面或打开真实弹窗。禁止机械 100% 复刻 HTML，也禁止机械把所有点击都改成不跳转。
 - `fastlane status` 必须能明确区分：等待 Worker、等待 Worker review、等待 integration、可启动 Reviewer、等待 Reviewer review、Codex final、blocked、closed。
 - 过程监控固定使用：
 

@@ -1052,8 +1052,8 @@ function usage(): void {
   tsx tools/dionysus.ts agent status --goal-id "..."
   tsx tools/dionysus.ts agent usage --goal-id "..."
   tsx tools/dionysus.ts fastlane plan --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面"
-  tsx tools/dionysus.ts fastlane coupon-module-plan --module "租户管理" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants" [--data-only]
-  tsx tools/dionysus.ts fastlane coupon-module-start --module "租户管理" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/tenants.vue" --api "/api/admin/tenants" [--allow-dirty-path "path/to/existing-change"] [--dry-run] [--data-only]
+  tsx tools/dionysus.ts fastlane coupon-module-plan --module "身份权限" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/identity.vue" --api "/api/admin/identity/overview" [--html-template "apps/admin-web/html/identity.html"] [--data-only]
+  tsx tools/dionysus.ts fastlane coupon-module-start --module "身份权限" --title "..." --description "..." --target-root "/Volumes/MacMiniSSD/code/Coupon" --page "apps/admin-web/src/pages/identity.vue" --api "/api/admin/identity/overview" [--html-template "apps/admin-web/html/identity.html"] [--allow-dirty-path "path/to/existing-change"] [--dry-run] [--data-only]
   tsx tools/dionysus.ts fastlane start --title "..." --description "..." --target-root "/path/to/project" --worker "后端::实现 API" --worker "前端::接入页面" [--reviewer "Reviewer::90分门禁"] [--queue-reviewers] [--allow-dirty-path "path/to/existing-change"] [--dry-run]
   tsx tools/dionysus.ts fastlane status --goal-id "..."
   tsx tools/dionysus.ts fastlane advance --goal-id "..."

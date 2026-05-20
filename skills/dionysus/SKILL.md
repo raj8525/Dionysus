@@ -109,6 +109,21 @@ pnpm -s dionysus fastlane coupon-module-start \
 
 `coupon-module-start` 和普通 `fastlane start` 一样会先执行 readiness，支持 `--allow-dirty-path` 和 `--dry-run`。本模板默认禁止写路径，写接口只能在只读闭环验收后作为下一轮模块里程碑。
 
+管理后台 Vue 页面只要存在对应 HTML 原型，且该页面不是 `tenants.vue` / `hotels.vue` 这种已成熟页面，就必须传 `--html-template`。例如：
+
+```bash
+pnpm -s dionysus fastlane coupon-module-plan \
+  --module "身份权限" \
+  --title "身份权限总览只读闭环" \
+  --description "让最终用户在权限组织总览页看到数据库中的成员、角色、权限、授权和审计数据" \
+  --target-root "/Volumes/MacMiniSSD/code/Coupon" \
+  --page "apps/admin-web/src/pages/identity.vue" \
+  --api "/api/admin/identity/overview" \
+  --html-template "apps/admin-web/html/identity.html"
+```
+
+Dionysus 会把模板结构一致性、产品语义和功能入口保真写入 Worker 与 Reviewer 门禁：Worker 必须保留核心信息架构、视觉层级、内容密度、主次面板结构、关键按钮/Tab/筛选区和滚动区域，并新增或扩展 Playwright/E2E 断言；同时不得为了贴近模板删除或打乱已有真实功能入口。不要机械 100% 复刻 HTML，也不要机械把所有点击都改成不跳转；必须先按最终用户任务流分类点击意图：对象行、Tab、筛选 chip、详情卡片等上下文选择入口优先在当前 Vue 页面内更新右侧/下方详情；进入完整管理页、新增、编辑、审批、审计详情、导出等明确 CTA 才跳转子页面或打开真实弹窗。所有可见链接、按钮、Tab、卡片点击、新增/编辑/授权等入口必须指向已存在 Vue 路由或执行真实函数，不能留下假下拉、假按钮、不可达 URL 或只展示不工作的控件。Reviewer 必须把模板一致性、产品语义与功能入口保真作为 90 分门禁；没有截图、结构断言、页内上下文切换断言和明确 CTA 路由/弹窗断言不得给 90 分以上。
+
 如果本轮目标只是补充主 PostgreSQL 测试数据、状态枚举或 seed，不需要改 API/Vue，必须加 `--data-only`。该模式只创建“数据基座 Worker + 数据基座 ReviewerCLI”，不会派生 API Worker 或 Vue Worker：
 
 ```bash
@@ -241,6 +256,10 @@ Coupon 管理后台固定补充规则：
 - 两个成熟页面都不得整页重写；只允许在明确任务范围内做接口、字段、路由或小范围交互增量。
 - 其他页面迁移 Vue 时参考 `apps/admin-web/html/` 对应模板，但必须重写为动态 Vue 页面。
 - Worker prompt 必须显式写清：禁止 `v-html`、raw HTML import、长字符串整页模板；必须有响应式数据、接口调用、loading、error、empty state 和真实用户交互。
+- 对存在 HTML 原型的页面，Worker prompt 必须显式传入 `--html-template` 或在任务描述中写明模板路径，并要求保留首屏结构、KPI/卡片/面板/表格/标签/按钮/筛选区、滚动区域、底部区域、色彩体系、字体层级、边框/圆角、间距和信息密度；业务原因导致偏离时必须解释。
+- WorkerCLI 必须站在系统功能、系统设计和用户体验的产品视角设计交互；HTML 模板是视觉和信息架构参考，不是不可变的交互脚本。对象选择、分区切换、列表详情联动通常应页内更新；新增、编辑、详情、审批、导出、审计等完整业务动作应进入子页面或打开真实弹窗。
+- WorkerCLI 必须保留和验证既有真实功能入口：可见链接、按钮、Tab、卡片点击、新增/编辑/授权入口必须能路由到已存在页面、打开真实弹窗或执行真实函数；不得产生假下拉、假按钮、不可达 URL 或只展示不工作的控件。
+- ReviewerCLI 必须检查模板结构一致性、视觉风格一致性、产品语义、功能入口保真、无横向溢出、文本不挤压、列表详情联动或刷新持久性，并核查 Playwright/E2E 或截图证据。模板偏离明显、无业务理由、点击行为与用户任务流不符、功能入口丢失、无模板一致性和功能入口断言或截图证据时，必须低于 90 分并 BLOCKED。
 - `tenants.vue` / `hotels.vue` 只允许在明确需要时做接口、路由或小范围交互增量，不允许重新套模板。
 
 优先用 `fastlane start --worker` 创建 Worker。只有需要人工追加任务时才单独创建：

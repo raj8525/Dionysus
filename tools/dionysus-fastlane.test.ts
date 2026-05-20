@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildHtmlTemplateFidelityGate,
   buildCouponDataFirstFastLanePlan,
   buildFastLanePlan,
   buildFastLaneStatus,
   extractFastLaneAdvanceTaskIds,
+  inferCouponHtmlTemplatePath,
+  isMatureCouponAdminPage,
   isFastLaneReviewerTask,
   isFastLaneWorkerTask,
   parseFastLaneItem
@@ -213,7 +216,73 @@ describe("dionysus fast lane planner", () => {
     expect(plan.tasks[1].description).toContain("/api/admin/hotels");
     expect(plan.tasks[2].description).toContain("hotels.vue 当前管理真实酒店门店和部门");
     expect(plan.tasks[2].description).toContain("不得退回集团租户列表语义");
+    expect(plan.tasks[2].description).not.toContain("HTML 模板结构一致性门禁");
+    expect(plan.tasks[2].description).not.toContain("模板对照文件：apps/admin-web/html/hotels.html");
+    expect(plan.tasks[3].description).not.toContain("没有模板一致性和功能入口断言或截图证据时，不得给 90 分以上");
     expect(plan.tasks[2].description).not.toContain("左侧租户点击切换右侧详情");
+  });
+
+  it("injects strict HTML template fidelity gates for non-mature Vue pages with explicit template", () => {
+    const plan = buildCouponDataFirstFastLanePlan({
+      module: "身份权限",
+      title: "身份权限总览模板对齐",
+      description: "让 identity 总览页面接近 HTML 模板风格并读取真实数据",
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      pagePath: "apps/admin-web/src/pages/identity.vue",
+      apiPath: "/api/admin/identity/overview",
+      htmlTemplatePath: "apps/admin-web/html/identity.html"
+    });
+
+    const vueTask = plan.tasks[2].description;
+    const reviewerTask = plan.tasks[3].description;
+    expect(vueTask).toContain("核心信息架构、视觉层级、内容密度、主次面板结构");
+    expect(vueTask).toContain("禁止把页面重做成另一套 glassmorphism");
+    expect(vueTask).toContain("不得机械 100% 复刻 HTML");
+    expect(vueTask).toContain("对象行、Tab、筛选 chip、详情卡片等上下文选择入口优先在当前 Vue 页面内更新右侧/下方详情");
+    expect(vueTask).toContain("明确 CTA 才跳转子页面或打开真实弹窗");
+    expect(vueTask).toContain("不得为了贴近模板删除或打乱既有真实功能入口");
+    expect(vueTask).toContain("不能留下假下拉、假按钮、不可达 URL");
+    expect(vueTask).toContain("无横向溢出");
+    expect(vueTask).toContain("页内上下文切换不突兀跳转");
+    expect(vueTask).toContain("明确 CTA 能进入对应完整子页面/弹窗");
+    expect(vueTask).toContain("Playwright/E2E 检查");
+    expect(reviewerTask).toContain("HTML 模板结构一致性是 90 分门禁的一部分");
+    expect(reviewerTask).toContain("产品语义是 90 分门禁的一部分");
+    expect(reviewerTask).toContain("不能用“所有点击都不跳转”或“所有模板链接都照抄跳转”这种机械规则放行");
+    expect(reviewerTask).toContain("功能入口保真是 90 分门禁的一部分");
+    expect(reviewerTask).toContain("没有模板一致性、产品语义、页内上下文切换和明确 CTA 路由/弹窗断言或截图证据时，不得给 90 分以上");
+  });
+
+  it("infers first-level admin HTML templates for non-mature Vue pages", () => {
+    const plan = buildCouponDataFirstFastLanePlan({
+      module: "身份权限",
+      title: "身份权限总览模板对齐",
+      description: "让 identity 总览页面接近 HTML 模板风格并读取真实数据",
+      targetRoot: "/Volumes/MacMiniSSD/code/Coupon",
+      pagePath: "apps/admin-web/src/pages/identity.vue",
+      apiPath: "/api/admin/identity/overview"
+    });
+
+    expect(inferCouponHtmlTemplatePath("apps/admin-web/src/pages/identity.vue")).toBe("apps/admin-web/html/identity.html");
+    expect(plan.tasks[2].description).toContain("参考模板：apps/admin-web/html/identity.html");
+    expect(plan.tasks[2].description).toContain("HTML 模板结构一致性门禁");
+    expect(plan.tasks[3].description).toContain("功能入口保真是 90 分门禁的一部分");
+  });
+
+  it("suppresses HTML template fidelity gates for mature tenants and hotels pages", () => {
+    expect(isMatureCouponAdminPage("apps/admin-web/src/pages/tenants.vue")).toBe(true);
+    expect(isMatureCouponAdminPage("apps/admin-web/src/pages/hotels.vue")).toBe(true);
+    expect(buildHtmlTemplateFidelityGate("apps/admin-web/src/pages/hotels.vue", "apps/admin-web/html/hotels.html")).toEqual({
+      worker: [],
+      reviewer: []
+    });
+  });
+
+  it("keeps HTML template fidelity gate empty when no template is provided", () => {
+    expect(buildHtmlTemplateFidelityGate("apps/admin-web/src/pages/identity/members.vue")).toEqual({
+      worker: [],
+      reviewer: []
+    });
   });
 
   it("tells Codex to enqueue read-path workers only after the data foundation worker is done", () => {

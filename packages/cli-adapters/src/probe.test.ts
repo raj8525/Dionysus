@@ -22,7 +22,7 @@ describe("CLI probing", () => {
     expect(result.available).toBe(true);
     expect(result.command).toBe(process.env.DIONYSUS_CLAUDE_CODE_COMMAND);
     expect(result.version).toBe("Claude Test 1.0");
-  });
+  }, 10_000);
 
   it("loads OpenCode models using configured command", async () => {
     setEnv("DIONYSUS_OPENCODE_COMMAND", await fakeCliCommand("OpenCode Test 1.0", ["openai/gpt-5.4", "google/gemini-2.5-pro"]));

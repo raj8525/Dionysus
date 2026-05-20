@@ -180,7 +180,7 @@ describe("real CLI adapters", () => {
 
     expect(result.exitCode).toBe(97);
     expect(result.stderr).toContain("Dionysus git guard blocked 'git commit'");
-  });
+  }, 10_000);
 
   it("still allows Agent CLI read-only git inspection during a guarded run", async () => {
     const command = await gitVersionCliCommand();

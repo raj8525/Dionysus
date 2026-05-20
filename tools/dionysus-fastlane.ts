@@ -164,8 +164,9 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
   const targetRoot = requireNonEmpty(input.targetRoot, "coupon fast lane targetRoot is required");
   const pagePath = requireNonEmpty(input.pagePath, "coupon page path is required");
   const apiPath = requireNonEmpty(input.apiPath, "coupon API path is required");
-  const htmlTemplatePath = input.htmlTemplatePath?.trim();
+  const htmlTemplatePath = resolveCouponHtmlTemplatePath(pagePath, input.htmlTemplatePath);
   const maturePageGuard = buildCouponPageGuard(pagePath, htmlTemplatePath);
+  const htmlTemplateFidelityGate = buildHtmlTemplateFidelityGate(pagePath, htmlTemplatePath);
 
   const workers: FastLaneItemInput[] = [
     {
@@ -225,6 +226,7 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
         "- 必须实现 loading、error、empty state、刷新后数据仍一致的行为。",
         "- 必须保留既有成熟交互；如果是列表详情页，点击左侧列表必须更新右侧详情。",
         `- ${maturePageGuard}`,
+        ...htmlTemplateFidelityGate.worker,
         "- 输出浏览器验收步骤、截图路径或 Playwright/E2E 命令。"
       ].join("\n")
     }
@@ -256,6 +258,7 @@ export function buildCouponDataFirstFastLanePlan(input: CouponDataFirstFastLaneI
         input.dataOnly
           ? "- PostgreSQL 验证必须提供 psql 与 docker compose 两种执行方式。"
           : "- Vue 页面是否动态读取接口数据，且没有 HTML 注入或主要静态假数据。",
+        ...htmlTemplateFidelityGate.reviewer,
         input.dataOnly
           ? "- seed 必须幂等，能重复执行且不会重复插入。"
           : "- E2E/手工浏览器证据是否覆盖最终用户主路径和刷新持久性。",
@@ -295,9 +298,61 @@ export function buildCouponPageGuard(pagePath: string, htmlTemplatePath?: string
     return "特别注意：hotels.vue 当前管理真实酒店门店和部门，只允许围绕 tenant_stores / tenant_departments、/api/admin/hotels 和门店部门交互做增量；不得退回集团租户列表语义，不得复制旧租户页。";
   }
   if (htmlTemplatePath) {
-    return "参考 HTML 模板时只能理解信息架构和视觉风格，必须重写为 Vue 响应式数据和组件结构，不得注入整页 HTML。";
+    return "参考 HTML 模板时必须保留核心信息架构、视觉层级、内容密度、主次面板结构和关键交互位置，同时重写为 Vue 响应式数据和组件结构，不得注入整页 HTML，不得换成另一套视觉方案。";
   }
   return "按现有 Vue 页面和项目风格执行；必须重写为 Vue 响应式数据和组件结构，不得注入整页 HTML。";
+}
+
+export function isMatureCouponAdminPage(pagePath: string): boolean {
+  return pagePath.endsWith("tenants.vue") || pagePath.endsWith("hotels.vue");
+}
+
+export function inferCouponHtmlTemplatePath(pagePath: string): string | undefined {
+  if (isMatureCouponAdminPage(pagePath)) {
+    return undefined;
+  }
+  const match = pagePath.match(/^apps\/admin-web\/src\/pages\/([^/]+)\.vue$/);
+  if (!match) {
+    return undefined;
+  }
+  return `apps/admin-web/html/${match[1]}.html`;
+}
+
+export function resolveCouponHtmlTemplatePath(pagePath: string, htmlTemplatePath?: string): string | undefined {
+  if (isMatureCouponAdminPage(pagePath)) {
+    return undefined;
+  }
+  return htmlTemplatePath?.trim() || inferCouponHtmlTemplatePath(pagePath);
+}
+
+export function buildHtmlTemplateFidelityGate(pagePath?: string, htmlTemplatePath?: string): {
+  worker: string[];
+  reviewer: string[];
+} {
+  if (pagePath && isMatureCouponAdminPage(pagePath)) {
+    return { worker: [], reviewer: [] };
+  }
+  const templatePath = htmlTemplatePath?.trim();
+  if (!templatePath) {
+    return { worker: [], reviewer: [] };
+  }
+  return {
+    worker: [
+      "- HTML 模板结构一致性门禁：必须先阅读模板并在结果中列出保留的首屏结构、KPI/卡片/面板/表格/标签/按钮/筛选区、滚动区域和底部区域；如因真实业务逻辑调整，必须说明原因。",
+      "- 视觉风格门禁：Vue 版本要保持模板的色彩体系、字体层级、边框/圆角、间距、信息密度和深浅面板比例；禁止把页面重做成另一套 glassmorphism、营销页或稀疏卡片风格。",
+      "- 产品语义门禁：不得机械 100% 复刻 HTML；必须站在系统功能、信息架构和最终用户任务流角度分类交互意图。对象行、Tab、筛选 chip、详情卡片等上下文选择入口优先在当前 Vue 页面内更新右侧/下方详情；进入完整管理页、新增、编辑、审批、审计详情、导出等明确 CTA 才跳转子页面或打开真实弹窗。",
+      "- 功能保真门禁：不得为了贴近模板删除或打乱既有真实功能入口；所有可见链接、按钮、Tab、卡片点击和新增/编辑/授权等入口必须指向已存在 Vue 路由或执行真实函数，不能留下假下拉、假按钮、不可达 URL 或只展示不工作的控件。",
+      "- 浏览器证据门禁：必须新增或扩展 Playwright/E2E 检查，至少断言关键标题、主要分区数量、关键按钮/Tab/状态标签存在、无横向溢出、列表详情联动或刷新持久性；同时分别断言“页内上下文切换不突兀跳转”和“明确 CTA 能进入对应完整子页面/弹窗”。输出截图或说明截图路径。",
+      `- 模板对照文件：${templatePath}`
+    ],
+    reviewer: [
+      "- HTML 模板结构一致性是 90 分门禁的一部分：如果首屏信息架构、主面板布局、底部区域、按钮/Tab/筛选区、滚动区域或信息密度与模板明显不一致，必须 BLOCKED。",
+      "- 产品语义是 90 分门禁的一部分：Reviewer 必须按最终用户任务流判断点击行为，不能用“所有点击都不跳转”或“所有模板链接都照抄跳转”这种机械规则放行；上下文选择应留在页面内，完整业务动作应进入子功能。",
+      "- 功能入口保真是 90 分门禁的一部分：如果 Worker 只替换成模板外观，却丢失已有路由、按钮行为、列表详情联动、弹窗入口或写路径入口，必须 BLOCKED。",
+      "- Reviewer 必须明确报告模板对照结论：保留了哪些结构、偏离了哪些结构、偏离是否有业务理由、是否存在横向溢出或文本挤压。",
+      "- Reviewer 必须检查 Playwright/E2E 或浏览器截图证据；没有模板一致性、产品语义、页内上下文切换和明确 CTA 路由/弹窗断言或截图证据时，不得给 90 分以上。"
+    ]
+  };
 }
 
 function buildWorkerDescription(input: {
