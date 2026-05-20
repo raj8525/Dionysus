@@ -25,6 +25,7 @@ import {
   evaluateMilestoneNotificationGate,
   evaluateWatchdogTask,
   findUnmanagedGitChanges,
+  validateReleaseRecordCodexOutboxLink,
   validateReleaseRecordEvidence,
   validateE2ECaseResultEvidence,
   resolveNotificationChannels,
@@ -407,6 +408,27 @@ export async function buildServer(options: BuildServerOptions = {}) {
     const goal = await repo.getGoal(parsed.data.goalId);
     if (!goal) {
       return reply.code(404).send({ error: "GOAL_NOT_FOUND" });
+    }
+    if (parsed.data.codexOutboxEventId) {
+      const outboxEvent = await repo.getCodexOutboxEvent(parsed.data.codexOutboxEventId);
+      if (!outboxEvent) {
+        return reply.code(404).send({ error: "CODEX_OUTBOX_EVENT_NOT_FOUND" });
+      }
+      const outboxGate = validateReleaseRecordCodexOutboxLink({
+        releaseGoalId: parsed.data.goalId,
+        outboxEvent: {
+          goalId: outboxEvent.goalId ?? "",
+          eventType: outboxEvent.eventType,
+          status: outboxEvent.status
+        }
+      });
+      if (!outboxGate.allowed) {
+        return reply.code(409).send({
+          error: "RELEASE_RECORD_OUTBOX_MISMATCH",
+          reason: outboxGate.reason,
+          event: outboxEvent
+        });
+      }
     }
     const evidenceGate = validateReleaseRecordEvidence(parsed.data);
     if (!evidenceGate.allowed) {

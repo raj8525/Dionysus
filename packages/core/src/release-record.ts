@@ -32,6 +32,27 @@ export function validateReleaseRecordEvidence(input: {
   return { allowed: true };
 }
 
+export function validateReleaseRecordCodexOutboxLink(input: {
+  releaseGoalId: string;
+  outboxEvent: {
+    goalId: string;
+    eventType: string;
+    status: string;
+  };
+}): { allowed: true } | { allowed: false; reason: string } {
+  const valid =
+    input.outboxEvent.goalId === input.releaseGoalId &&
+    input.outboxEvent.eventType === "release_ready" &&
+    input.outboxEvent.status === "pending";
+  if (valid) {
+    return { allowed: true };
+  }
+  return {
+    allowed: false,
+    reason: "release record codexOutboxEventId must reference a pending release_ready event for the same goal"
+  };
+}
+
 export function deriveGoalStatusAfterRelease(input: {
   currentStatus: GoalStatus;
   releaseStatus: ReleaseRecordStatus;

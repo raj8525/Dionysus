@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveGoalStatusAfterRelease,
+  validateReleaseRecordCodexOutboxLink,
   validateReleaseRecordEvidence,
   shouldCloseOutstandingWorkAfterRelease
 } from "./release-record.js";
@@ -119,5 +120,54 @@ describe("validateReleaseRecordEvidence", () => {
       verification: [],
       summary: "等待环境修复。"
     })).toEqual({ allowed: true });
+  });
+});
+
+describe("validateReleaseRecordCodexOutboxLink", () => {
+  it("requires a release record outbox link to point at the same pending release_ready event", () => {
+    expect(validateReleaseRecordCodexOutboxLink({
+      releaseGoalId: "goal-a",
+      outboxEvent: {
+        goalId: "goal-a",
+        eventType: "release_ready",
+        status: "pending"
+      }
+    })).toEqual({ allowed: true });
+
+    expect(validateReleaseRecordCodexOutboxLink({
+      releaseGoalId: "goal-a",
+      outboxEvent: {
+        goalId: "goal-b",
+        eventType: "release_ready",
+        status: "pending"
+      }
+    })).toEqual({
+      allowed: false,
+      reason: "release record codexOutboxEventId must reference a pending release_ready event for the same goal"
+    });
+
+    expect(validateReleaseRecordCodexOutboxLink({
+      releaseGoalId: "goal-a",
+      outboxEvent: {
+        goalId: "goal-a",
+        eventType: "blocker",
+        status: "pending"
+      }
+    })).toEqual({
+      allowed: false,
+      reason: "release record codexOutboxEventId must reference a pending release_ready event for the same goal"
+    });
+
+    expect(validateReleaseRecordCodexOutboxLink({
+      releaseGoalId: "goal-a",
+      outboxEvent: {
+        goalId: "goal-a",
+        eventType: "release_ready",
+        status: "acked"
+      }
+    })).toEqual({
+      allowed: false,
+      reason: "release record codexOutboxEventId must reference a pending release_ready event for the same goal"
+    });
   });
 });
