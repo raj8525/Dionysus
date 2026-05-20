@@ -471,7 +471,22 @@ event_type = reviewer.worker_reports_evidence
 
 该事件必须至少包含 `workerReports[]`、`taskId`、`taskTitle`、`taskStatus`、`runId`、`runStatus` 和 `logExcerpt`。Worker Runtime 构建 Reviewer prompt 时必须展示该证据区块，要求 Reviewer 先审核 Worker 报告。若 `workerReports` 为空，Reviewer 必须返回 `BLOCKED`，不能用重新探索代码替代对 Worker 产物的审核。
 
-Runtime 必须对 `--report-only` FastLane Reviewer 的最终输出执行结构化门禁。CLI 进程正常退出仍不足以证明 Reviewer 完成审查；输出必须包含：
+Runtime 必须对所有 FastLane Reviewer 的最终输出执行结构化门禁。CLI 进程正常退出仍不足以证明 Reviewer 完成审查。
+
+普通实现型 FastLane Reviewer 输出必须包含：
+
+```text
+Verdict: PASS|BLOCKED
+Score: <0-100>
+Evidence: <files/tests/screenshots/logs>
+Product/UX assessment: <final-user workflow, information architecture, context-switch vs CTA routing, visual/template fit>
+Required fixes: <concrete list or none>
+Codex handoff: <what Codex must verify next>
+```
+
+`Product/UX assessment` 是硬门禁，不是可选说明。Reviewer 必须站在最终用户和产品经理视角判断系统功能、系统设计、信息架构、业务动作、页内上下文切换 vs 明确 CTA 跳转/弹窗、视觉/模板适配和可操作性；不能只用“命令通过”“页面像模板”或“所有点击都不跳转”放行。
+
+`--report-only` FastLane Reviewer 输出必须包含：
 
 ```text
 Verdict: PASS|BLOCKED

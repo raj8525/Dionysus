@@ -1,10 +1,10 @@
-export type ReportOnlyReviewerVerdict = "PASS" | "BLOCKED";
+export type FastLaneReviewerVerdict = "PASS" | "BLOCKED";
 
-export interface ReportOnlyReviewerOutputGateResult {
+export interface FastLaneReviewerOutputGateResult {
   allowed: boolean;
   reason?: string;
   missingFields?: string[];
-  verdict?: ReportOnlyReviewerVerdict;
+  verdict?: FastLaneReviewerVerdict;
   score?: number;
 }
 
@@ -17,21 +17,67 @@ const requiredReportOnlyReviewerFields = [
   "Codex handoff"
 ] as const;
 
+const requiredPatchReviewerFields = [
+  "Verdict",
+  "Score",
+  "Evidence",
+  "Product/UX assessment",
+  "Required fixes",
+  "Codex handoff"
+] as const;
+
+export function evaluateFastLaneReviewerOutputGate(input: {
+  taskTitle?: string;
+  taskDescription?: string;
+  output: string;
+}): FastLaneReviewerOutputGateResult {
+  if (!isFastLaneReviewer(input.taskTitle)) {
+    return { allowed: true };
+  }
+
+  return isReportOnlyFastLaneReviewer(input.taskDescription)
+    ? evaluateRequiredFields({
+      output: input.output,
+      requiredFields: requiredReportOnlyReviewerFields,
+      missingReasonPrefix: "Report-only FastLane Reviewer output",
+      invalidReason: "Report-only FastLane Reviewer output has invalid Verdict or Score."
+    })
+    : evaluateRequiredFields({
+      output: input.output,
+      requiredFields: requiredPatchReviewerFields,
+      missingReasonPrefix: "FastLane Reviewer output",
+      invalidReason: "FastLane Reviewer output has invalid Verdict or Score."
+    });
+}
+
 export function evaluateReportOnlyReviewerOutputGate(input: {
   taskTitle?: string;
   taskDescription?: string;
   output: string;
-}): ReportOnlyReviewerOutputGateResult {
-  if (!isReportOnlyFastLaneReviewer(input.taskTitle, input.taskDescription)) {
+}): FastLaneReviewerOutputGateResult {
+  if (!isFastLaneReviewer(input.taskTitle) || !isReportOnlyFastLaneReviewer(input.taskDescription)) {
     return { allowed: true };
   }
+  return evaluateRequiredFields({
+    output: input.output,
+    requiredFields: requiredReportOnlyReviewerFields,
+    missingReasonPrefix: "Report-only FastLane Reviewer output",
+    invalidReason: "Report-only FastLane Reviewer output has invalid Verdict or Score."
+  });
+}
 
+function evaluateRequiredFields(input: {
+  output: string;
+  requiredFields: readonly string[];
+  missingReasonPrefix: string;
+  invalidReason: string;
+}): FastLaneReviewerOutputGateResult {
   const output = stripAnsi(input.output);
-  const missingFields = requiredReportOnlyReviewerFields.filter((field) => !hasField(output, field));
+  const missingFields = input.requiredFields.filter((field) => !hasField(output, field));
   if (missingFields.length > 0) {
     return {
       allowed: false,
-      reason: `Report-only FastLane Reviewer output is missing required fields: ${missingFields.join(", ")}.`,
+      reason: `${input.missingReasonPrefix} is missing required fields: ${missingFields.join(", ")}.`,
       missingFields: [...missingFields]
     };
   }
@@ -41,7 +87,7 @@ export function evaluateReportOnlyReviewerOutputGate(input: {
   if (!verdict || score === undefined) {
     return {
       allowed: false,
-      reason: "Report-only FastLane Reviewer output has invalid Verdict or Score.",
+      reason: input.invalidReason,
       missingFields: []
     };
   }
@@ -49,20 +95,24 @@ export function evaluateReportOnlyReviewerOutputGate(input: {
   return { allowed: true, verdict, score };
 }
 
-function isReportOnlyFastLaneReviewer(taskTitle?: string, taskDescription?: string): boolean {
+function isFastLaneReviewer(taskTitle?: string): boolean {
   const title = taskTitle ?? "";
+  return title.startsWith("FastLane Reviewer");
+}
+
+function isReportOnlyFastLaneReviewer(taskDescription?: string): boolean {
   const description = taskDescription ?? "";
-  return title.startsWith("FastLane Reviewer") && /Report-only mode/i.test(description);
+  return /Report-only mode/i.test(description);
 }
 
 function hasField(output: string, field: string): boolean {
   return new RegExp(`(^|\\n)\\s*${escapeRegExp(field)}\\s*:`, "i").test(output);
 }
 
-function parseVerdict(output: string): ReportOnlyReviewerVerdict | undefined {
+function parseVerdict(output: string): FastLaneReviewerVerdict | undefined {
   const match = output.match(/(?:^|\n)\s*Verdict\s*:\s*(PASS|BLOCKED)\b/i);
   if (!match) return undefined;
-  return match[1].toUpperCase() as ReportOnlyReviewerVerdict;
+  return match[1].toUpperCase() as FastLaneReviewerVerdict;
 }
 
 function parseScore(output: string): number | undefined {

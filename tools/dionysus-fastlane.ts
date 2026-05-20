@@ -478,6 +478,7 @@ function buildReviewerDescription(input: {
     "Verdict: PASS|BLOCKED",
     "Score: <0-100>",
     "Evidence: <files/tests/screenshots/logs>",
+    "Product/UX assessment: <final-user workflow, information architecture, context-switch vs CTA routing, visual/template fit>",
     "Required fixes: <concrete list or none>",
     "Codex handoff: <what Codex must verify next>"
   ].join("\n");

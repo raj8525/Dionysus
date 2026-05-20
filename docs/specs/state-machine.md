@@ -54,6 +54,7 @@ cancelled
 - Agent run 成功后必须进入 `needs_review`，不得直接放行下一任务。
 - 只有 `task review --verdict approve` 才能将任务标记为 `done` 并放行下一条 created task。
 - `FastLane Reviewer` 任务执行 90 分质量门禁；`task review --verdict approve` 必须携带 `score >= 90`，否则 API 必须拒绝状态迁移。
+- 所有 `FastLane Reviewer` 即使 CLI 进程 `exit_code=0`，也必须通过 Runtime 结构化输出门禁。普通实现型 Reviewer 输出必须包含 `Verdict:`、`Score:`、`Evidence:`、`Product/UX assessment:`、`Required fixes:`、`Codex handoff:`；其中 `Product/UX assessment` 必须从最终用户任务流、系统功能、信息架构、页内上下文切换 vs 明确 CTA 跳转/弹窗、视觉/模板适配等角度给出判断。缺失或格式非法时，该 run 必须按失败处理，task 不得进入 `needs_review`，并写入 `reviewer.output_gate_failed` 事件。
 - `--report-only` fast lane 的 Reviewer 入队前，Dionysus 必须把同一 goal 下已产出的 FastLane Worker run logs 摘要写入 Reviewer 任务事件 `reviewer.worker_reports_evidence`。Reviewer prompt 必须优先展示这些 Worker 报告证据；如果没有 Worker report evidence，Reviewer 必须判定为 `BLOCKED`，不得通过重新探索代码假装已经审核 Worker 产物。
 - `--report-only` fast lane 的 Reviewer 即使 CLI 进程 `exit_code=0`，也必须通过 Runtime 结构化输出门禁。输出必须包含 `Verdict:`、`Score:`、`Evidence reviewed:`、`Coverage gaps:`、`Required fixes:`、`Codex handoff:`，且 `Verdict` 只能是 `PASS` 或 `BLOCKED`，`Score` 必须是 0-100 数字。缺失或格式非法时，该 run 必须按失败处理，task 不得进入 `needs_review`，并写入 `reviewer.output_gate_failed` 事件。
 - `task review --verdict reject` 只能把当前任务退回 `queued` 并重跑当前任务，不得放行下一任务。

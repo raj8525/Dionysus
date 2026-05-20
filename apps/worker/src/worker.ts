@@ -23,7 +23,7 @@ import {
   mergeIntegrationVerificationCommands,
   parseCliUsageReceipt,
   resolveAgentRunConfig,
-  evaluateReportOnlyReviewerOutputGate,
+  evaluateFastLaneReviewerOutputGate,
   shouldDispatchAfterIntegration,
   decideTargetMutationHandling,
   queueForRole,
@@ -194,7 +194,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
     }
 
     let effectiveExitCode = result.exitCode;
-    const reviewerOutputGate = evaluateReportOnlyReviewerOutputGate({
+    const reviewerOutputGate = evaluateFastLaneReviewerOutputGate({
       taskTitle: taskContext.task.title,
       taskDescription: taskContext.task.description,
       output: `${result.stdout}\n${result.stderr}`
@@ -210,7 +210,7 @@ async function handleWorkerTask(message: QueueMessage): Promise<void> {
       await repo.recordTaskEvent(message.task_id, "reviewer.output_gate_failed", {
         reason: reviewerOutputGate.reason,
         missingFields: reviewerOutputGate.missingFields ?? [],
-        requiredAction: "ReviewerCLI must return the required structured Verdict/Score/Evidence/Coverage/Required fixes/Codex handoff report before Dionysus can mark it reviewable."
+        requiredAction: "ReviewerCLI must return the required structured Verdict/Score/Evidence/Product-UX or Coverage/Required fixes/Codex handoff report before Dionysus can mark it reviewable."
       });
     }
 

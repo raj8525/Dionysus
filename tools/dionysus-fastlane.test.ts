@@ -274,6 +274,7 @@ describe("dionysus fast lane planner", () => {
     expect(reviewerTask).toContain("不能用“所有点击都不跳转”或“所有模板链接都照抄跳转”这种机械规则放行");
     expect(reviewerTask).toContain("功能入口保真是 90 分门禁的一部分");
     expect(reviewerTask).toContain("没有模板一致性、产品语义、页内上下文切换和明确 CTA 路由/弹窗断言或截图证据时，不得给 90 分以上");
+    expect(reviewerTask).toContain("Product/UX assessment:");
   });
 
   it("infers first-level admin HTML templates for non-mature Vue pages", () => {
