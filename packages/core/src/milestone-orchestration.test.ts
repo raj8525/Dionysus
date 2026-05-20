@@ -4,6 +4,8 @@ import {
   buildMilestoneNotificationDraft,
   evaluateMilestoneNotificationGate,
   evaluateMilestoneVerdictGate,
+  milestoneStatusForE2ECampaignCreation,
+  milestoneStatusForE2ERequest,
   milestoneStatusForCodexVerdict,
   detectMilestoneCandidate
 } from "./milestone-orchestration.js";
@@ -129,6 +131,16 @@ describe("milestone orchestration", () => {
     expect(() => milestoneStatusForCodexVerdict("e2e_required", "passed")).toThrow(/Invalid milestone transition/);
     expect(milestoneStatusForCodexVerdict("e2e_running", "passed")).toBe("passed");
     expect(milestoneStatusForCodexVerdict("e2e_required", "blocked")).toBe("e2e_blocked");
+  });
+
+  it("requires legal milestone transitions before requesting E2E or creating campaigns", () => {
+    expect(milestoneStatusForE2ERequest("candidate")).toBe("e2e_required");
+    expect(() => milestoneStatusForE2ERequest("passed")).toThrow(/Invalid milestone transition/);
+    expect(() => milestoneStatusForE2ERequest("e2e_running")).toThrow(/Invalid milestone transition/);
+
+    expect(milestoneStatusForE2ECampaignCreation("e2e_required")).toBe("e2e_running");
+    expect(() => milestoneStatusForE2ECampaignCreation("candidate")).toThrow(/Invalid milestone transition/);
+    expect(() => milestoneStatusForE2ECampaignCreation("passed")).toThrow(/Invalid milestone transition/);
   });
 
   it("blocks a passed milestone verdict until every E2E campaign has passed", () => {

@@ -91,6 +91,9 @@ Then 通知内容必须包含已完成功能、启动方式、使用方式、验
 Given Master 创建了 milestone candidate
 When Master 请求 E2E
 Then milestone 状态必须进入 `e2e_required`
+And 对非 `candidate` 状态再次请求 E2E 必须返回 `409 INVALID_MILESTONE_TRANSITION`
+And 创建 E2E campaign 只能从 `e2e_required` 进入 `e2e_running`
+And 对 `candidate`、`passed`、`notified` 或 `cancelled` 直接创建 E2E campaign 必须返回 `409 INVALID_MILESTONE_TRANSITION`
 When Codex 提交 `passed` verdict
 Then milestone 状态才能进入 `passed`
 

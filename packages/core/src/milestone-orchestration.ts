@@ -192,6 +192,18 @@ export function milestoneStatusForCodexVerdict(
   return nextStatus;
 }
 
+export function milestoneStatusForE2ERequest(currentStatus: MilestoneStatus): MilestoneStatus {
+  const nextStatus: MilestoneStatus = "e2e_required";
+  assertMilestoneTransition(currentStatus, nextStatus);
+  return nextStatus;
+}
+
+export function milestoneStatusForE2ECampaignCreation(currentStatus: MilestoneStatus): MilestoneStatus {
+  const nextStatus: MilestoneStatus = "e2e_running";
+  assertMilestoneTransition(currentStatus, nextStatus);
+  return nextStatus;
+}
+
 export function evaluateMilestoneVerdictGate(input: {
   currentStatus: MilestoneStatus;
   verdict: "passed" | "failed" | "blocked";

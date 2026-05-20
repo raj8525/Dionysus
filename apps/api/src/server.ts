@@ -1032,16 +1032,27 @@ export async function buildServer(options: BuildServerOptions = {}) {
 
   app.post("/api/milestones/:id/request-e2e", async (request, reply) => {
     const { id } = request.params as { id: string };
-    await repo.requestMilestoneE2E(id);
-    const milestone = await repo.getMilestone(id);
-    if (milestone) {
-      await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
-        goalId: String(milestone.goal_id),
-        eventType: "e2e_required",
-        reason: `里程碑需要 Codex 浏览器级 E2E：${String(milestone.name)}`,
-        source: "milestone.request-e2e",
-        payload: { milestoneId: id }
-      }));
+    try {
+      await repo.requestMilestoneE2E(id);
+      const milestone = await repo.getMilestone(id);
+      if (milestone) {
+        await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+          goalId: String(milestone.goal_id),
+          eventType: "e2e_required",
+          reason: `里程碑需要 Codex 浏览器级 E2E：${String(milestone.name)}`,
+          source: "milestone.request-e2e",
+          payload: { milestoneId: id }
+        }));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Invalid milestone transition")) {
+        return reply.code(409).send({ error: "INVALID_MILESTONE_TRANSITION", message });
+      }
+      if (message.includes("Milestone not found")) {
+        return reply.code(404).send({ error: "MILESTONE_NOT_FOUND", message });
+      }
+      throw error;
     }
     return reply.code(202).send({ id, status: "e2e_required" });
   });
@@ -1052,8 +1063,19 @@ export async function buildServer(options: BuildServerOptions = {}) {
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_E2E_CAMPAIGN_INPUT", details: parsed.error.flatten() });
     }
-    const campaign = await repo.createE2ECampaign({ milestoneId: id, ...parsed.data });
-    return reply.code(201).send(campaign);
+    try {
+      const campaign = await repo.createE2ECampaign({ milestoneId: id, ...parsed.data });
+      return reply.code(201).send(campaign);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Invalid milestone transition")) {
+        return reply.code(409).send({ error: "INVALID_MILESTONE_TRANSITION", message });
+      }
+      if (message.includes("Milestone not found")) {
+        return reply.code(404).send({ error: "MILESTONE_NOT_FOUND", message });
+      }
+      throw error;
+    }
   });
 
   app.get("/api/e2e/campaigns", async (request) => {

@@ -47,6 +47,8 @@ import {
   deriveE2ECampaignStatus,
   detectMilestoneCandidate,
   evaluateMilestoneVerdictGate,
+  milestoneStatusForE2ECampaignCreation,
+  milestoneStatusForE2ERequest,
   milestoneStatusForCodexVerdict
 } from "@dionysus/core";
 import type { CliProbeResult } from "@dionysus/cli-adapters";
@@ -1225,12 +1227,21 @@ export class DionysusRepository {
   }
 
   async requestMilestoneE2E(milestoneId: string): Promise<void> {
-    await this.pool.query(
+    const milestone = await this.getMilestone(milestoneId);
+    if (!milestone) {
+      throw new Error(`Milestone not found: ${milestoneId}`);
+    }
+    const currentStatus = String(milestone.status) as MilestoneStatus;
+    const nextStatus = milestoneStatusForE2ERequest(currentStatus);
+    const updated = await this.pool.query(
       `update ${this.table("milestones")}
-       set status = 'e2e_required', updated_at = now()
-       where id = $1 and status = 'candidate'`,
-      [milestoneId]
+       set status = $1, updated_at = now()
+       where id = $2 and status = $3`,
+      [nextStatus, milestoneId, currentStatus]
     );
+    if (!updated.rowCount) {
+      throw new Error(`Invalid milestone transition: ${currentStatus} -> ${nextStatus}`);
+    }
     await this.recordSystemEvent("milestone.e2e_required", { milestoneId });
   }
 
@@ -1365,6 +1376,8 @@ export class DionysusRepository {
     if (!milestone) {
       throw new Error(`Milestone not found: ${input.milestoneId}`);
     }
+    const currentStatus = String(milestone.status) as MilestoneStatus;
+    const nextStatus = milestoneStatusForE2ECampaignCreation(currentStatus);
     const campaignDraft = buildE2ECampaignDraft({
       milestoneName: String(milestone.name),
       targetUrl: input.targetUrl,
@@ -1398,12 +1411,15 @@ export class DionysusRepository {
           ]
         );
       }
-      await client.query(
+      const updatedMilestone = await client.query(
         `update ${this.table("milestones")}
-         set status = 'e2e_running', updated_at = now()
-         where id = $1 and status in ('candidate', 'e2e_required')`,
-        [input.milestoneId]
+         set status = $1, updated_at = now()
+         where id = $2 and status = $3`,
+        [nextStatus, input.milestoneId, currentStatus]
       );
+      if (!updatedMilestone.rowCount) {
+        throw new Error(`Invalid milestone transition: ${currentStatus} -> ${nextStatus}`);
+      }
       await client.query(
         `insert into ${this.table("system_events")} (id, event_type, payload_json)
          values ($1, $2, $3)`,

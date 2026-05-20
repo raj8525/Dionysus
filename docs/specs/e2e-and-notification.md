@@ -23,6 +23,14 @@ Master 必须在每次 main commit 后判断是否出现里程碑候选。
 
 默认测试工具：Playwright。
 
+状态转换门禁：
+
+- `request-e2e` 只能把 `candidate` 推进到 `e2e_required`。
+- 已经 `passed`、`notified`、`cancelled`、`e2e_running` 或其他非 `candidate` 状态的 milestone 再次请求 E2E 时，API 必须返回 `409 INVALID_MILESTONE_TRANSITION`，不能返回假成功。
+- `create-campaign` 只能把 `e2e_required` 推进到 `e2e_running`。
+- 未经过 `request-e2e` 的 `candidate`、已经完成的 `passed/notified` 或取消的 milestone 不得创建新的 E2E campaign。
+- 上述门禁必须在 Repository / API 层执行，不能只依赖 SQL `where status = ...` 静默不更新。
+
 Codex CLI 必须支持：
 
 ```bash
