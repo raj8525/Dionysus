@@ -237,6 +237,8 @@ POST /api/releases
 
 当 Codex 处理 `release_ready`，完成最终验证、提交和推送后，必须写入 release record。该记录是 Dionysus 判断目标项目是否真正发布到 Git 主线的审计证据，不能只依赖当前会话自然语言。
 
+所有 release record 都必须携带非空 `summary`，因为它是 Codex 对本次发布、失败或阻塞的审计说明。`status=failed` 或 `status=blocked` 时，`summary` 必须说明最终验证失败或阻塞原因；缺失时 API / CLI 必须拒绝写入。
+
 `status=passed` 且 `pushed=true` 的 release record 必须携带可审计证据：`changedFiles` 至少 1 个文件、`verification` 至少 1 条 `status=passed` 的验证命令、`summary` 非空。否则 API 必须返回 `409 RELEASE_RECORD_EVIDENCE_REQUIRED`，不得把 goal 自动置为 `done`。
 
 如果 release record 携带 `codexOutboxEventId`，API 必须确认该 outbox 事件存在、属于同一个 `goalId`、`eventType=release_ready` 且 `status=pending`。不满足时必须返回 `404 CODEX_OUTBOX_EVENT_NOT_FOUND` 或 `409 RELEASE_RECORD_OUTBOX_MISMATCH`，不得写入 release record。否则一个错误 goal 的 release record 可能解除另一个 `release_ready` 的 ack 门禁。

@@ -89,6 +89,27 @@ describe("shouldCloseOutstandingWorkAfterRelease", () => {
 });
 
 describe("validateReleaseRecordEvidence", () => {
+  it("requires every release record to include a summary for auditability", () => {
+    expect(validateReleaseRecordEvidence({
+      status: "blocked",
+      pushed: false,
+      changedFiles: [],
+      verification: [],
+      summary: ""
+    })).toEqual({
+      allowed: false,
+      reason: "release record requires a non-empty summary"
+    });
+
+    expect(validateReleaseRecordEvidence({
+      status: "failed",
+      pushed: false,
+      changedFiles: [],
+      verification: [],
+      summary: "最终验证失败，保留阻塞原因。"
+    })).toEqual({ allowed: true });
+  });
+
   it("requires concrete evidence before a passed pushed release can close a goal", () => {
     expect(validateReleaseRecordEvidence({
       status: "passed",

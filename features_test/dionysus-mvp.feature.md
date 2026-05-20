@@ -266,6 +266,7 @@ Given Dionysus 产生了 `release_ready` Codex Outbox
 When Codex 完成最终验证、提交和推送
 Then Codex 必须调用 `pnpm dionysus release record`
 And PostgreSQL 必须保存 goal_id、target_root、branch、commit_sha、status、pushed、changed_files、verification 和 summary
+And 任意 release record 的 summary 必须非空，failed 或 blocked 也必须写明失败或阻塞原因
 And 系统事件必须记录 `release.recorded`
 And 如果 release record 带有 `codexOutboxEventId`，该事件必须是同一个 goal 的 pending `release_ready`
 And 如果 `codexOutboxEventId` 属于其他 goal、已 ack 或不是 `release_ready`，API 必须返回 `409 RELEASE_RECORD_OUTBOX_MISMATCH`

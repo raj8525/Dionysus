@@ -13,6 +13,14 @@ export function validateReleaseRecordEvidence(input: {
   verification: ReleaseVerificationEvidence[];
   summary: string;
 }): { allowed: true } | { allowed: false; reason: string } {
+  const hasSummary = input.summary.trim().length > 0;
+  if ((input.status !== "passed" || !input.pushed) && !hasSummary) {
+    return {
+      allowed: false,
+      reason: "release record requires a non-empty summary"
+    };
+  }
+
   if (input.status !== "passed" || !input.pushed) {
     return { allowed: true };
   }
@@ -21,7 +29,6 @@ export function validateReleaseRecordEvidence(input: {
   const hasPassedVerification = input.verification.some((record) =>
     record.command.trim().length > 0 && record.status === "passed"
   );
-  const hasSummary = input.summary.trim().length > 0;
   if (!hasChangedFiles || !hasPassedVerification || !hasSummary) {
     return {
       allowed: false,
