@@ -47,6 +47,8 @@ export function buildAgentCliUsageSummary(input: {
     const succeededCalls = row.status === "succeeded" ? cliCalls : 0;
     const failedCalls = row.status === "failed" ? cliCalls : 0;
     const lastRunAt = row.runAt ?? undefined;
+    const lastSucceededAt = row.status === "succeeded" ? lastRunAt : undefined;
+    const lastFailedAt = row.status === "failed" ? lastRunAt : undefined;
 
     totals.cliCalls += cliCalls;
     totals.modelCalls += modelCalls;
@@ -65,7 +67,9 @@ export function buildAgentCliUsageSummary(input: {
       runningCalls,
       succeededCalls,
       failedCalls,
-      lastRunAt
+      lastRunAt,
+      lastSucceededAt,
+      lastFailedAt
     });
 
     upsertAgentInstanceUsage(byAgentInstance, row, {
@@ -75,7 +79,9 @@ export function buildAgentCliUsageSummary(input: {
       runningCalls,
       succeededCalls,
       failedCalls,
-      lastRunAt
+      lastRunAt,
+      lastSucceededAt,
+      lastFailedAt
     });
 
     upsertCliUsage(byCli, row.cliType, {
@@ -84,7 +90,9 @@ export function buildAgentCliUsageSummary(input: {
       runningCalls,
       succeededCalls,
       failedCalls,
-      lastRunAt
+      lastRunAt,
+      lastSucceededAt,
+      lastFailedAt
     });
   }
 
@@ -132,6 +140,8 @@ function ensureAgentInstanceBaseline(
     succeededCalls: 0,
     failedCalls: 0,
     lastRunAt: undefined,
+    lastSucceededAt: undefined,
+    lastFailedAt: undefined,
     models: []
   });
 }
@@ -149,6 +159,8 @@ function upsertRoleUsage(
     succeededCalls: 0,
     failedCalls: 0,
     lastRunAt: undefined,
+    lastSucceededAt: undefined,
+    lastFailedAt: undefined,
     models: []
   };
   addCounters(usage, modelUsage);
@@ -173,6 +185,8 @@ function upsertAgentInstanceUsage(
     succeededCalls: 0,
     failedCalls: 0,
     lastRunAt: undefined,
+    lastSucceededAt: undefined,
+    lastFailedAt: undefined,
     models: []
   };
   addCounters(usage, modelUsage);
@@ -183,7 +197,7 @@ function upsertAgentInstanceUsage(
 function upsertCliUsage(
   byCli: Map<CliType, AgentCliUsageSummary["byCli"][number]>,
   cliType: CliType,
-  counters: Pick<AgentCliUsageSummary["byCli"][number], "cliCalls" | "modelCalls" | "runningCalls" | "succeededCalls" | "failedCalls" | "lastRunAt">
+  counters: Pick<AgentCliUsageSummary["byCli"][number], "cliCalls" | "modelCalls" | "runningCalls" | "succeededCalls" | "failedCalls" | "lastRunAt" | "lastSucceededAt" | "lastFailedAt">
 ): void {
   const usage = byCli.get(cliType) ?? {
     cliType,
@@ -192,7 +206,9 @@ function upsertCliUsage(
     runningCalls: 0,
     succeededCalls: 0,
     failedCalls: 0,
-    lastRunAt: undefined
+    lastRunAt: undefined,
+    lastSucceededAt: undefined,
+    lastFailedAt: undefined
   };
   addCounters(usage, counters);
   byCli.set(cliType, usage);
@@ -211,8 +227,8 @@ function mergeModelUsage(
 }
 
 function addCounters(
-  target: Pick<AgentCliUsageSummary["byCli"][number], "cliCalls" | "modelCalls" | "runningCalls" | "succeededCalls" | "failedCalls" | "lastRunAt">,
-  next: Pick<AgentCliUsageSummary["byCli"][number], "cliCalls" | "modelCalls" | "runningCalls" | "succeededCalls" | "failedCalls" | "lastRunAt">
+  target: Pick<AgentCliUsageSummary["byCli"][number], "cliCalls" | "modelCalls" | "runningCalls" | "succeededCalls" | "failedCalls" | "lastRunAt" | "lastSucceededAt" | "lastFailedAt">,
+  next: Pick<AgentCliUsageSummary["byCli"][number], "cliCalls" | "modelCalls" | "runningCalls" | "succeededCalls" | "failedCalls" | "lastRunAt" | "lastSucceededAt" | "lastFailedAt">
 ): void {
   target.cliCalls += next.cliCalls;
   target.modelCalls += next.modelCalls;
@@ -220,6 +236,8 @@ function addCounters(
   target.succeededCalls += next.succeededCalls;
   target.failedCalls += next.failedCalls;
   target.lastRunAt = latestIso(target.lastRunAt, next.lastRunAt);
+  target.lastSucceededAt = latestIso(target.lastSucceededAt, next.lastSucceededAt);
+  target.lastFailedAt = latestIso(target.lastFailedAt, next.lastFailedAt);
 }
 
 function normalizeModel(value?: string | null): string {

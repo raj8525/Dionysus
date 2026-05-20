@@ -8,6 +8,9 @@ export interface SystemAuditUsageBucket {
   runningCalls?: number;
   succeededCalls?: number;
   failedCalls?: number;
+  lastRunAt?: string;
+  lastSucceededAt?: string;
+  lastFailedAt?: string;
 }
 
 export interface SystemAuditUsage {
@@ -21,6 +24,7 @@ export interface SystemAuditSummary {
   targetRoot: string;
   blockers: string[];
   warnings: string[];
+  notes: string[];
   nextAction: string;
   nextCommands: string[];
   evidence: {
@@ -42,6 +46,7 @@ export function buildSystemAuditSummary(input: {
   const pendingCodexOutbox = input.pendingCodexOutbox ?? [];
   const blockers = [...input.readiness.blockers];
   const warnings: string[] = [];
+  const notes: string[] = [];
   const nextCommands = new Set<string>();
 
   if (input.readiness.status === "blocked") {
@@ -53,6 +58,7 @@ export function buildSystemAuditSummary(input: {
       targetRoot: input.targetRoot,
       blockers,
       warnings,
+      notes,
       nextAction: "先处理 readiness blockers；未就绪前不要派发新的 WorkerCLI 任务。",
       nextCommands: [...nextCommands],
       evidence: {
@@ -86,16 +92,24 @@ export function buildSystemAuditSummary(input: {
     warnings.push(`仍有 ${runningCalls} 次 CLI 调用处于运行中，先确认是否卡住或等待结果`);
   }
   if (cliCalls >= 10 && failedCalls / cliCalls >= 0.3) {
-    warnings.push(`整体 CLI 失败率偏高：${failedCalls}/${cliCalls}`);
-    nextCommands.add(buildUsageCommand(input.targetRoot));
+    if (isRecoveredBucket(totals)) {
+      notes.push(`整体曾有较高历史失败率：${failedCalls}/${cliCalls}，但最近一次运行已成功`);
+    } else {
+      warnings.push(`整体 CLI 失败率偏高：${failedCalls}/${cliCalls}`);
+      nextCommands.add(buildUsageCommand(input.targetRoot));
+    }
   }
 
   for (const bucket of input.usage?.byAgent ?? []) {
     const bucketCalls = numberOrZero(bucket.cliCalls);
     const bucketFailures = numberOrZero(bucket.failedCalls);
     if (bucketCalls >= 5 && bucketFailures / bucketCalls >= 0.3) {
-      warnings.push(`${bucket.role ?? "unknown-agent"} CLI 失败率偏高：${bucketFailures}/${bucketCalls}`);
-      nextCommands.add(buildUsageCommand(input.targetRoot));
+      if (isRecoveredBucket(bucket)) {
+        notes.push(`${bucket.role ?? "unknown-agent"} 曾有较高历史失败率：${bucketFailures}/${bucketCalls}，但最近一次运行已成功`);
+      } else {
+        warnings.push(`${bucket.role ?? "unknown-agent"} CLI 失败率偏高：${bucketFailures}/${bucketCalls}`);
+        nextCommands.add(buildUsageCommand(input.targetRoot));
+      }
     }
   }
 
@@ -119,6 +133,7 @@ export function buildSystemAuditSummary(input: {
     targetRoot: input.targetRoot,
     blockers,
     warnings,
+    notes,
     nextAction: warnings.length > 0
       ? buildAttentionAction(warnings)
       : "可以启动或继续一个完整模块：先做数据与只读链路，再做写路径，最后由 Codex 执行浏览器级 E2E。",
@@ -145,6 +160,24 @@ function buildAttentionAction(warnings: string[]): string {
 
 function buildUsageCommand(targetRoot: string): string {
   return `cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus agent usage --target-root ${JSON.stringify(targetRoot)}`;
+}
+
+function isRecoveredBucket(bucket?: SystemAuditUsageBucket): boolean {
+  const lastFailedAt = parseTimestamp(bucket?.lastFailedAt);
+  const lastSucceededAt = parseTimestamp(bucket?.lastSucceededAt);
+  const lastRunAt = parseTimestamp(bucket?.lastRunAt);
+  return Boolean(
+    lastFailedAt !== undefined &&
+    lastSucceededAt !== undefined &&
+    lastSucceededAt > lastFailedAt &&
+    (lastRunAt === undefined || lastRunAt <= lastSucceededAt)
+  );
+}
+
+function parseTimestamp(value: unknown): number | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
 function numberOrZero(value: unknown): number {

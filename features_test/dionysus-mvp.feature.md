@@ -173,6 +173,7 @@ And 输出必须包含 `ready`、`needs_attention` 或 `blocked`
 And readiness blocker 必须使 audit 返回 `blocked`
 And pending Codex outbox 必须使 audit 返回 `needs_attention`
 And 高失败率角色必须使 audit 返回 `needs_attention` 并给出查看 usage 或日志的下一步命令
+And 如果高失败率角色的最后一次运行晚于最后一次失败且状态已成功，audit 必须返回 `ready` 并把历史失败写入 `notes`
 And 没有 blocker、没有 warning、且存在真实 CLI / 模型调用证据时，audit 才能返回 `ready`
 
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统

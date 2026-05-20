@@ -88,7 +88,50 @@ describe("buildAgentCliUsageSummary", () => {
       agentName: "历史未绑定 TestWriter",
       cliCalls: 4,
       modelCalls: 4,
-      failedCalls: 4
+      failedCalls: 4,
+      lastFailedAt: "2026-05-17T00:00:04.000Z"
+    });
+  });
+
+  it("tracks last succeeded and failed run timestamps for current-risk audits", () => {
+    const summary = buildAgentCliUsageSummary({
+      rows: [
+        {
+          role: "test_writer",
+          agentId: "test-writer",
+          agentName: "TestWriter",
+          cliType: "opencode",
+          cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+          status: "failed",
+          cliCalls: 8,
+          runAt: "2026-05-17T00:00:00.000Z"
+        },
+        {
+          role: "test_writer",
+          agentId: "test-writer",
+          agentName: "TestWriter",
+          cliType: "opencode",
+          cliModel: "minimax-cn-coding-plan/MiniMax-M2.7",
+          status: "succeeded",
+          cliCalls: 2,
+          runAt: "2026-05-18T00:00:00.000Z"
+        }
+      ]
+    });
+
+    expect(summary.byAgent[0]).toMatchObject({
+      role: "test_writer",
+      cliCalls: 10,
+      failedCalls: 8,
+      succeededCalls: 2,
+      lastRunAt: "2026-05-18T00:00:00.000Z",
+      lastFailedAt: "2026-05-17T00:00:00.000Z",
+      lastSucceededAt: "2026-05-18T00:00:00.000Z"
+    });
+    expect(summary.byAgentInstance[0]).toMatchObject({
+      agentName: "TestWriter",
+      lastFailedAt: "2026-05-17T00:00:00.000Z",
+      lastSucceededAt: "2026-05-18T00:00:00.000Z"
     });
   });
 

@@ -102,7 +102,7 @@ pnpm dionysus codex reconcile
 pnpm dionysus codex ack --event-id "<event-id>"
 ```
 
-`system audit` 是 Codex 开始或继续操作目标项目的首选产品化入口。它会合并 readiness、Agent CLI usage、Codex outbox 和可选 goal status，输出 `ready` / `needs_attention` / `blocked`、风险说明和下一条命令。不要只凭 `doctor` 正常或某个 Agent 还在 working 判断系统能推进；如果 audit 显示 `needs_attention`，先处理 pending outbox、高失败率角色、运行中调用或真实模型调用证据缺口。
+`system audit` 是 Codex 开始或继续操作目标项目的首选产品化入口。它会合并 readiness、Agent CLI usage、Codex outbox 和可选 goal status，输出 `ready` / `needs_attention` / `blocked`、风险说明和下一条命令。不要只凭 `doctor` 正常或某个 Agent 还在 working 判断系统能推进；如果 audit 显示 `needs_attention`，先处理 pending outbox、当前高失败率角色、运行中调用或真实模型调用证据缺口。已被后续成功 run 证明恢复的历史失败应进入 `notes`，不能永久阻断当前模块派工。
 
 ## CLI 完成标记
 

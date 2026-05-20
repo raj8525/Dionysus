@@ -202,6 +202,8 @@ export interface AgentCliModelUsage {
   succeededCalls: number;
   failedCalls: number;
   lastRunAt?: string;
+  lastSucceededAt?: string;
+  lastFailedAt?: string;
 }
 
 export interface AgentCliUsage {
@@ -212,6 +214,8 @@ export interface AgentCliUsage {
   succeededCalls: number;
   failedCalls: number;
   lastRunAt?: string;
+  lastSucceededAt?: string;
+  lastFailedAt?: string;
   models: AgentCliModelUsage[];
 }
 
@@ -227,6 +231,8 @@ export interface AgentInstanceCliUsage {
   succeededCalls: number;
   failedCalls: number;
   lastRunAt?: string;
+  lastSucceededAt?: string;
+  lastFailedAt?: string;
   models: AgentCliModelUsage[];
 }
 
@@ -238,6 +244,8 @@ export interface CliUsage {
   succeededCalls: number;
   failedCalls: number;
   lastRunAt?: string;
+  lastSucceededAt?: string;
+  lastFailedAt?: string;
 }
 
 export interface AgentCliUsageSummary {

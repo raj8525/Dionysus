@@ -101,6 +101,44 @@ describe("Dionysus system audit summary", () => {
     expect(summary.nextCommands).toContain("cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus agent usage --target-root \"/repo/Coupon\"");
   });
 
+  it("treats high historical failure rate as recovered when the latest role run succeeded", () => {
+    const summary = buildSystemAuditSummary({
+      targetRoot: "/repo/Coupon",
+      readiness: readyReadiness(),
+      usage: {
+        totals: {
+          cliCalls: 32,
+          modelCalls: 32,
+          runningCalls: 0,
+          succeededCalls: 20,
+          failedCalls: 12,
+          lastRunAt: "2026-05-17T02:31:25.107Z",
+          lastFailedAt: "2026-05-17T02:17:45.884Z",
+          lastSucceededAt: "2026-05-17T02:31:25.107Z"
+        },
+        byCli: [{ cliType: "opencode", cliCalls: 32, modelCalls: 32, failedCalls: 12 }],
+        byAgent: [
+          {
+            role: "test_writer",
+            cliCalls: 21,
+            modelCalls: 18,
+            succeededCalls: 9,
+            failedCalls: 12,
+            lastRunAt: "2026-05-17T02:31:25.107Z",
+            lastFailedAt: "2026-05-17T02:17:45.884Z",
+            lastSucceededAt: "2026-05-17T02:31:25.107Z"
+          },
+          { role: "worker", cliCalls: 11, modelCalls: 11, succeededCalls: 11, failedCalls: 0 }
+        ]
+      },
+      pendingCodexOutbox: []
+    });
+
+    expect(summary.status).toBe("ready");
+    expect(summary.warnings).toEqual([]);
+    expect(summary.notes).toContain("test_writer 曾有较高历史失败率：12/21，但最近一次运行已成功");
+  });
+
   it("is ready when runtime, target project, real CLI usage, and Codex outbox are clean", () => {
     const summary = buildSystemAuditSummary({
       targetRoot: "/repo/Coupon",
