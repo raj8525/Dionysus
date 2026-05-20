@@ -186,6 +186,17 @@ And Reviewer prompt 必须评审 Worker report 的证据强度和可执行性
 And Reviewer prompt 不得要求 integration patch
 And nextCommands 必须提示 report-only 产出后再启动 Reviewer
 
+## 场景 6.5.4.1：Report-only Reviewer 必须收到 Worker 报告证据
+
+Given 一个 report-only fast lane 已有 FastLane Worker 进入 `needs_review` 或 `done`
+And 对应 Worker run logs 中包含审计报告
+When Codex 或 supervise 将 FastLane Reviewer 任务入队
+Then Dionysus 必须在 Reviewer task events 中写入 `reviewer.worker_reports_evidence`
+And 事件必须包含 Worker task id、task title、task status、run id、run status 和 log excerpt
+And Runtime 构建 Reviewer prompt 时必须展示 `Worker Report Evidence`
+And Reviewer 必须先审查这些 Worker 报告，不能用重新探索代码替代审核
+And 如果没有 Worker 报告证据，Reviewer 必须返回 `BLOCKED`
+
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
 
 Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode

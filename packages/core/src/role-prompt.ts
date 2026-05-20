@@ -32,6 +32,7 @@ export function buildRolePrompt(input: {
   const goal = input.goal;
   const promptContext = buildPromptPathContext(input);
   const reviewFeedbackBlock = buildReviewFeedbackBlock(input.taskEvents ?? []);
+  const workerReportEvidenceBlock = buildWorkerReportEvidenceBlock(input.taskEvents ?? []);
   const workspaceBaselineBlock = buildWorkspaceBaselineBlock(input.workspaceSyncedTargetChanges);
   const frontendDependencyGateBlock = buildFrontendDependencyGateBlock(input);
   return [
@@ -52,6 +53,8 @@ export function buildRolePrompt(input: {
     "",
     reviewFeedbackBlock,
     reviewFeedbackBlock ? "" : undefined,
+    workerReportEvidenceBlock,
+    workerReportEvidenceBlock ? "" : undefined,
     workspaceBaselineBlock,
     workspaceBaselineBlock ? "" : undefined,
     frontendDependencyGateBlock,
@@ -172,6 +175,63 @@ function buildReviewFeedbackBlock(events: RolePromptTaskEvent[]): string {
       return `${index + 1}. reason=${reason}${score}${createdAt}`;
     })
   ].join("\n");
+}
+
+function buildWorkerReportEvidenceBlock(events: RolePromptTaskEvent[]): string {
+  const evidenceEvent = events
+    .filter((event) => event.eventType === "reviewer.worker_reports_evidence")
+    .at(-1);
+  if (!evidenceEvent) return "";
+
+  const reports = Array.isArray(evidenceEvent.payload.workerReports)
+    ? evidenceEvent.payload.workerReports
+    : [];
+  if (reports.length === 0) {
+    return [
+      "## Worker Report Evidence",
+      "- Dionysus 在 Reviewer 入队前没有找到可审查的 Worker run log。",
+      "- 你必须判定为 BLOCKED，并说明缺少哪个 Worker 报告；不得自行重新探索后假装已经审查 Worker 产物。"
+    ].join("\n");
+  }
+
+  return [
+    "## Worker Report Evidence",
+    "- 以下证据由 Dionysus 在 Reviewer 入队前从同一 goal 的 Worker run logs 自动注入。",
+    "- 你的首要任务是审核这些 Worker 报告的证据强度、结论是否可执行、是否混淆 API 通过与最终用户闭环。",
+    "- 不要用重新探索代码替代对 Worker 报告的审查；如需补充核验，必须明确写出补充核验与 Worker 报告之间的矛盾或缺口。",
+    ...reports.flatMap((report, index) => {
+      if (!isRecord(report)) {
+        return [`### Worker Report ${index + 1}`, "Invalid report payload"];
+      }
+      const title = stringValue(report.taskTitle) ?? "unknown";
+      const taskId = stringValue(report.taskId) ?? "unknown";
+      const taskStatus = stringValue(report.taskStatus) ?? "unknown";
+      const runId = stringValue(report.runId) ?? "unknown";
+      const runStatus = stringValue(report.runStatus) ?? "unknown";
+      const finishedAt = stringValue(report.finishedAt) ?? "unknown";
+      const excerpt = stringValue(report.logExcerpt) ?? "";
+      return [
+        `### Worker Report ${index + 1}: ${title}`,
+        `Task ID: ${taskId}`,
+        `Task Status: ${taskStatus}`,
+        `Run ID: ${runId}`,
+        `Run Status: ${runStatus}`,
+        `Finished At: ${finishedAt}`,
+        "Log Excerpt:",
+        "```text",
+        excerpt || "(empty)",
+        "```"
+      ];
+    })
+  ].join("\n");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function roleLabel(role: AgentRole): string {

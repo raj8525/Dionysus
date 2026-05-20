@@ -462,6 +462,14 @@ pnpm dionysus task review --task-id "<task-id>" --verdict approve --score 90 --r
 
 `fastlane plan/start` 必须支持 `--report-only`，用于只读审计、模块验收、覆盖缺口扫描和方案评审。该模式下 Worker prompt 必须明确“禁止修改文件、无需 patch、输出证据报告”，Reviewer prompt 必须评审 Worker report 的证据强度和可执行性，不能要求 integration patch。普通 patch fast lane 仍用于真实实现任务；审计任务误用普通模式会误导 Agent 生成无意义文件改动，属于控制面缺陷。
 
+当 report-only Reviewer 任务进入 `queued` 前，API 必须自动收集同一 goal 下状态为 `needs_review` 或 `done` 的 `FastLane Worker` 最新 run logs，并写入 Reviewer task event：
+
+```text
+event_type = reviewer.worker_reports_evidence
+```
+
+该事件必须至少包含 `workerReports[]`、`taskId`、`taskTitle`、`taskStatus`、`runId`、`runStatus` 和 `logExcerpt`。Worker Runtime 构建 Reviewer prompt 时必须展示该证据区块，要求 Reviewer 先审核 Worker 报告。若 `workerReports` 为空，Reviewer 必须返回 `BLOCKED`，不能用重新探索代码替代对 Worker 产物的审核。
+
 `system audit` 是 Codex 的高层运行判断入口。它必须合并 `system readiness`、`agent usage`、pending `codex_outbox` 和可选 goal 聚合状态，返回 `ready` / `needs_attention` / `blocked`、`blockers`、`warnings`、`notes`、`nextAction`、`nextCommands` 和 evidence。`readiness.blocked` 必须直接阻断派工；pending outbox、真实模型调用证据缺失、运行中调用、当前高失败率角色必须进入 `needs_attention`，由 Codex 先处理风险再扩大并发。`agent usage` 必须暴露最后成功和最后失败时间；如果某角色历史失败率偏高但最近一次运行已经成功，audit 必须将其降级为 `notes`，不能让已恢复的历史失败永久阻断当前派工判断。
 
 `task review` 请求体支持 `score`。普通 Worker 任务可由 Codex 直接 approve；`FastLane Reviewer` 任务执行 90 分质量门禁，`approve` 必须携带 `score >= 90`。缺少 `score` 或 `score < 90` 时 API 必须返回 `409 REVIEWER_SCORE_GATE_BLOCKED`，要求 Codex 改用 `--verdict reject` 并把具体修复项交回 WorkerCLI。

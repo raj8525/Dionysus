@@ -164,6 +164,70 @@ describe("role prompt builder", () => {
     expect(prompt).toContain("不要仅按目标仓库 HEAD 判断");
   });
 
+  it("injects Worker report logs into report-only Reviewer prompts", () => {
+    const prompt = buildRolePrompt({
+      role: "worker",
+      goal,
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-reviewer-task",
+      task: {
+        id: "reviewer-task",
+        title: "FastLane Reviewer 1: D1 产品验收评审",
+        description: "Report-only mode: review Worker reports, not integrated patches.",
+        roleRequired: "worker"
+      },
+      taskEvents: [
+        {
+          eventType: "reviewer.worker_reports_evidence",
+          createdAt: "2026-05-20T07:30:00.000Z",
+          payload: {
+            workerReports: [
+              {
+                taskId: "worker-1",
+                taskTitle: "FastLane Worker 1: D1 E2E 覆盖审计",
+                taskStatus: "needs_review",
+                runId: "run-1",
+                runStatus: "succeeded",
+                finishedAt: "2026-05-20T07:29:00.000Z",
+                logExcerpt: "缺口：/identity/members/:id 缺少直达详情 E2E。"
+              }
+            ]
+          }
+        }
+      ]
+    });
+
+    expect(prompt).toContain("## Worker Report Evidence");
+    expect(prompt).toContain("从同一 goal 的 Worker run logs 自动注入");
+    expect(prompt).toContain("不要用重新探索代码替代对 Worker 报告的审查");
+    expect(prompt).toContain("FastLane Worker 1: D1 E2E 覆盖审计");
+    expect(prompt).toContain("Run ID: run-1");
+    expect(prompt).toContain("/identity/members/:id 缺少直达详情 E2E");
+  });
+
+  it("blocks report-only Reviewer prompts when no Worker report evidence exists", () => {
+    const prompt = buildRolePrompt({
+      role: "worker",
+      goal,
+      workspacePath: "/tmp/dionysus-workspaces/Coupon-reviewer-task",
+      task: {
+        id: "reviewer-task",
+        title: "FastLane Reviewer 1: D1 产品验收评审",
+        description: "Report-only mode: review Worker reports, not integrated patches.",
+        roleRequired: "worker"
+      },
+      taskEvents: [
+        {
+          eventType: "reviewer.worker_reports_evidence",
+          payload: { workerReports: [] }
+        }
+      ]
+    });
+
+    expect(prompt).toContain("没有找到可审查的 Worker run log");
+    expect(prompt).toContain("你必须判定为 BLOCKED");
+    expect(prompt).toContain("不得自行重新探索后假装已经审查 Worker 产物");
+  });
+
   it("warns admin-web workers not to mutate package manager state", () => {
     const prompt = buildRolePrompt({
       role: "worker",

@@ -564,6 +564,7 @@ export async function buildServer() {
         await repo.recordTaskEvent(task.id, "task.enqueue_blocked", { ...gate });
         return reply.code(201).send({ ...task, enqueueBlocked: gate });
       }
+      await attachReportOnlyReviewerEvidenceIfNeeded(repo, { task, goalTasks });
       await repo.markTaskQueued(task.id);
       await publishJson(queueForRole(parsed.data.roleRequired), {
         message_id: randomUUID(),
@@ -618,6 +619,7 @@ export async function buildServer() {
         roleRequired
       });
     }
+    await attachReportOnlyReviewerEvidenceIfNeeded(repo, { task, goalTasks });
     await repo.markTaskQueued(id);
     await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
       message_id: randomUUID(),
@@ -1416,6 +1418,86 @@ function readAllowedDirtyPaths(body: unknown): string[] {
     : [];
 }
 
+async function attachReportOnlyReviewerEvidenceIfNeeded(
+  repo: DionysusRepository,
+  input: {
+    task: Record<string, unknown>;
+    goalTasks: Array<Record<string, unknown>>;
+  }
+): Promise<void> {
+  if (!isReportOnlyReviewerTask(input.task)) {
+    return;
+  }
+  const goalId = String(input.task.goal_id ?? input.task.goalId ?? "");
+  const reviewerTaskId = String(input.task.id ?? "");
+  if (!goalId || !reviewerTaskId) {
+    return;
+  }
+
+  const workerTasks = input.goalTasks.filter(isReportOnlyReviewableWorkerTask);
+  const runs = await repo.listTaskRuns({ goalId, limit: 200 });
+  const workerReports = [];
+  for (const workerTask of workerTasks) {
+    const taskId = String(workerTask.id);
+    const latestSucceededRun = runs.find((run) =>
+      String(run.taskId) === taskId && String(run.status) === "succeeded"
+    );
+    const latestRun = latestSucceededRun ?? runs.find((run) => String(run.taskId) === taskId);
+    const logs = latestRun ? await repo.listTaskRunLogs(String(latestRun.id)) : [];
+    workerReports.push({
+      taskId,
+      taskTitle: String(workerTask.title ?? "unknown"),
+      taskStatus: String(workerTask.status ?? "unknown"),
+      runId: latestRun ? String(latestRun.id) : null,
+      runStatus: latestRun ? String(latestRun.status) : "missing",
+      finishedAt: latestRun?.finishedAt ?? null,
+      logExcerpt: buildRunLogExcerpt(logs)
+    });
+  }
+
+  await repo.recordTaskEvent(reviewerTaskId, "reviewer.worker_reports_evidence", {
+    source: "task.enqueue",
+    generatedAt: new Date().toISOString(),
+    goalId,
+    reviewerTaskId,
+    workerReportCount: workerReports.length,
+    workerReports
+  });
+}
+
+function isReportOnlyReviewerTask(task: Record<string, unknown>): boolean {
+  const title = String(task.title ?? "");
+  const description = String(task.description ?? "");
+  return title.startsWith("FastLane Reviewer") && description.includes("Report-only mode: review Worker reports");
+}
+
+function isReportOnlyReviewableWorkerTask(task: Record<string, unknown>): boolean {
+  const title = String(task.title ?? "");
+  const status = String(task.status ?? "");
+  return title.startsWith("FastLane Worker") && ["needs_review", "done"].includes(status);
+}
+
+function buildRunLogExcerpt(logs: Array<Record<string, unknown>>, maxChars = 12_000): string {
+  const text = logs
+    .map((log) => `${String(log.stream ?? "log")}: ${String(log.chunkText ?? "")}`)
+    .join("\n")
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .split("\n")
+    .filter((line) => !line.startsWith("DIONYSUS_DONE_JSON="))
+    .join("\n")
+    .trim();
+  if (text.length <= maxChars) {
+    return text;
+  }
+  const headChars = 2_000;
+  const tailChars = maxChars - headChars - 80;
+  return [
+    text.slice(0, headChars),
+    `\n... [truncated ${text.length - headChars - tailChars} chars; keeping head and final report tail] ...\n`,
+    text.slice(-tailChars)
+  ].join("");
+}
+
 async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTask: Record<string, unknown>): Promise<void> {
   const reviewedTaskId = String(reviewedTask.id);
   const goalId = String(reviewedTask.goal_id);
@@ -1452,6 +1534,10 @@ async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTas
   const reviewerFollowups = selectFastLaneReviewerFollowupTasks({ reviewedTask, goalTasks });
   if (reviewerFollowups.length > 0) {
     for (const nextTask of reviewerFollowups) {
+      await attachReportOnlyReviewerEvidenceIfNeeded(repo, {
+        task: nextTask as unknown as Record<string, unknown>,
+        goalTasks
+      });
       await repo.markTaskQueued(String(nextTask.id));
       await publishJson(queueForRole("worker"), {
         message_id: randomUUID(),
