@@ -32,9 +32,11 @@ import {
   selectCouponDataFirstFollowupTasks,
   selectFastLaneReviewerFollowupTasks,
   shouldDispatchAfterTaskReview,
+  shouldRequeueRejectedTask,
   deriveWorkerHealth,
   deriveWorkerEffectiveRunConfig,
-  taskReviewStatusForVerdict
+  taskReviewStatusForContext,
+  isFastLaneReviewerTaskTitle
 } from "@dionysus/core";
 import type { MilestoneStatus, NotificationChannelDraft, NotificationMessage } from "@dionysus/core";
 import { probeAllClis, validateCliModel } from "@dionysus/cli-adapters";
@@ -657,7 +659,10 @@ export async function buildServer() {
         requiredAction: "Use --verdict reject below 90 and include concrete Worker fix instructions; only approve ReviewerCLI results with --score >= 90."
       });
     }
-    const nextStatus = taskReviewStatusForVerdict(parsed.data.verdict);
+    const nextStatus = taskReviewStatusForContext({
+      verdict: parsed.data.verdict,
+      taskTitle: String(reviewTarget.title ?? "")
+    });
     const task = await repo.reviewTask({
       taskId: id,
       verdict: parsed.data.verdict,
@@ -668,7 +673,44 @@ export async function buildServer() {
     if (!task) {
       return reply.code(409).send({ error: "TASK_NOT_REVIEWABLE", requiredStatus: "needs_review" });
     }
-    if (parsed.data.verdict === "reject") {
+    if (parsed.data.verdict === "reject" && isFastLaneReviewerTaskTitle(String(task.title ?? ""))) {
+      const reason = [
+        "FastLane Reviewer gate was rejected by Codex and must not be requeued automatically.",
+        `task_id=${id}`,
+        `title=${String(task.title ?? "")}`,
+        `last_reject_reason=${parsed.data.reason}`
+      ].filter(Boolean).join("\n");
+      await repo.markTaskBlocked({ taskId: id, reason });
+      await repo.recordTaskEvent(id, "task.review_fastlane_reviewer_rejected", {
+        reason,
+        reviewScore: parsed.data.score ?? null,
+        requiredAction: "Codex must inspect the reviewer report, decide whether Worker output needs another iteration or Codex takeover, then record release or create a new task."
+      });
+      const event = await repo.createCodexOutboxEvent(buildCodexOutboxDraft({
+        goalId: String(task.goal_id),
+        eventType: "blocker",
+        reason,
+        source: "task.review.fastlane_reviewer_reject",
+        payload: {
+          taskId: id,
+          title: task.title,
+          reviewScore: parsed.data.score ?? null,
+          lastRejectReason: parsed.data.reason,
+          requiredAction: "Do not rerun this ReviewerCLI automatically; Codex must take over the product-quality decision."
+        }
+      }));
+      return reply.code(202).send({
+        ...task,
+        status: "blocked",
+        blocked_reason: reason,
+        codexTakeoverRequired: true,
+        codexOutboxEvent: event
+      });
+    }
+    if (shouldRequeueRejectedTask({
+      verdict: parsed.data.verdict,
+      taskTitle: String(task.title ?? "")
+    })) {
       const rejectionCount = await repo.countTaskReviewRejections(id);
       const policy = evaluateTaskReviewRejectionPolicy({
         verdict: parsed.data.verdict,

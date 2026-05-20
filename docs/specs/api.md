@@ -501,7 +501,7 @@ Codex handoff: <what Codex must decide or verify next>
 
 `system audit` 是 Codex 的高层运行判断入口。它必须合并 `system readiness`、`agent usage`、pending `codex_outbox` 和可选 goal 聚合状态，返回 `ready` / `needs_attention` / `blocked`、`blockers`、`warnings`、`notes`、`nextAction`、`nextCommands` 和 evidence。`readiness.blocked` 必须直接阻断派工；pending outbox、真实模型调用证据缺失、运行中调用、当前高失败率角色必须进入 `needs_attention`，由 Codex 先处理风险再扩大并发。`agent usage` 必须暴露最后成功和最后失败时间；如果某角色历史失败率偏高但最近一次运行已经成功，audit 必须将其降级为 `notes`，不能让已恢复的历史失败永久阻断当前派工判断。
 
-`task review` 请求体支持 `score`。普通 Worker 任务可由 Codex 直接 approve；`FastLane Reviewer` 任务执行 90 分质量门禁，`approve` 必须携带 `score >= 90`。缺少 `score` 或 `score < 90` 时 API 必须返回 `409 REVIEWER_SCORE_GATE_BLOCKED`，要求 Codex 改用 `--verdict reject` 并把具体修复项交回 WorkerCLI。
+`task review` 请求体支持 `score`。普通 Worker 任务可由 Codex 直接 approve；`FastLane Reviewer` 任务执行 90 分质量门禁，`approve` 必须携带 `score >= 90`。缺少 `score` 或 `score < 90` 时 API 必须返回 `409 REVIEWER_SCORE_GATE_BLOCKED`，要求 Codex 改用 `--verdict reject` 并写明低分原因。`FastLane Reviewer` 被 reject 后不得重新投递 ReviewerCLI；API 必须把该 Reviewer task 标记为 `blocked`，写入 Codex Outbox `blocker`，由 Codex 决定是否创建新的 Worker 返工任务、亲自接手，或在已修复后直接记录 release。
 
 `system worker start` 必须用 detached 进程启动 Worker Runtime，并把 stdout/stderr 写入 `.dionysus/logs/worker-*.log`。Codex 不应该依赖前台 shell 会话维持 Worker 心跳。
 
@@ -513,7 +513,7 @@ Codex handoff: <what Codex must decide or verify next>
 
 `POST /api/tasks/:id/codex-complete` 用于 Codex 亲自接手并完成 WorkerCLI 无法可靠完成的任务。该入口只允许 `created`、`queued`、`assigned`、`running`、`needs_review`、`blocked`、`failed` 任务进入 `done`；不得把 `cancelled` 任务复活，也不得重复完成已经 `done` 的任务。它必须记录 `task.codex_complete` 事件、把该 task 下仍处于 `running` 的 run 收口为 `succeeded`，并触发与 `task review approve` 相同的后续安全分发。
 
-`POST /api/tasks/:id/review` 是 Codex 或 Master 对 Agent 产物的正式评审入口，只允许评审状态为 `needs_review` 的任务。`verdict=approve` 必须将任务标记为 `done`，然后查找同一 goal 中下一条 `created` task 并投递到对应角色队列；`verdict=reject` 必须将任务退回 `queued` 并重新投递当前任务到 `role_required` 对应队列；`verdict=block` 必须将任务标记为 `blocked` 并写入 `blocked_reason`。每次 review 都必须记录 `task.review_approve`、`task.review_reject` 或 `task.review_block` 事件；approve 放行后还必须记录 `review.dispatch_next_task` 或 `review.no_next_task`；任务不在 `needs_review` 时必须返回 `409 TASK_NOT_REVIEWABLE`。
+`POST /api/tasks/:id/review` 是 Codex 或 Master 对 Agent 产物的正式评审入口，只允许评审状态为 `needs_review` 的任务。`verdict=approve` 必须将任务标记为 `done`，然后查找同一 goal 中下一条 `created` task 并投递到对应角色队列；普通非 Reviewer task 的 `verdict=reject` 必须将任务退回 `queued` 并重新投递当前任务到 `role_required` 对应队列；`FastLane Reviewer` task 的 `verdict=reject` 必须标记为 `blocked` 并写入 Codex Outbox，不得自动重跑 ReviewerCLI；`verdict=block` 必须将任务标记为 `blocked` 并写入 `blocked_reason`。每次 review 都必须记录 `task.review_approve`、`task.review_reject` 或 `task.review_block` 事件；approve 放行后还必须记录 `review.dispatch_next_task` 或 `review.no_next_task`；任务不在 `needs_review` 时必须返回 `409 TASK_NOT_REVIEWABLE`。
 
 同一个任务累计第 10 次 `verdict=reject` 时，Dionysus 不得继续重排 WorkerCLI。API 必须把任务标记为 `blocked`，记录 `task.review_codex_takeover`，写入 `codex_outbox` 的 `blocker` 事件，并在响应中返回 `codexTakeoverRequired: true`、`rejectionPolicy` 和 `codexOutboxEvent`。此时 Codex 必须亲自接手该任务，不能继续让 WorkerCLI 盲目迭代。
 

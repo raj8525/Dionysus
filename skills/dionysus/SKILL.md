@@ -292,7 +292,7 @@ pnpm -s dionysus task enqueue --task-id "<reviewer-task-id>"
 pnpm -s dionysus goal fast-lane --goal-id "<goal-id>" --reason "Codex controls this goal directly"
 ```
 
-Reviewer 低于 90 分：不要应用 patch，创建迭代 Worker 任务。
+Reviewer 低于 90 分：不要应用 patch，也不要让同一个 ReviewerCLI 自动重跑。执行 `task review --verdict reject` 后，Dionysus 会把该 Reviewer task 标记为 `blocked` 并写入 Codex Outbox；Codex 应根据具体问题创建新的 Worker 返工任务、亲自接手修复，或在已修复且验证通过后记录 release。
 
 Reviewer 达到 90 分：Codex 继续做最终检查。
 
@@ -302,7 +302,7 @@ Reviewer 任务 approve 时必须把分数交给 API：
 pnpm -s dionysus task review --task-id "<reviewer-task-id>" --verdict approve --score 90 --reason "Reviewer gate accepted by Codex"
 ```
 
-没有 `--score` 或低于 90 会被 API 拒绝。低于 90 时必须使用 `--verdict reject`，并在 `--reason` 中写清 WorkerCLI 需要修复的具体问题。
+没有 `--score` 或低于 90 会被 API 拒绝。低于 90 时必须使用 `--verdict reject`，并在 `--reason` 中写清 WorkerCLI 需要修复的具体问题；该 reject 不会重排 ReviewerCLI。
 
 ## Codex 最终检查
 

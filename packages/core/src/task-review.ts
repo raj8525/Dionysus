@@ -16,6 +16,27 @@ export function taskReviewStatusForVerdict(verdict: TaskReviewVerdict): TaskRevi
   return statuses[verdict];
 }
 
+export function isFastLaneReviewerTaskTitle(taskTitle?: string): boolean {
+  return String(taskTitle ?? "").startsWith("FastLane Reviewer");
+}
+
+export function taskReviewStatusForContext(input: {
+  verdict: TaskReviewVerdict;
+  taskTitle?: string;
+}): TaskReviewNextStatus {
+  if (input.verdict === "reject" && isFastLaneReviewerTaskTitle(input.taskTitle)) {
+    return "blocked";
+  }
+  return taskReviewStatusForVerdict(input.verdict);
+}
+
+export function shouldRequeueRejectedTask(input: {
+  verdict: TaskReviewVerdict;
+  taskTitle?: string;
+}): boolean {
+  return input.verdict === "reject" && !isFastLaneReviewerTaskTitle(input.taskTitle);
+}
+
 export function shouldDispatchAfterTaskReview(verdict: TaskReviewVerdict): boolean {
   return verdict === "approve";
 }

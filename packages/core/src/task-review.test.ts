@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateReviewerApprovalGate,
   evaluateTaskReviewRejectionPolicy,
+  shouldRequeueRejectedTask,
   shouldDispatchAfterTaskReview,
+  taskReviewStatusForContext,
   taskReviewStatusForVerdict
 } from "./task-review.js";
 
@@ -18,6 +20,28 @@ describe("taskReviewStatusForVerdict", () => {
     expect(shouldDispatchAfterTaskReview("approve")).toBe(true);
     expect(shouldDispatchAfterTaskReview("reject")).toBe(false);
     expect(shouldDispatchAfterTaskReview("block")).toBe(false);
+  });
+
+  it("blocks rejected FastLane Reviewer tasks instead of requeueing them", () => {
+    expect(taskReviewStatusForContext({
+      verdict: "reject",
+      taskTitle: "FastLane Reviewer 1: D1身份页产品质量门禁"
+    })).toBe("blocked");
+    expect(shouldRequeueRejectedTask({
+      verdict: "reject",
+      taskTitle: "FastLane Reviewer 1: D1身份页产品质量门禁"
+    })).toBe(false);
+  });
+
+  it("keeps ordinary rejected Worker tasks queued for iteration", () => {
+    expect(taskReviewStatusForContext({
+      verdict: "reject",
+      taskTitle: "FastLane Worker 1: 前端实现"
+    })).toBe("queued");
+    expect(shouldRequeueRejectedTask({
+      verdict: "reject",
+      taskTitle: "FastLane Worker 1: 前端实现"
+    })).toBe(true);
   });
 
   it("keeps retrying rejected tasks below the Codex takeover threshold", () => {

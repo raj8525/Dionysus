@@ -625,6 +625,11 @@ When Codex 执行 `pnpm dionysus task review --task-id "<task-id>" --verdict rej
 Then task 状态必须变为 `queued`
 And Dionysus 必须重新投递到该 task 的角色队列
 And Dionysus 不得放行下一条 task
+When Codex 对 `FastLane Reviewer` task 执行 `--verdict reject`
+Then Reviewer task 状态必须变为 `blocked`
+And Dionysus 必须写入 Codex Outbox `blocker`
+And Dionysus 不得重新投递 ReviewerCLI
+And 是否创建 Worker 返工任务、Codex 接手或记录 release 必须由 Codex 裁决
 When 同一个 task 第 10 次被 `verdict reject`
 Then task 必须进入 `blocked`
 And 系统必须写入 Codex Outbox `blocker`

@@ -57,7 +57,8 @@ cancelled
 - 所有 `FastLane Reviewer` 即使 CLI 进程 `exit_code=0`，也必须通过 Runtime 结构化输出门禁。普通实现型 Reviewer 输出必须包含 `Verdict:`、`Score:`、`Evidence:`、`Product/UX assessment:`、`Required fixes:`、`Codex handoff:`；其中 `Product/UX assessment` 必须从最终用户任务流、系统功能、信息架构、页内上下文切换 vs 明确 CTA 跳转/弹窗、视觉/模板适配等角度给出判断。缺失或格式非法时，该 run 必须按失败处理，task 不得进入 `needs_review`，并写入 `reviewer.output_gate_failed` 事件。
 - `--report-only` fast lane 的 Reviewer 入队前，Dionysus 必须把同一 goal 下已产出的 FastLane Worker run logs 摘要写入 Reviewer 任务事件 `reviewer.worker_reports_evidence`。Reviewer prompt 必须优先展示这些 Worker 报告证据；如果没有 Worker report evidence，Reviewer 必须判定为 `BLOCKED`，不得通过重新探索代码假装已经审核 Worker 产物。
 - `--report-only` fast lane 的 Reviewer 即使 CLI 进程 `exit_code=0`，也必须通过 Runtime 结构化输出门禁。输出必须包含 `Verdict:`、`Score:`、`Evidence reviewed:`、`Coverage gaps:`、`Required fixes:`、`Codex handoff:`，且 `Verdict` 只能是 `PASS` 或 `BLOCKED`，`Score` 必须是 0-100 数字。缺失或格式非法时，该 run 必须按失败处理，task 不得进入 `needs_review`，并写入 `reviewer.output_gate_failed` 事件。
-- `task review --verdict reject` 只能把当前任务退回 `queued` 并重跑当前任务，不得放行下一任务。
+- 普通 Worker / RuleWriter / TestWriter 的 `task review --verdict reject` 只能把当前任务退回 `queued` 并重跑当前任务，不得放行下一任务。
+- `FastLane Reviewer` 的 `task review --verdict reject` 表示 Codex 拒绝低分 Reviewer 门禁报告，必须把该 Reviewer task 标记为 `blocked`，写入 Codex Outbox `blocker`，并停止自动重排 ReviewerCLI；是否让 Worker 返工、Codex 亲自接手或直接记录 release 必须由 Codex 另行裁决。
 - `task review --verdict block` 只能把当前任务标记为 `blocked`，不得放行下一任务。
 - 同一任务第 10 次 `task review --verdict reject` 后必须强制进入 `blocked`，并写入 Codex Outbox `blocker`，由 Codex 亲自接手；不得继续 requeue WorkerCLI。
 - Watchdog 将 `running` task 重试或阻塞时，必须同时把该 task 下未完成的 `task_runs` 收口为 `failed`，避免 Dashboard 长期显示幽灵 running。
