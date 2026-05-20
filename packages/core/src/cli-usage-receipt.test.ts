@@ -29,6 +29,19 @@ describe("parseCliUsageReceipt", () => {
     });
   });
 
+  it("uses Markdown-wrapped Dionysus done markers as model usage receipts", () => {
+    expect(parseCliUsageReceipt([
+      "final report",
+      "**DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":2}**"
+    ].join("\n"))).toEqual({
+      modelCalls: 2,
+      raw: {
+        status: "done",
+        modelCalls: 2
+      }
+    });
+  });
+
   it("ignores invalid or missing usage receipts", () => {
     expect(parseCliUsageReceipt("DIONYSUS_USAGE_JSON={bad")).toBeNull();
     expect(parseCliUsageReceipt("no usage here")).toBeNull();

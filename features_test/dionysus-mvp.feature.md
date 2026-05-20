@@ -583,6 +583,7 @@ Then 返回每个 Agent 的累计 CLI 调用次数
 And 返回每个 Agent 使用的 CLI 与模型维度调用次数
 And 前端默认应按当前目标的 `targetRoot` 请求项目级累计统计
 And CLI 输出 `DIONYSUS_USAGE_JSON={"modelCalls":3}` 时，Agent Runtime 必须把真实模型调用次数写入 `task_runs.model_call_count`
+And CLI 输出 `**DIONYSUS_DONE_JSON={"status":"done","modelCalls":3}**` 这类 Markdown 整行包裹标记时，Agent Runtime 也必须识别为完成标记和模型调用回执
 And 非 `mock` CLI 在没有 provider usage 回执时，`modelCalls` 必须按 Dionysus 发起的 CLI run 次数估算
 And Dashboard 每 5 秒自动刷新该统计
 And 统计口径必须来自 PostgreSQL `task_runs` 全量聚合，而不是只看最近列表分页

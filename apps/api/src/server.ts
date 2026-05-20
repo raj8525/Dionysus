@@ -1592,7 +1592,7 @@ function buildRunLogExcerpt(logs: Array<Record<string, unknown>>, maxChars = 12_
     .join("\n")
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
     .split("\n")
-    .filter((line) => !line.startsWith("DIONYSUS_DONE_JSON="))
+    .filter((line) => !isCompletionMarkerLine(line))
     .join("\n")
     .trim();
   if (text.length <= maxChars) {
@@ -1605,6 +1605,14 @@ function buildRunLogExcerpt(logs: Array<Record<string, unknown>>, maxChars = 12_
     `\n... [truncated ${text.length - headChars - tailChars} chars; keeping head and final report tail] ...\n`,
     text.slice(-tailChars)
   ].join("");
+}
+
+function isCompletionMarkerLine(line: string): boolean {
+  return line
+    .trim()
+    .replace(/^(?:[*_`~]{1,3})+/, "")
+    .replace(/(?:[*_`~]{1,3})+$/, "")
+    .startsWith("DIONYSUS_DONE_JSON=");
 }
 
 async function dispatchNextTaskAfterReview(repo: DionysusRepository, reviewedTask: Record<string, unknown>): Promise<void> {

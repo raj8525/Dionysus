@@ -135,8 +135,29 @@ describe("real CLI adapters", () => {
     expect(result.structuredResult?.completionMarkerDetected).toBe(true);
   });
 
+  it("terminates a CLI run when the completion marker is wrapped by Markdown emphasis", async () => {
+    const command = await markdownCompletionMarkerThenHangCliCommand();
+    setEnv("DIONYSUS_CLAUDE_CODE_COMMAND", command);
+    setEnv("DIONYSUS_CLI_COMPLETION_GRACE_MS", "10");
+
+    const result = await createCliAdapter({ cliType: "claude_code", timeoutMs: 5_000 }).run({
+      taskId: "task-markdown-done-marker",
+      cwd: process.cwd(),
+      prompt: "完成后输出 Markdown 标记"
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('**DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}**');
+    expect(result.stderr).toContain("completion marker detected");
+    expect(result.structuredResult?.completionMarkerDetected).toBe(true);
+  });
+
   it("parses only valid done completion markers", () => {
     expect(parseDionysusCompletionMarker('DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}')).toEqual({
+      status: "done",
+      modelCalls: 1
+    });
+    expect(parseDionysusCompletionMarker('**DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}**')).toEqual({
       status: "done",
       modelCalls: 1
     });
@@ -227,6 +248,19 @@ async function completionMarkerThenHangCliCommand(): Promise<string> {
     "#!/usr/bin/env node",
     "process.stdout.write('final report\\n')",
     "process.stdout.write('DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}\\n')",
+    "setInterval(() => {}, 1000)"
+  ].join("\n"));
+  await chmod(file, 0o755);
+  return file;
+}
+
+async function markdownCompletionMarkerThenHangCliCommand(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "dionysus-cli-markdown-done-"));
+  const file = join(dir, "markdown-done-then-hang-cli.mjs");
+  await writeFile(file, [
+    "#!/usr/bin/env node",
+    "process.stdout.write('final report\\n')",
+    "process.stdout.write('**DIONYSUS_DONE_JSON={\"status\":\"done\",\"modelCalls\":1}**\\n')",
     "setInterval(() => {}, 1000)"
   ].join("\n"));
   await chmod(file, 0o755);

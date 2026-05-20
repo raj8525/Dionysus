@@ -2,6 +2,44 @@
 
 本文件用于保存上下文压缩前的交接记录、重要决策和当前进度。未来会话继续开发 Dionysus 前，应先阅读 `AGENTS.md`，再阅读本文件的最新记录。
 
+## 2026-05-20 真实 CLI 完成标记 Markdown 包裹兼容
+
+### 背景
+
+- 使用 Dionysus report-only goal `7b1eb2a6-5cfb-4905-b32e-1b006e01cc05` 审计 Coupon D1 权限组织模块时，OpenCode / MiniMax Worker 输出曾出现 Markdown 包裹或非严格最终行的 `DIONYSUS_DONE_JSON`。
+- 旧 `TemplateCliAdapter` 只识别精确行 `DIONYSUS_DONE_JSON={...}`，`parseCliUsageReceipt` 也只识别精确行。真实 CLI 如果输出 `**DIONYSUS_DONE_JSON={...}**`，可能导致进程无法在完成后被 Dionysus 主动收口，或模型调用统计无法读取真实回执。
+
+### 已实现
+
+- `packages/cli-adapters/src/template-adapter.ts`
+  - 完成标记解析改为逐行处理，先清理常见 Markdown 整行包裹 `*`、`_`、`` ` ``、`~`，再解析 `DIONYSUS_DONE_JSON={...}`。
+  - 仍只接受 `status="done"` 的 JSON，避免把 `blocked` 或坏 JSON 当成完成。
+- `packages/core/src/cli-usage-receipt.ts`
+  - usage / done 回执同样兼容 Markdown 整行包裹，确保 `modelCalls` 能真实落库。
+- `apps/api/src/server.ts`
+  - Reviewer worker report evidence 的日志摘要过滤也兼容 Markdown 包裹的完成标记，避免把 marker 混入报告正文。
+- `packages/cli-adapters/src/real-cli-adapters.test.ts`
+  - 新增 CLI 输出 `**DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}**` 后继续挂起时，Adapter 必须主动终止进程组的测试。
+- `packages/core/src/cli-usage-receipt.test.ts`
+  - 新增 Markdown-wrapped done marker 作为模型调用回执的测试。
+- `AGENTS.md`、`docs/specs/api.md`、`features_test/dionysus-mvp.feature.md`
+  - 明确 Agent 仍必须输出精确最终行，但 Runtime 必须容忍常见 Markdown 包裹。
+
+### 已验证
+
+- 红灯验证：新增测试在旧代码下失败，Markdown marker 无法解析且 CLI 测试超时。
+- 绿灯验证：
+  - `pnpm exec vitest run packages/cli-adapters/src/real-cli-adapters.test.ts packages/core/src/cli-usage-receipt.test.ts`：2 files / 15 tests passed。
+  - `pnpm typecheck`：通过。
+  - `pnpm test`：56 files / 286 tests passed。
+  - `git diff --check`：通过。
+
+### 下一步
+
+- 提交并推送本轮 Dionysus 修复。
+- 执行 `pnpm -s dionysus system runtime heal`，确保 API / Worker 运行新 commit。
+- 继续推进 Coupon D1 report-only goal `7b1eb2a6-5cfb-4905-b32e-1b006e01cc05`：Worker 已 `needs_review`，Reviewer 任务 `28a60743-f124-460b-90ee-f22ad97c88eb` 仍为 `created`，需要 `fastlane advance` 或明确收口。
+
 ## 2026-05-20 system audit 陈旧未关闭目标门禁
 
 ### 背景

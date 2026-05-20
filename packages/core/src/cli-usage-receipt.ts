@@ -3,15 +3,15 @@ export interface CliUsageReceipt {
   raw: Record<string, unknown>;
 }
 
-const usageLinePattern = /^DIONYSUS_USAGE_JSON=(.+)$/m;
-const doneLinePattern = /^DIONYSUS_DONE_JSON=(.+)$/m;
+const usageLinePattern = /^DIONYSUS_USAGE_JSON=(.+)$/;
+const doneLinePattern = /^DIONYSUS_DONE_JSON=(.+)$/;
 
 export function parseCliUsageReceipt(text: string): CliUsageReceipt | null {
-  const match = usageLinePattern.exec(text) ?? doneLinePattern.exec(text);
-  if (!match) return null;
+  const payload = findUsagePayload(text);
+  if (!payload) return null;
 
   try {
-    const raw = JSON.parse(match[1]) as Record<string, unknown>;
+    const raw = JSON.parse(payload) as Record<string, unknown>;
     const modelCalls = Number(raw.modelCalls);
     if (!Number.isFinite(modelCalls) || modelCalls < 0) {
       return null;
@@ -23,4 +23,21 @@ export function parseCliUsageReceipt(text: string): CliUsageReceipt | null {
   } catch {
     return null;
   }
+}
+
+function findUsagePayload(text: string): string | null {
+  for (const line of text.split(/\r?\n/)) {
+    const normalized = stripMarkdownLineWrapper(line);
+    const match = usageLinePattern.exec(normalized) ?? doneLinePattern.exec(normalized);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function stripMarkdownLineWrapper(line: string): string {
+  return line
+    .trim()
+    .replace(/^(?:[*_`~]{1,3})+/, "")
+    .replace(/(?:[*_`~]{1,3})+$/, "")
+    .trim();
 }

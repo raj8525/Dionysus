@@ -8,7 +8,7 @@ import { resolveOpenCodeModel } from "./opencode-model.js";
 import type { AgentRunInput, AgentRunResult, CliAdapter } from "./types.js";
 
 const MAX_OUTPUT_BYTES = 1024 * 1024 * 20;
-const COMPLETION_MARKER_PATTERN = /^DIONYSUS_DONE_JSON=(\{.*\})$/m;
+const COMPLETION_MARKER_PATTERN = /^DIONYSUS_DONE_JSON=(\{.*\})$/;
 
 export interface TemplateCliAdapterOptions {
   cliType: Exclude<CliType, "mock">;
@@ -259,16 +259,33 @@ async function run(
 }
 
 export function parseDionysusCompletionMarker(text: string): Record<string, unknown> | null {
-  const match = COMPLETION_MARKER_PATTERN.exec(text);
-  if (!match) return null;
+  const payload = findCompletionMarkerPayload(text);
+  if (!payload) return null;
   try {
-    const parsed = JSON.parse(match[1]) as Record<string, unknown>;
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
     const status = parsed.status;
     if (status !== "done") return null;
     return parsed;
   } catch {
     return null;
   }
+}
+
+function findCompletionMarkerPayload(text: string): string | null {
+  for (const line of text.split(/\r?\n/)) {
+    const normalized = stripMarkdownLineWrapper(line);
+    const match = COMPLETION_MARKER_PATTERN.exec(normalized);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function stripMarkdownLineWrapper(line: string): string {
+  return line
+    .trim()
+    .replace(/^(?:[*_`~]{1,3})+/, "")
+    .replace(/(?:[*_`~]{1,3})+$/, "")
+    .trim();
 }
 
 function completionGraceMs(): number {

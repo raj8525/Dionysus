@@ -117,6 +117,8 @@ DIONYSUS_DONE_JSON={"status":"done","modelCalls":1}
 
 Dionysus CLI Adapter 会在 stdout/stderr 中检测该标记；一旦检测到，会等待短暂 grace period 后主动终止 CLI 进程组，并把本次 run 视为正常完成。这样可以避免 OpenCode / MiniMax 已经输出最终报告却继续停留在“是否继续”的会话状态，拖慢后续 task review、ReviewerCLI 和 Codex E2E。
 
+Agent 仍必须按上面的精确文本输出最终行，不要主动加 Markdown；但 Runtime 必须容忍常见 CLI 把最终行渲染成 `**DIONYSUS_DONE_JSON=...**`、`` `DIONYSUS_DONE_JSON=...` `` 等整行包裹形式，避免真实 CLI 已完成却因格式包装无法收口。
+
 `modelCalls` 会同时作为模型调用计数回执；旧的 `DIONYSUS_USAGE_JSON` 仍兼容，但新任务优先使用 `DIONYSUS_DONE_JSON`。
 
 `e2e run-campaign` 有两种模式：

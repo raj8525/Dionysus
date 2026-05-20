@@ -416,7 +416,7 @@ GET /api/usage/agent-cli?targetRoot=/Volumes/MacMiniSSD/code/Coupon
 
 新 run 创建时必须在同一数据库事务中 claim 一个对应角色的 enabled Agent 实例：优先选择 `idle` 且最久未更新的 Agent；没有 idle Agent 时才使用非 disabled 的 fallback。claim 成功后必须写入 `task_runs.agent_id`，并把 Agent 状态置为 `working`。run 完成、取消、Watchdog 重试或阻断后，如果该 Agent 没有其他 running run，必须释放回 `idle`。
 
-`modelCalls` 的口径必须优先读取 PostgreSQL `task_runs.model_call_count`。如果 CLI 输出包含形如 `DIONYSUS_USAGE_JSON={"modelCalls":3}` 的 usage 回执，Agent Runtime 必须把它持久化到 `task_runs.model_call_count` 与 `task_runs.model_usage_json`，前端和 CLI 统计使用该真实值。缺少 usage 回执时，Dionysus 才回退为估算：非 `mock` 的 CLI run 按 1 次模型调用计，`mock` 按 0 次计。
+`modelCalls` 的口径必须优先读取 PostgreSQL `task_runs.model_call_count`。如果 CLI 输出包含形如 `DIONYSUS_USAGE_JSON={"modelCalls":3}` 或 `DIONYSUS_DONE_JSON={"status":"done","modelCalls":3}` 的回执，Agent Runtime 必须把它持久化到 `task_runs.model_call_count` 与 `task_runs.model_usage_json`，前端和 CLI 统计使用该真实值。真实 Agent 仍必须输出精确 marker 行；Runtime 额外容忍常见 Markdown 整行包裹，例如 `**DIONYSUS_DONE_JSON=...**`，防止 OpenCode/MiniMax 把最终标记加粗后导致模型调用统计缺失或 CLI 进程无法及时收口。缺少 usage 回执时，Dionysus 才回退为估算：非 `mock` 的 CLI run 按 1 次模型调用计，`mock` 按 0 次计。
 
 `/api/runs/:id/logs` 用于 Codex 和 Dashboard 读取某次 Agent run 的完整 stdout/stderr 分片。Agent Runtime 必须在 CLI 进程运行中流式写入日志，不能等进程结束后才批量写入。`/api/runs` 只返回预览，不能作为诊断 Agent 卡死、超时或输出不合格的唯一证据。
 
