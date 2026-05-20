@@ -2,6 +2,39 @@
 
 本文件用于保存上下文压缩前的交接记录、重要决策和当前进度。未来会话继续开发 Dionysus 前，应先阅读 `AGENTS.md`，再阅读本文件的最新记录。
 
+## 2026-05-20 system audit 陈旧未关闭目标门禁
+
+### 背景
+
+- Dionysus 过去积累了多个早期 smoke / 试运行目标，状态长期停留在 `created` 或 `fast_lane`。
+- 这些陈旧 open goal 会污染 active-goal usage 统计、Dashboard 判断和 Codex 继续派工前的系统健康判断。
+- 单纯依赖 `doctor` 或 CLI usage 正常，会让 Codex 忽略这些旧目标，继续在不清晰的目标状态上派发 Worker。
+
+### 已实现
+
+- `tools/dionysus-system-audit.ts`
+  - `buildSystemAuditSummary` 新增 `openGoals`、`now`、`staleOpenGoalHours` 输入。
+  - 对同一 `targetRoot` 下超过 24 小时仍未进入 `done` / `failed` / `cancelled` 的目标生成 `staleOpenGoals` evidence。
+  - 发现陈旧未关闭目标时，audit 返回 `needs_attention`，并给出 `goal list` 和首个 `goal cancel` 收口命令。
+- `tools/dionysus.ts`
+  - `system audit` 会拉取 `/api/goals?limit=100`，把目标列表传给 audit summary。
+- `tools/dionysus-system-audit.test.ts`
+  - 新增测试覆盖 stale open goals 对 active-goal tracking 的污染风险。
+- `AGENTS.md`、`docs/specs/api.md`
+  - 更新 `system audit` 契约，明确 audit 需要合并目标项目未关闭 goal，并暴露 `staleOpenGoals`。
+
+### 已验证
+
+- `pnpm exec vitest run tools/dionysus-system-audit.test.ts`：1 个测试文件，8 个测试通过。
+- `pnpm typecheck`：通过。
+- `pnpm test`：53 个测试文件，272 个测试通过。
+
+### 下一步
+
+- 提交并推送本轮 Dionysus 改动。
+- 重启 Dionysus runtime，确保 API / Worker 运行当前 commit。
+- 对 `/Volumes/MacMiniSSD/code/Coupon` 运行 `system audit`，关闭已识别的陈旧 Coupon goal，然后复验 audit 是否回到 `ready` 或只剩真实当前风险。
+
 ## 2026-05-18 runtime heal 旧 commit 自愈修复
 
 ### 背景

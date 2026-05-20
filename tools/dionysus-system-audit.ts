@@ -23,6 +23,15 @@ export interface SystemAuditUsage {
   byCli?: SystemAuditUsageBucket[];
 }
 
+export interface SystemAuditGoal {
+  id: string;
+  title?: string;
+  targetRoot?: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SystemAuditSummary {
   status: "ready" | "needs_attention" | "blocked";
   targetRoot: string;
@@ -36,6 +45,7 @@ export interface SystemAuditSummary {
     usage?: SystemAuditUsage;
     pendingCodexOutboxCount: number;
     pendingCodexOutbox: Array<Record<string, unknown>>;
+    staleOpenGoals: SystemAuditGoal[];
     goalStatus?: Record<string, unknown>;
   };
 }
@@ -45,9 +55,18 @@ export function buildSystemAuditSummary(input: {
   readiness: CodexReadinessSummary;
   usage?: SystemAuditUsage;
   pendingCodexOutbox?: Array<Record<string, unknown>>;
+  openGoals?: SystemAuditGoal[];
+  now?: string;
+  staleOpenGoalHours?: number;
   goalStatus?: Record<string, unknown>;
 }): SystemAuditSummary {
   const pendingCodexOutbox = input.pendingCodexOutbox ?? [];
+  const staleOpenGoals = findStaleOpenGoals({
+    goals: input.openGoals ?? [],
+    targetRoot: input.targetRoot,
+    now: input.now ?? new Date().toISOString(),
+    staleHours: input.staleOpenGoalHours ?? 24
+  });
   const blockers = [...input.readiness.blockers];
   const warnings: string[] = [];
   const notes: string[] = [];
@@ -70,6 +89,7 @@ export function buildSystemAuditSummary(input: {
         usage: input.usage,
         pendingCodexOutboxCount: pendingCodexOutbox.length,
         pendingCodexOutbox,
+        staleOpenGoals,
         goalStatus: input.goalStatus
       }
     };
@@ -84,6 +104,13 @@ export function buildSystemAuditSummary(input: {
   if (pendingCodexOutbox.length > 0) {
     warnings.push(`存在 ${pendingCodexOutbox.length} 个 pending Codex Outbox 事件，需要 Codex 处理或 ack`);
     nextCommands.add("cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus codex heartbeat --limit 5");
+  }
+  if (staleOpenGoals.length > 0) {
+    warnings.push(`存在 ${staleOpenGoals.length} 个陈旧未关闭目标，会污染 active-goal 统计和 Dashboard 判断`);
+    nextCommands.add("cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus goal list --limit 100");
+    nextCommands.add(
+      `cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus goal cancel --goal-id ${staleOpenGoals[0]?.id} --reason "stale open goal cleanup"`
+    );
   }
 
   if (!input.usage || cliCalls === 0) {
@@ -155,6 +182,7 @@ export function buildSystemAuditSummary(input: {
       usage: input.usage,
       pendingCodexOutboxCount: pendingCodexOutbox.length,
       pendingCodexOutbox,
+      staleOpenGoals,
       goalStatus: input.goalStatus
     }
   };
@@ -163,6 +191,9 @@ export function buildSystemAuditSummary(input: {
 function buildAttentionAction(warnings: string[]): string {
   if (warnings.some((warning) => warning.includes("Codex Outbox"))) {
     return "先处理 Codex Outbox 中等待人类级裁决的事项，再继续派发或验收任务。";
+  }
+  if (warnings.some((warning) => warning.includes("陈旧未关闭目标"))) {
+    return "先关闭或明确保留陈旧未关闭目标，避免历史 smoke / 废弃宽目标污染 active-goal 统计和 Dashboard 判断。";
   }
   if (warnings.some((warning) => warning.includes("失败率偏高"))) {
     return "先查看高失败角色最近运行日志，必要时调整 prompt、CLI 模型或由 Codex 接手该任务。";
@@ -175,6 +206,27 @@ function buildAttentionAction(warnings: string[]): string {
 
 function buildUsageCommand(targetRoot: string): string {
   return `cd /Volumes/MacMiniSSD/code/Dionysus && pnpm -s dionysus agent usage --target-root ${JSON.stringify(targetRoot)}`;
+}
+
+function findStaleOpenGoals(input: {
+  goals: SystemAuditGoal[];
+  targetRoot: string;
+  now: string;
+  staleHours: number;
+}): SystemAuditGoal[] {
+  const now = Date.parse(input.now);
+  if (!Number.isFinite(now)) return [];
+  const staleMs = input.staleHours * 60 * 60 * 1000;
+  return input.goals.filter((goal) => {
+    if (goal.targetRoot && goal.targetRoot !== input.targetRoot) return false;
+    if (isClosedGoalStatus(goal.status)) return false;
+    const reference = Date.parse(goal.updatedAt ?? goal.createdAt ?? "");
+    return Number.isFinite(reference) && now - reference >= staleMs;
+  });
+}
+
+function isClosedGoalStatus(status: string): boolean {
+  return status === "done" || status === "failed" || status === "cancelled";
 }
 
 function isRecoveredBucket(bucket?: SystemAuditUsageBucket): boolean {

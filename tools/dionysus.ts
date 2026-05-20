@@ -93,9 +93,10 @@ async function main(): Promise<void> {
     if (goalId) usageParams.set("goalId", goalId);
     const usageQuery = usageParams.toString();
     await request("/api/codex/outbox/reconcile", "POST").catch(() => undefined);
-    const [usage, pendingCodexOutbox, goalStatus] = await Promise.all([
+    const [usage, pendingCodexOutbox, openGoals, goalStatus] = await Promise.all([
       request(`/api/usage/agent-cli?${usageQuery}`) as Promise<Record<string, unknown>>,
       request("/api/codex/outbox?status=pending&limit=20") as Promise<Array<Record<string, unknown>>>,
+      request("/api/goals?limit=100") as Promise<Array<Record<string, unknown>>>,
       goalId
         ? request(`/api/goals/${goalId}/status`) as Promise<Record<string, unknown>>
         : Promise.resolve(undefined)
@@ -105,6 +106,14 @@ async function main(): Promise<void> {
       readiness,
       usage,
       pendingCodexOutbox,
+      openGoals: openGoals.map((goal) => ({
+        id: String(goal.id),
+        title: typeof goal.title === "string" ? goal.title : undefined,
+        targetRoot: typeof goal.targetRoot === "string" ? goal.targetRoot : undefined,
+        status: String(goal.status),
+        createdAt: typeof goal.createdAt === "string" ? goal.createdAt : undefined,
+        updatedAt: typeof goal.updatedAt === "string" ? goal.updatedAt : undefined
+      })),
       goalStatus
     }));
   }

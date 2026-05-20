@@ -217,6 +217,46 @@ describe("Dionysus system audit summary", () => {
     expect(summary.nextAction).toContain("可以启动或继续一个完整模块");
   });
 
+  it("requires attention when stale open goals can pollute active-goal tracking", () => {
+    const summary = buildSystemAuditSummary({
+      targetRoot: "/repo/Coupon",
+      now: "2026-05-20T10:00:00.000Z",
+      readiness: readyReadiness(),
+      usage: {
+        activeGoalRunTracking: true,
+        totals: { cliCalls: 24, modelCalls: 24, runningCalls: 0, succeededCalls: 24, failedCalls: 0 },
+        byCli: [{ cliType: "opencode", cliCalls: 24, modelCalls: 24, failedCalls: 0 }],
+        byAgent: [{ role: "worker", cliCalls: 24, modelCalls: 24, succeededCalls: 24, failedCalls: 0 }]
+      },
+      openGoals: [
+        {
+          id: "old-smoke",
+          title: "Role Queue Smoke",
+          status: "created",
+          targetRoot: "/repo/Coupon",
+          createdAt: "2026-05-16T08:32:02.000Z",
+          updatedAt: "2026-05-16T08:32:02.000Z"
+        },
+        {
+          id: "recent-fast-lane",
+          title: "当前模块",
+          status: "fast_lane",
+          targetRoot: "/repo/Coupon",
+          createdAt: "2026-05-20T09:50:00.000Z",
+          updatedAt: "2026-05-20T09:50:00.000Z"
+        }
+      ],
+      pendingCodexOutbox: []
+    });
+
+    expect(summary.status).toBe("needs_attention");
+    expect(summary.warnings).toContain("存在 1 个陈旧未关闭目标，会污染 active-goal 统计和 Dashboard 判断");
+    expect(summary.evidence.staleOpenGoals).toEqual([
+      expect.objectContaining({ id: "old-smoke", title: "Role Queue Smoke" })
+    ]);
+    expect(summary.nextCommands.join("\n")).toContain("pnpm -s dionysus goal cancel --goal-id old-smoke");
+  });
+
   it("is ready when runtime, target project, real CLI usage, and Codex outbox are clean", () => {
     const summary = buildSystemAuditSummary({
       targetRoot: "/repo/Coupon",
