@@ -182,11 +182,18 @@ const systemEventCreateSchema = z.object({
   payload: z.record(z.string(), z.unknown()).default({})
 });
 
-export async function buildServer() {
-  const dbConfig = loadDatabaseConfig();
-  const pool = createPool(dbConfig);
-  const repo = new DionysusRepository(pool, dbConfig.schema);
-  const app = Fastify({ logger: true });
+export interface BuildServerOptions {
+  repo?: DionysusRepository;
+  publishJson?: typeof publishJson;
+  logger?: boolean;
+}
+
+export async function buildServer(options: BuildServerOptions = {}) {
+  const dbConfig = options.repo ? null : loadDatabaseConfig();
+  const pool: ReturnType<typeof createPool> | null = dbConfig ? createPool(dbConfig) : null;
+  const repo = options.repo ?? new DionysusRepository(pool as ReturnType<typeof createPool>, dbConfig?.schema ?? "dionysus");
+  const publish = options.publishJson ?? publishJson;
+  const app = Fastify({ logger: options.logger ?? true });
 
   await app.register(cors, {
     origin: true,
@@ -194,7 +201,7 @@ export async function buildServer() {
   });
 
   app.addHook("onClose", async () => {
-    await pool.end();
+    await pool?.end();
   });
 
   app.get("/health", async () => {
@@ -432,7 +439,7 @@ export async function buildServer() {
           reason: decision.reason,
           nextAttempt: decision.nextAttempt
         });
-        await publishJson(queueForRole(task.roleRequired), {
+        await publish(queueForRole(task.roleRequired), {
           message_id: randomUUID(),
           goal_id: task.goalId,
           task_id: task.id,
@@ -568,7 +575,7 @@ export async function buildServer() {
       }
       await attachReportOnlyReviewerEvidenceIfNeeded(repo, { task, goalTasks });
       await repo.markTaskQueued(task.id);
-      await publishJson(queueForRole(parsed.data.roleRequired), {
+      await publish(queueForRole(parsed.data.roleRequired), {
         message_id: randomUUID(),
         goal_id: parsed.data.goalId,
         task_id: task.id,
@@ -623,7 +630,7 @@ export async function buildServer() {
     }
     await attachReportOnlyReviewerEvidenceIfNeeded(repo, { task, goalTasks });
     await repo.markTaskQueued(id);
-    await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
+    await publish(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
       message_id: randomUUID(),
       goal_id: String(task.goal_id),
       task_id: id,
@@ -755,7 +762,7 @@ export async function buildServer() {
         });
       }
       const roleRequired = String(task.role_required);
-      await publishJson(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
+      await publish(queueForRole(roleRequired as "master" | "rule_writer" | "test_writer" | "worker"), {
         message_id: randomUUID(),
         goal_id: String(task.goal_id),
         task_id: id,
@@ -834,7 +841,7 @@ export async function buildServer() {
     const firstMaster = tasks[0];
     if (firstMaster) {
       await repo.markTaskQueued(firstMaster.id);
-      await publishJson(queueForRole("master"), {
+      await publish(queueForRole("master"), {
         message_id: randomUUID(),
         goal_id: id,
         task_id: firstMaster.id,
@@ -888,7 +895,7 @@ export async function buildServer() {
       const firstMaster = createdTasks[0];
       if (firstMaster) {
         await repo.markTaskQueued(firstMaster.id);
-        await publishJson(queueForRole("master"), {
+        await publish(queueForRole("master"), {
           message_id: randomUUID(),
           goal_id: id,
           task_id: firstMaster.id,
@@ -923,7 +930,7 @@ export async function buildServer() {
       });
       const integrationPublished = git.clean;
       if (integrationPublished) {
-        await publishJson("dionysus.integration", {
+        await publish("dionysus.integration", {
           message_id: randomUUID(),
           goal_id: id,
           task_id: task.id,
@@ -947,7 +954,7 @@ export async function buildServer() {
 
     if (decision.action === "release_queued_integrations") {
       for (const integration of queuedIntegrations) {
-        await publishJson("dionysus.integration", {
+        await publish("dionysus.integration", {
           message_id: randomUUID(),
           goal_id: id,
           task_id: integration.taskId,
@@ -1264,7 +1271,7 @@ export async function buildServer() {
     });
     const integrationPublished = git.clean;
     if (integrationPublished) {
-      await publishJson("dionysus.integration", {
+      await publish("dionysus.integration", {
         message_id: randomUUID(),
         goal_id: id,
         task_id: task.id,
@@ -1337,7 +1344,7 @@ export async function buildServer() {
       };
     }
     for (const integration of queued) {
-      await publishJson("dionysus.integration", {
+      await publish("dionysus.integration", {
         message_id: randomUUID(),
         goal_id: id,
         task_id: integration.taskId,
@@ -1366,7 +1373,7 @@ export async function buildServer() {
     if (!integration) {
       return reply.code(404).send({ error: "INTEGRATION_NOT_RETRYABLE" });
     }
-    await publishJson("dionysus.integration", {
+    await publish("dionysus.integration", {
       message_id: randomUUID(),
       task_id: integration.taskId,
       goal_id: integration.goalId,

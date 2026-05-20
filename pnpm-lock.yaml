@@ -103,6 +103,9 @@ importers:
       '@dionysus/cli-adapters':
         specifier: workspace:*
         version: link:../cli-adapters
+      '@dionysus/core':
+        specifier: workspace:*
+        version: link:../core
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2
