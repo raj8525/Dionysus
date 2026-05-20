@@ -66,6 +66,6 @@ cancelled
 - Agent run 成功但产生 patch 时，不得立即放行下一优先级 task；必须记录 `dispatch.waiting_for_integration`，等待 integration `passed` 且 patch `applied` 后仍需进入 task review；review approve 后才能 dispatch 下一 task。
 - integration `blocked` 或 `failed` 时必须写入 `codex_outbox` blocker，由 Codex 处理，不能继续放行 Worker。
 - Integration Worker 在自动修改目标项目工作区前必须有至少一条验证命令。若 patch 没有可执行验证命令，必须 `blocked`，并保持目标项目工作区不变，交给 Codex 人工审查和接管。
-- `task codex-complete` 用于 Codex 接手并完成任务时，必须把任务标记为 `done`，并将该任务下仍处于 `running` 的 `task_runs` 收口为 `succeeded`。不得写入 milestone / release 使用的 `passed` 状态，因为 `task_runs.status` 的合法完成状态是 `succeeded`。
+- `task codex-complete` 用于 Codex 接手并完成任务时，只允许作用于 `created`、`queued`、`assigned`、`running`、`needs_review`、`blocked`、`failed` 任务；不得复活 `cancelled`，也不得重复完成 `done`。该入口必须把任务标记为 `done`，并将该任务下仍处于 `running` 的 `task_runs` 收口为 `succeeded`。不得写入 milestone / release 使用的 `passed` 状态，因为 `task_runs.status` 的合法完成状态是 `succeeded`。
 - Milestone 不能跳过 `e2e_required` 直接进入 `passed`。
 - Goal 不能跳过 `codex_review` 直接进入 `done`。

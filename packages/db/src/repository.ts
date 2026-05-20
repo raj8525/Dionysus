@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   buildAgentCliUsageSummary,
+  codexCompletableTaskStatuses,
   deriveGoalStatusAfterRelease,
   deriveTaskStatusAfterRunCompletion,
   normalizeAgentCliConfig,
@@ -818,10 +819,10 @@ export class DionysusRepository {
          set status = 'done',
              blocked_reason = null,
              updated_at = now()
-         where id = $1 and status in ('created', 'queued', 'running', 'blocked', 'failed', 'cancelled', 'needs_review')
+         where id = $1 and status = any($2::text[])
          returning id, goal_id, title, description, role_required, assigned_agent_id, status, priority,
                    blocked_reason, current_attempt, max_attempts, created_at, updated_at`,
-        [input.taskId]
+        [input.taskId, [...codexCompletableTaskStatuses]]
       );
       if (!result.rowCount) {
         await client.query("rollback");

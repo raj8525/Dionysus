@@ -616,6 +616,19 @@ Then task 状态必须变为 `blocked`
 And blocker reason 必须保存在 task 上
 And Dionysus 不得放行下一条 task
 
+## 场景 17.1.1：Codex 接手完成不能复活已取消任务
+
+Given 一个 Worker task 已经被 Codex 或 Master 标记为 `cancelled`
+When Codex 执行 `pnpm dionysus task codex-complete --task-id "<task-id>" --reason "..."`
+Then API 必须拒绝该请求
+And task 状态必须保持 `cancelled`
+And Dionysus 不得放行同一 goal 的下一条 created task
+Given 一个 Worker task 处于 `running`、`needs_review`、`blocked` 或 `failed`
+When Codex 执行 `pnpm dionysus task codex-complete --task-id "<task-id>" --reason "Codex接手并完成" --evidence-json '{"commit":"..."}'`
+Then task 状态必须变为 `done`
+And 该 task 下仍处于 `running` 的 run 必须收口为 `succeeded`
+And Dionysus 必须记录 `task.codex_complete` 事件
+
 ## 场景 17.2：成功 run 和 integration 都不能绕过 review
 
 Given 一个 Agent run 成功且没有 patch

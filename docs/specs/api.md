@@ -456,6 +456,7 @@ pnpm dionysus task create --goal-id "<goal-id>" --title "..." --role worker --no
 pnpm dionysus task enqueue --task-id "<task-id>"
 pnpm dionysus task cancel --task-id "<task-id>" --reason "superseded by staged sequence"
 pnpm dionysus task review --task-id "<task-id>" --verdict approve --score 90 --reason "reviewed by Codex"
+pnpm dionysus task codex-complete --task-id "<task-id>" --reason "Codex接手并完成" --evidence-json '{"commit":"..."}'
 ```
 
 `system readiness` 是 fast lane 的硬门禁。除 Runtime、CLI、目标 Git 状态、`docs/PLAN.md`、`docs/specs/`、`features_test/` 外，它还必须检查目标根目录 `MEMORY.md` 存在，并且目标 `AGENTS.md` 明确提到 `MEMORY.md`。缺失任一项时必须返回 `blocked`，防止上下文压缩后丢失长期交接记录。
@@ -481,6 +482,8 @@ event_type = reviewer.worker_reports_evidence
 `POST /api/tasks/:id/enqueue` 用于重投递已存在的 `created` 或 `queued` 任务。当任务状态已经是 `queued` 但 RabbitMQ 消息因 worker 重启、旧消费者异常或运维操作而丢失时，Codex 必须能使用 `pnpm dionysus task enqueue --task-id "<task-id>"` 重新投递，不需要重建任务。
 
 `POST /api/tasks/:id/cancel` 用于 Codex 或 Master 取消错误排队、过宽、过期或被新任务替代的任务。取消时必须把 task 标记为 `cancelled`，记录 `task.cancelled` 事件，并收口该 task 下仍处于 `running` 的 run。
+
+`POST /api/tasks/:id/codex-complete` 用于 Codex 亲自接手并完成 WorkerCLI 无法可靠完成的任务。该入口只允许 `created`、`queued`、`assigned`、`running`、`needs_review`、`blocked`、`failed` 任务进入 `done`；不得把 `cancelled` 任务复活，也不得重复完成已经 `done` 的任务。它必须记录 `task.codex_complete` 事件、把该 task 下仍处于 `running` 的 run 收口为 `succeeded`，并触发与 `task review approve` 相同的后续安全分发。
 
 `POST /api/tasks/:id/review` 是 Codex 或 Master 对 Agent 产物的正式评审入口，只允许评审状态为 `needs_review` 的任务。`verdict=approve` 必须将任务标记为 `done`，然后查找同一 goal 中下一条 `created` task 并投递到对应角色队列；`verdict=reject` 必须将任务退回 `queued` 并重新投递当前任务到 `role_required` 对应队列；`verdict=block` 必须将任务标记为 `blocked` 并写入 `blocked_reason`。每次 review 都必须记录 `task.review_approve`、`task.review_reject` 或 `task.review_block` 事件；approve 放行后还必须记录 `review.dispatch_next_task` 或 `review.no_next_task`；任务不在 `needs_review` 时必须返回 `409 TASK_NOT_REVIEWABLE`。
 

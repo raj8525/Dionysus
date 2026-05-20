@@ -3,6 +3,7 @@ import {
   assertGoalTransition,
   assertMilestoneTransition,
   assertTaskTransition,
+  canCodexCompleteTaskStatus,
   deriveTaskStatusAfterRunCompletion,
   taskRunStatusForCodexCompletion
 } from "./state-machine.js";
@@ -55,5 +56,16 @@ describe("Dionysus state machines", () => {
 
   it("uses the task_runs completion status vocabulary for Codex handoff", () => {
     expect(taskRunStatusForCodexCompletion()).toBe("succeeded");
+  });
+
+  it("allows Codex takeover only for active or repairable task states", () => {
+    expect(canCodexCompleteTaskStatus("created")).toBe(true);
+    expect(canCodexCompleteTaskStatus("assigned")).toBe(true);
+    expect(canCodexCompleteTaskStatus("running")).toBe(true);
+    expect(canCodexCompleteTaskStatus("needs_review")).toBe(true);
+    expect(canCodexCompleteTaskStatus("blocked")).toBe(true);
+    expect(canCodexCompleteTaskStatus("failed")).toBe(true);
+    expect(canCodexCompleteTaskStatus("done")).toBe(false);
+    expect(canCodexCompleteTaskStatus("cancelled")).toBe(false);
   });
 });

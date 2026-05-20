@@ -81,6 +81,20 @@ export function taskRunStatusForCodexCompletion(): "succeeded" {
   return "succeeded";
 }
 
+export const codexCompletableTaskStatuses = [
+  "created",
+  "queued",
+  "assigned",
+  "running",
+  "needs_review",
+  "blocked",
+  "failed"
+] as const satisfies readonly TaskStatus[];
+
+export function canCodexCompleteTaskStatus(status: TaskStatus): boolean {
+  return codexCompletableTaskStatuses.includes(status as (typeof codexCompletableTaskStatuses)[number]);
+}
+
 function assertTransition<T extends string>(
   entity: string,
   transitions: Record<T, T[]>,
