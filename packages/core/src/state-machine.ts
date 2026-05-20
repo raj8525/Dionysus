@@ -77,6 +77,10 @@ export function deriveTaskStatusAfterRunCompletion(input: {
   return input.exitCode === 0 ? "needs_review" : "failed";
 }
 
+export function taskRunStatusForCodexCompletion(): "succeeded" {
+  return "succeeded";
+}
+
 function assertTransition<T extends string>(
   entity: string,
   transitions: Record<T, T[]>,

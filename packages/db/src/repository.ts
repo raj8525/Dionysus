@@ -7,7 +7,8 @@ import {
   selectAgentForRun,
   shouldCloseOutstandingWorkAfterRelease,
   shouldReconcileCodexOutboxForGoalStatus,
-  shouldReconcileCodexOutboxForTaskStatus
+  shouldReconcileCodexOutboxForTaskStatus,
+  taskRunStatusForCodexCompletion
 } from "@dionysus/core";
 import type {
   AgentCliConfig,
@@ -828,12 +829,12 @@ export class DionysusRepository {
       }
       await client.query(
         `update ${this.table("task_runs")}
-         set status = 'passed',
+         set status = $2,
              exit_code = coalesce(exit_code, 0),
              finished_at = coalesce(finished_at, now())
          where task_id = $1 and status = 'running'
          returning agent_id`,
-        [input.taskId]
+        [input.taskId, taskRunStatusForCodexCompletion()]
       ).then((runUpdate) => this.releaseAgentsIfIdle(client, collectAgentIds(runUpdate.rows)));
       await client.query(
         `insert into ${this.table("task_events")} (id, task_id, event_type, payload_json)

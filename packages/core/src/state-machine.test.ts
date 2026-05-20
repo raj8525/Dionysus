@@ -3,7 +3,8 @@ import {
   assertGoalTransition,
   assertMilestoneTransition,
   assertTaskTransition,
-  deriveTaskStatusAfterRunCompletion
+  deriveTaskStatusAfterRunCompletion,
+  taskRunStatusForCodexCompletion
 } from "./state-machine.js";
 
 describe("Dionysus state machines", () => {
@@ -50,5 +51,9 @@ describe("Dionysus state machines", () => {
       currentStatus: "running",
       exitCode: 124
     })).toBe("failed");
+  });
+
+  it("uses the task_runs completion status vocabulary for Codex handoff", () => {
+    expect(taskRunStatusForCodexCompletion()).toBe("succeeded");
   });
 });
