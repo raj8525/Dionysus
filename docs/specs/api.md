@@ -440,6 +440,7 @@ Codex CLI 必须覆盖完整 goal 生命周期入口，不能要求 Codex 手写
 
 ```text
 pnpm dionysus system readiness --target-root "<target-root>"
+pnpm dionysus system audit --target-root "<target-root>" [--goal-id "<goal-id>"]
 pnpm dionysus system worker start
 pnpm dionysus goal intake --goal-id "<goal-id>"
 pnpm dionysus goal bootstrap --goal-id "<goal-id>"
@@ -458,6 +459,8 @@ pnpm dionysus task review --task-id "<task-id>" --verdict approve --score 90 --r
 ```
 
 `system readiness` 是 fast lane 的硬门禁。除 Runtime、CLI、目标 Git 状态、`docs/PLAN.md`、`docs/specs/`、`features_test/` 外，它还必须检查目标根目录 `MEMORY.md` 存在，并且目标 `AGENTS.md` 明确提到 `MEMORY.md`。缺失任一项时必须返回 `blocked`，防止上下文压缩后丢失长期交接记录。
+
+`system audit` 是 Codex 的高层运行判断入口。它必须合并 `system readiness`、`agent usage`、pending `codex_outbox` 和可选 goal 聚合状态，返回 `ready` / `needs_attention` / `blocked`、`blockers`、`warnings`、`nextAction`、`nextCommands` 和 evidence。`readiness.blocked` 必须直接阻断派工；pending outbox、真实模型调用证据缺失、运行中调用、高失败率角色必须进入 `needs_attention`，由 Codex 先处理风险再扩大并发。
 
 `task review` 请求体支持 `score`。普通 Worker 任务可由 Codex 直接 approve；`FastLane Reviewer` 任务执行 90 分质量门禁，`approve` 必须携带 `score >= 90`。缺少 `score` 或 `score < 90` 时 API 必须返回 `409 REVIEWER_SCORE_GATE_BLOCKED`，要求 Codex 改用 `--verdict reject` 并把具体修复项交回 WorkerCLI。
 

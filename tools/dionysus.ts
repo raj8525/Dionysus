@@ -19,6 +19,7 @@ import { assertReadyForFastLaneStart, buildCodexReadinessSummary } from "./diony
 import { buildReleaseRecordRequest } from "./dionysus-release-record.js";
 import { buildRuntimeHealPlan, buildRuntimeProcessSpecs, getRuntimeStatus, startRuntime, stopRuntime } from "./dionysus-runtime.js";
 import { summarizeAgentControlStatus } from "./dionysus-agent-status.js";
+import { buildSystemAuditSummary } from "./dionysus-system-audit.js";
 import {
   buildSupervisionAgentStatus,
   buildSupervisionStepRecord,
@@ -80,6 +81,32 @@ async function main(): Promise<void> {
   if (domain === "system" && action === "readiness") {
     const targetRoot = requiredFlag(args, "--target-root");
     return print(await collectReadinessSummary(targetRoot, readRepeatedFlag(args, "--allow-dirty-path")));
+  }
+
+  if (domain === "system" && action === "audit") {
+    const targetRoot = requiredFlag(args, "--target-root");
+    const goalId = readFlag(args, "--goal-id");
+    const allowedDirtyPaths = readRepeatedFlag(args, "--allow-dirty-path");
+    const readiness = await collectReadinessSummary(targetRoot, allowedDirtyPaths);
+    const usageParams = new URLSearchParams();
+    usageParams.set("targetRoot", targetRoot);
+    if (goalId) usageParams.set("goalId", goalId);
+    const usageQuery = usageParams.toString();
+    await request("/api/codex/outbox/reconcile", "POST").catch(() => undefined);
+    const [usage, pendingCodexOutbox, goalStatus] = await Promise.all([
+      request(`/api/usage/agent-cli?${usageQuery}`) as Promise<Record<string, unknown>>,
+      request("/api/codex/outbox?status=pending&limit=20") as Promise<Array<Record<string, unknown>>>,
+      goalId
+        ? request(`/api/goals/${goalId}/status`) as Promise<Record<string, unknown>>
+        : Promise.resolve(undefined)
+    ]);
+    return print(buildSystemAuditSummary({
+      targetRoot,
+      readiness,
+      usage,
+      pendingCodexOutbox,
+      goalStatus
+    }));
   }
 
   if (domain === "system" && action === "worker" && args[0] === "start") {
@@ -1043,6 +1070,7 @@ function usage(): void {
   tsx tools/dionysus.ts system doctor
   tsx tools/dionysus.ts system doctor --brief
   tsx tools/dionysus.ts system readiness --target-root "/path/to/project" [--allow-dirty-path "path/to/existing-change"]
+  tsx tools/dionysus.ts system audit --target-root "/path/to/project" [--goal-id "..."] [--allow-dirty-path "path/to/existing-change"]
   tsx tools/dionysus.ts system worker start
   tsx tools/dionysus.ts system runtime heal
   tsx tools/dionysus.ts agent probe

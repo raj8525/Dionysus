@@ -164,6 +164,17 @@ And 输出必须包含 Agent 实例总数、idle 数、working 数、blocked 数
 And 输出必须包含最近 run 中已绑定与未绑定具体 Agent 的数量
 And 如果 running run 没有 `agent_id`，必须把 runtime 标记为 `blocked`
 
+## 场景 6.5.3：Codex CLI 必须给出系统级派工判断
+
+Given Dionysus API 已启动
+When Codex 运行 `pnpm dionysus system audit --target-root "<target-root>"`
+Then CLI 必须合并 readiness、Agent CLI usage、pending Codex outbox 和可选 goal status
+And 输出必须包含 `ready`、`needs_attention` 或 `blocked`
+And readiness blocker 必须使 audit 返回 `blocked`
+And pending Codex outbox 必须使 audit 返回 `needs_attention`
+And 高失败率角色必须使 audit 返回 `needs_attention` 并给出查看 usage 或日志的下一步命令
+And 没有 blocker、没有 warning、且存在真实 CLI / 模型调用证据时，audit 才能返回 `ready`
+
 ## 场景 6.6：真实 CLI Adapter 必须可执行且不会卡死系统
 
 Given Dionysus 已配置 Claude Code、Gemini CLI 或 OpenCode
